@@ -494,6 +494,34 @@
       .toast-wrap { left: 16px; right: 16px; bottom: 16px; }
     }
     @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } .filiaisGrid { grid-template-columns: 1fr; } }
+
+    /* ─── USERS MODAL ─── */
+    .users-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 300px; overflow-y: auto; }
+    .user-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; background: var(--bg);
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+    }
+    .user-info { display: flex; flex-direction: column; gap: 2px; }
+    .user-name { font-size: 14px; font-weight: 700; }
+    .user-meta { font-size: 12px; color: var(--text-2); }
+    .user-actions { display: flex; gap: 6px; }
+    .btn-user-edit { padding: 5px 10px; background: var(--primary-light); color: var(--primary-dark); border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; }
+    .btn-user-del  { padding: 5px 10px; background: var(--danger-light);  color: var(--danger);       border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; }
+    .btn-user-edit:hover { background: var(--primary); color: #fff; }
+    .btn-user-del:hover  { background: var(--danger);  color: #fff; }
+    .btn-add-user {
+      width: 100%; padding: 11px; background: var(--primary-light); color: var(--primary-dark);
+      border: 2px dashed var(--primary); border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 700; cursor: pointer; transition: all .2s;
+    }
+    .btn-add-user:hover { background: var(--primary); color: #fff; }
+    .btn-users {
+      padding: 9px 16px; background: #0ea5e9; color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity .2s;
+    }
+    .btn-users:hover { opacity: .85; }
   </style>
 </head>
 <body>
@@ -537,7 +565,10 @@
         <div class="sec-title">Selecione uma Filial</div>
         <div class="sec-sub">Clique em "Entrar" para acessar o estoque da filial</div>
       </div>
-      <button class="btn-nova-filial" id="btnNovaFilial" style="display:none" onclick="openFilialModal(null)">＋ Nova Filial</button>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn-users" id="btnGerenciarUsers" style="display:none" onclick="openUsersModal()">👥 Usuários</button>
+        <button class="btn-nova-filial" id="btnNovaFilial" style="display:none" onclick="openFilialModal(null)">＋ Nova Filial</button>
+      </div>
     </div>
     <div class="filiaisGrid" id="filiaisGrid"></div>
     <div class="empty-state" id="filiaisEmpty" style="display:none">
@@ -725,6 +756,53 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — USUÁRIOS (admin) ══════════ -->
+<div class="overlay" id="usersModal" onclick="overlayClick(event,'usersModal')">
+  <div class="modal wide">
+    <div class="modal-hd">
+      <span class="modal-title edit">👥 Gerenciar Operadores</span>
+      <button class="btn-x" onclick="closeOverlay('usersModal')">✕</button>
+    </div>
+    <div class="modal-body" id="usersModalBody"></div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — FORM OPERADOR (admin) ══════════ -->
+<div class="overlay" id="userFormModal" onclick="overlayClick(event,'userFormModal')">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title edit" id="userFormTitle">Novo Operador</span>
+      <button class="btn-x" onclick="closeOverlay('userFormModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="modal-label" for="uName">Nome *</label>
+        <input class="modal-input" type="text" id="uName" placeholder="Nome do operador">
+      </div>
+      <div class="field">
+        <label class="modal-label" for="uUsername">Usuário (login) *</label>
+        <input class="modal-input" type="text" id="uUsername" placeholder="ex: joao.silva">
+        <div class="field-err" id="uUsernameErr">Este usuário já existe.</div>
+      </div>
+      <div class="field">
+        <label class="modal-label" for="uPassword">Senha *</label>
+        <input class="modal-input" type="password" id="uPassword" placeholder="senha de acesso">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="modal-label" for="uFilial">Filial Atribuída *</label>
+        <select class="modal-input" id="uFilial">
+          <option value="">Selecione uma filial...</option>
+        </select>
+        <div class="field-err" id="uFilialErr">Selecione uma filial para este operador.</div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('userFormModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="saveUserForm()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
@@ -745,10 +823,7 @@ const db = firebase.firestore();
 /* ══════════════════════════════════════════
    DATA
 ══════════════════════════════════════════ */
-const USERS = [
-  { username: 'admin',    password: '1234', name: 'Administrador', role: 'admin' },
-  { username: 'operador', password: '4321', name: 'Operador',      role: 'op'    },
-];
+// Usuários gerenciados no Firestore (coleção 'usuarios')
 
 const DEFAULT_PRODUCTS = [
   { id:  1, name: 'Café em Grão',       category: 'Alimentos',  emoji: '☕', unit: 'kg',     qty: 50,  custo: 0, venda: 0 },
@@ -865,12 +940,30 @@ function setupFiliaisListener() {
 /* ══════════════════════════════════════════
    AUTH
 ══════════════════════════════════════════ */
-function startSession(found) {
-  user = found;
-  localStorage.setItem('sp_session', found.username);
+function startSession(userData) {
+  user = userData;
+  localStorage.setItem('sp_session', userData.username);
   document.getElementById('loginErr').style.display = 'none';
   document.getElementById('loginPage').style.display = 'none';
-  showFilialPage();
+  if (user.role === 'op' && user.filialId) {
+    directEnterFilial(user.filialId);
+  } else {
+    showFilialPage();
+  }
+}
+
+async function directEnterFilial(filialId) {
+  try {
+    const snap = await db.collection('lojas').doc(filialId).get();
+    if (snap.exists) {
+      filiais = [snap.data()];
+      enterFilial(filialId);
+    } else {
+      showFilialPage();
+    }
+  } catch(e) {
+    showFilialPage();
+  }
 }
 
 function showFilialPage() {
@@ -882,6 +975,7 @@ function showFilialPage() {
   badge.className = 'role-badge ' + user.role;
   document.getElementById('filialHeaderUser').textContent = '👤 ' + user.name;
   document.getElementById('btnNovaFilial').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnGerenciarUsers').style.display = user.role === 'admin' ? '' : 'none';
   setupFiliaisListener();
 }
 
@@ -898,6 +992,7 @@ function enterFilial(filialId) {
   badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
   badge.className = 'role-badge ' + user.role;
   document.getElementById('headerUser').textContent = '👤 ' + user.name;
+  document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
   photos = {};
   setupRealtimeListeners();
 }
@@ -956,18 +1051,130 @@ function switchFilial(filialId) {
   toast('📍 ' + f.nome, 'info');
 }
 
-function doLogin() {
+/* ══════════════════════════════════════════
+   USER MANAGEMENT (admin only)
+══════════════════════════════════════════ */
+let editUserId = null;
+
+async function openUsersModal() {
+  document.getElementById('usersModalBody').innerHTML =
+    '<div style="text-align:center;padding:24px;color:var(--text-2)">Carregando...</div>';
+  document.getElementById('usersModal').classList.add('on');
+  const snap = await db.collection('usuarios').get();
+  const ops = snap.docs.map(d => d.data()).filter(u => u.role !== 'admin');
+  const items = ops.length ? ops.map(u => {
+    const filialNome = filiais.find(f => f.id === u.filialId)?.nome || '⚠️ Sem filial';
+    return `<div class="user-item">
+      <div class="user-info">
+        <div class="user-name">👤 ${u.name}</div>
+        <div class="user-meta">@${u.username} · ${filialNome}</div>
+      </div>
+      <div class="user-actions">
+        <button class="btn-user-edit" onclick="openUserForm('${u.id}')">✏️ Editar</button>
+        <button class="btn-user-del"  onclick="deleteUser('${u.id}','${u.name}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('') : '<div style="text-align:center;padding:20px;color:var(--text-2)">Nenhum operador cadastrado.</div>';
+  document.getElementById('usersModalBody').innerHTML =
+    `<div class="users-list">${items}</div>
+     <button class="btn-add-user" onclick="openUserForm(null)">＋ Adicionar Operador</button>`;
+}
+
+function openUserForm(userId) {
+  editUserId = userId;
+  document.getElementById('userFormTitle').textContent = userId ? 'Editar Operador' : 'Novo Operador';
+  document.getElementById('uUsernameErr').style.display = 'none';
+  document.getElementById('uFilialErr').style.display = 'none';
+  const sel = document.getElementById('uFilial');
+  sel.innerHTML = '<option value="">Selecione uma filial...</option>' +
+    filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  if (userId) {
+    db.collection('usuarios').doc(userId).get().then(doc => {
+      const u = doc.data();
+      document.getElementById('uName').value     = u.name;
+      document.getElementById('uUsername').value = u.username;
+      document.getElementById('uPassword').value = u.password || '';
+      document.getElementById('uFilial').value   = u.filialId || '';
+      document.getElementById('uUsername').dataset.original = u.username;
+      document.getElementById('userFormModal').classList.add('on');
+    });
+  } else {
+    document.getElementById('uName').value     = '';
+    document.getElementById('uUsername').value = '';
+    document.getElementById('uPassword').value = '';
+    document.getElementById('uFilial').value   = '';
+    document.getElementById('uUsername').dataset.original = '';
+    document.getElementById('userFormModal').classList.add('on');
+  }
+}
+
+async function saveUserForm() {
+  const name     = document.getElementById('uName').value.trim();
+  const username = document.getElementById('uUsername').value.trim().toLowerCase();
+  const password = document.getElementById('uPassword').value;
+  const filialId = document.getElementById('uFilial').value;
+  let valid = true;
+  if (!filialId) { document.getElementById('uFilialErr').style.display = 'block'; valid = false; }
+  else           { document.getElementById('uFilialErr').style.display = 'none'; }
+  if (!name || !username || !password) { valid = false; }
+  if (!valid) return;
+  // Verificar username único
+  const original = document.getElementById('uUsername').dataset.original;
+  if (username !== original) {
+    const check = await db.collection('usuarios').where('username','==',username).limit(1).get();
+    if (!check.empty) {
+      document.getElementById('uUsernameErr').style.display = 'block';
+      return;
+    }
+  }
+  document.getElementById('uUsernameErr').style.display = 'none';
+  const id = editUserId || db.collection('usuarios').doc().id;
+  await db.collection('usuarios').doc(id).set({ id, name, username, password, role:'op', filialId });
+  closeOverlay('userFormModal');
+  toast(editUserId ? '✅ Operador atualizado.' : '✅ Operador criado.', 'success');
+  openUsersModal();
+}
+
+async function deleteUser(userId, userName) {
+  if (!confirm(`Excluir o operador "${userName}"?`)) return;
+  await db.collection('usuarios').doc(userId).delete();
+  toast('🗑 Operador removido.', 'info');
+  openUsersModal();
+}
+
+async function doLogin() {
   const u = document.getElementById('lu').value.trim();
   const p = document.getElementById('lp').value;
-  const found = USERS.find(x => x.username === u && x.password === p);
-  if (found) {
-    startSession(found);
-  } else {
-    const e = document.getElementById('loginErr');
-    e.style.display = 'block';
-    document.getElementById('lp').value = '';
-    document.getElementById('lp').focus();
+  try {
+    let snap = await db.collection('usuarios').where('username','==',u).where('password','==',p).limit(1).get();
+    if (snap.empty) {
+      // Seed usuários padrão se coleção vazia
+      const all = await db.collection('usuarios').limit(1).get();
+      if (all.empty) {
+        await seedUsers();
+        snap = await db.collection('usuarios').where('username','==',u).where('password','==',p).limit(1).get();
+      }
+    }
+    if (!snap.empty) {
+      startSession(snap.docs[0].data());
+    } else {
+      document.getElementById('loginErr').style.display = 'block';
+      document.getElementById('lp').value = '';
+      document.getElementById('lp').focus();
+    }
+  } catch(e) {
+    console.error(e);
+    document.getElementById('loginErr').style.display = 'block';
   }
+}
+
+async function seedUsers() {
+  const batch = db.batch();
+  batch.set(db.collection('usuarios').doc('admin'),
+    { id:'admin', username:'admin', password:'1234', name:'Administrador', role:'admin' });
+  batch.set(db.collection('usuarios').doc('operador'),
+    { id:'operador', username:'operador', password:'4321', name:'Operador', role:'op', filialId: null });
+  await batch.commit();
 }
 
 function doLogout() {
@@ -983,11 +1190,13 @@ function doLogout() {
 }
 
 // Auto-restore session on page load
-(function restoreSession() {
+(async function restoreSession() {
   const saved = localStorage.getItem('sp_session');
   if (saved) {
-    const found = USERS.find(x => x.username === saved);
-    if (found) startSession(found);
+    try {
+      const snap = await db.collection('usuarios').where('username','==',saved).limit(1).get();
+      if (!snap.empty) startSession(snap.docs[0].data());
+    } catch(e) { console.error(e); }
   }
 })();
 
@@ -999,6 +1208,8 @@ document.addEventListener('keydown', e => {
     closeOverlay('movOverlay');
     closeOverlay('editOverlay');
     closeOverlay('filialModal');
+    closeOverlay('usersModal');
+    closeOverlay('userFormModal');
     closeFilialDropdown();
   }
 });
