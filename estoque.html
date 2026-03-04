@@ -907,7 +907,19 @@
         <div class="sec-title">📋 Histórico de Vendas</div>
         <div class="sec-sub">Todas as vendas registradas nesta filial</div>
       </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="vendasFiltro" onchange="renderVendas()" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
+          <option value="hoje">Hoje</option>
+          <option value="7">Últimos 7 dias</option>
+          <option value="30">Últimos 30 dias</option>
+          <option value="todos">Tudo</option>
+        </select>
+      </div>
     </div>
+
+    <!-- Resumo do período -->
+    <div id="vendasResumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px"></div>
+
     <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:auto">
       <table style="width:100%;border-collapse:collapse">
         <thead>
@@ -1915,13 +1927,48 @@ async function confirmPayment() {
 ══════════════════════════════════════════ */
 function renderVendas() {
   if (!user || user.role !== 'admin') return;
-  const tbody = document.getElementById('vendasBody');
-  if (!vendas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda registrada</td></tr>';
+  const tbody   = document.getElementById('vendasBody');
+  const resumo  = document.getElementById('vendasResumo');
+  const filtro  = document.getElementById('vendasFiltro')?.value || 'hoje';
+  const symb    = { USD: '$', BRL: 'R$ ', PYG: '₲ ' };
+
+  // Filtrar por período
+  const now   = new Date();
+  const today = now.toISOString().slice(0,10);
+  const filtradas = vendas.filter(v => {
+    if (filtro === 'hoje')  return v.ts.slice(0,10) === today;
+    if (filtro === '7')     return new Date(v.ts) >= new Date(now - 7*864e5);
+    if (filtro === '30')    return new Date(v.ts) >= new Date(now - 30*864e5);
+    return true;
+  });
+
+  // Calcular resumo
+  const totalUSD  = filtradas.reduce((s,v) => s + v.totalUSD, 0);
+  const recBRL    = filtradas.filter(v => v.moedaPagamento==='BRL').reduce((s,v) => s + v.valorPago, 0);
+  const recPYG    = filtradas.filter(v => v.moedaPagamento==='PYG').reduce((s,v) => s + v.valorPago, 0);
+  const recUSD    = filtradas.filter(v => v.moedaPagamento==='USD').reduce((s,v) => s + v.valorPago, 0);
+  const trocoTotal = filtradas.reduce((s,v) => s + Math.max(0, v.troco||0), 0);
+
+  const statCard = (icon, label, val, color) =>
+    `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm)">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${icon} ${label}</div>
+      <div style="font-size:20px;font-weight:900;color:${color||'var(--text)'}">${val}</div>
+    </div>`;
+
+  resumo.innerHTML = filtradas.length === 0
+    ? `<div style="color:var(--text-3);font-size:13px;padding:8px 0">Nenhuma venda no período</div>`
+    : statCard('🧾','Vendas', filtradas.length, 'var(--primary)')
+    + statCard('💵','Total USD', `$${totalUSD.toFixed(2)}`, 'var(--success)')
+    + (recBRL  > 0 ? statCard('🇧🇷','Recebido BRL', `R$ ${recBRL.toFixed(2)}`,  'var(--text)') : '')
+    + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', `₲ ${Math.round(recPYG).toLocaleString('pt-BR')}`, 'var(--text)') : '')
+    + (recUSD  > 0 ? statCard('🇺🇸','Recebido USD', `$${recUSD.toFixed(2)}`,  'var(--text)') : '');
+
+  if (!filtradas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>';
     return;
   }
-  const symb = { USD: '$', BRL: 'R$ ', PYG: '₲ ' };
-  tbody.innerHTML = vendas.map(v => {
+
+  tbody.innerHTML = filtradas.map(v => {
     const dt  = new Date(v.ts).toLocaleString('pt-BR');
     const itens = v.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ');
     const moeda = v.moedaPagamento;
