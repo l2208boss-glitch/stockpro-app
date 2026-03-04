@@ -566,6 +566,79 @@
     .btn-del-prod { padding: 13px; background: var(--danger-light); color: var(--danger); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; }
     .btn-del-prod:hover { background: var(--danger); color: #fff; }
     .modal-ft.has-del { grid-template-columns: auto 1fr 1fr; }
+
+    /* ─── MODE SELECT PAGE ─── */
+    #modePage { display:none; }
+    #modePage header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); }
+    .mode-select-main { display:flex; align-items:center; justify-content:center; gap:24px; min-height:calc(100vh - 64px); padding:24px; flex-wrap:wrap; }
+    .mode-card { background:var(--surface); border:2px solid var(--border); border-radius:20px; padding:48px 40px; text-align:center; cursor:pointer; width:240px; transition:all .2s; box-shadow:var(--shadow); }
+    .mode-card:hover { border-color:var(--primary); box-shadow:var(--shadow-lg); transform:translateY(-4px); }
+    .mode-icon { font-size:56px; margin-bottom:16px; }
+    .mode-title { font-size:20px; font-weight:800; color:var(--text); margin-bottom:8px; }
+    .mode-sub { font-size:13px; color:var(--text-2); line-height:1.5; }
+
+    /* ─── CAIXA APP ─── */
+    #caixaApp { display:none; }
+    #caixaApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
+    .cotacao-bar { background:var(--primary-light); border-bottom:1px solid #c7d2fe; padding:10px 24px; display:flex; align-items:center; gap:20px; font-size:13px; font-weight:600; flex-wrap:wrap; }
+    .cotacao-bar span { color:var(--primary-dark); }
+    .btn-edit-cotacao { background:none; border:1px solid var(--primary); border-radius:6px; color:var(--primary); font-size:12px; padding:3px 10px; cursor:pointer; }
+    .btn-edit-cotacao:hover { background:var(--primary); color:#fff; }
+    .cotacao-aviso { color:var(--warning) !important; font-style:italic; }
+    .caixa-layout { display:grid; grid-template-columns:1fr 320px; gap:20px; padding:20px 24px; min-height:calc(100vh - 128px); align-items:start; }
+    @media(max-width:800px) { .caixa-layout { grid-template-columns:1fr; } }
+    .caixa-search { width:100%; padding:11px 16px; border:2px solid var(--border); border-radius:var(--radius-sm); font-size:14px; outline:none; margin-bottom:16px; }
+    .caixa-search:focus { border-color:var(--primary); }
+    .caixa-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; }
+    .caixa-card { background:var(--surface); border:2px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; cursor:pointer; transition:all .15s; user-select:none; }
+    .caixa-card:hover { border-color:var(--primary); box-shadow:var(--shadow); }
+    .caixa-card.zero { opacity:.45; cursor:not-allowed; }
+    .caixa-card-emoji { font-size:36px; margin-bottom:8px; }
+    .caixa-card-photo { width:60px; height:60px; border-radius:8px; object-fit:cover; margin:0 auto 8px; display:block; }
+    .caixa-card-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; line-height:1.3; }
+    .caixa-card-price { font-size:15px; font-weight:800; color:var(--primary); }
+    .caixa-card-stock { font-size:11px; color:var(--text-3); margin-top:2px; }
+    .caixa-card-btn { margin-top:10px; width:100%; padding:7px; background:var(--primary-light); color:var(--primary-dark); border:none; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s; }
+    .caixa-card-btn:hover { background:var(--primary); color:#fff; }
+    .caixa-cart { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); position:sticky; top:84px; }
+    .cart-title { font-size:16px; font-weight:800; margin-bottom:16px; }
+    .cart-empty { text-align:center; color:var(--text-3); padding:32px 0; font-size:13px; }
+    .cart-item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .cart-item-emoji { font-size:22px; flex-shrink:0; }
+    .cart-item-info { flex:1; min-width:0; }
+    .cart-item-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cart-item-sub { font-size:12px; color:var(--text-2); }
+    .cart-item-qty { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+    .cart-qty-btn { width:24px; height:24px; border:1px solid var(--border); background:var(--bg); border-radius:4px; cursor:pointer; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+    .cart-qty-btn:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+    .cart-qty-val { font-size:13px; font-weight:700; min-width:20px; text-align:center; }
+    .cart-total-row { display:flex; justify-content:space-between; align-items:center; padding:14px 0 0; font-size:15px; font-weight:800; }
+    .cart-total-usd { color:var(--primary); font-size:18px; }
+    .btn-cobrar { width:100%; padding:13px; background:linear-gradient(135deg,#16a34a,#22c55e); color:#fff; border:none; border-radius:var(--radius-sm); font-size:15px; font-weight:800; cursor:pointer; margin-top:14px; transition:all .2s; }
+    .btn-cobrar:hover:not(:disabled) { filter:brightness(1.08); }
+    .btn-cobrar:disabled { opacity:.45; cursor:not-allowed; }
+    .btn-limpar-cart { width:100%; padding:8px; background:none; color:var(--text-3); border:1px solid var(--border); border-radius:6px; font-size:12px; cursor:pointer; margin-top:8px; }
+    .btn-limpar-cart:hover { color:var(--danger); border-color:var(--danger); }
+    .btn-back-mode { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text-2); }
+    .btn-back-mode:hover { background:var(--border); }
+    .caixa-badge { background:#dcfce7; color:#15803d; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:6px; }
+
+    /* ─── PAYMENT MODAL ─── */
+    .pay-total-box { background:var(--primary-light); border-radius:var(--radius-sm); padding:16px; text-align:center; margin-bottom:20px; }
+    .pay-total-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--primary-dark); margin-bottom:4px; }
+    .pay-total-val { font-size:28px; font-weight:900; color:var(--primary); }
+    .pay-equiv { font-size:13px; color:var(--text-2); background:var(--bg); border-radius:6px; padding:8px 12px; margin:-8px 0 16px; text-align:center; }
+    .pay-troco-box { background:var(--success-light); border:1px solid #bbf7d0; border-radius:var(--radius-sm); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; margin-top:16px; }
+    .pay-troco-label { font-size:13px; font-weight:700; color:var(--success); }
+    .pay-troco-val { font-size:20px; font-weight:900; color:var(--success); }
+    .pay-troco-box.negative { background:var(--danger-light); border-color:#fecaca; }
+    .pay-troco-box.negative .pay-troco-label,
+    .pay-troco-box.negative .pay-troco-val { color:var(--danger); }
+
+    /* ─── VENDAS HISTORY ─── */
+    .vendas-block { margin-top:28px; padding:0 24px 24px; }
+    .venda-row td { padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); }
+    .venda-items { font-size:12px; color:var(--text-2); max-width:200px; }
   </style>
 </head>
 <body>
@@ -589,6 +662,33 @@
     <div class="login-err" id="loginErr">⚠️ Usuário ou senha incorretos.</div>
     <button class="btn-login" onclick="doLogin()">Entrar</button>
   </div>
+</div>
+
+<!-- ══════════ MODE SELECT PAGE ══════════ -->
+<div id="modePage">
+  <header>
+    <a class="brand" href="#">
+      <div class="brand-icon">📦</div>StockPro
+    </a>
+    <div class="header-right">
+      <span class="role-badge" id="modeRoleBadge"></span>
+      <span class="header-user" id="modeHeaderUser"></span>
+      <button class="btn-change-pass" onclick="openChangePass()" title="Trocar Senha">🔑</button>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+  <main class="mode-select-main">
+    <div class="mode-card" onclick="enterMode('estoque')">
+      <div class="mode-icon">📦</div>
+      <div class="mode-title">Estoque</div>
+      <div class="mode-sub">Gerenciar produtos e movimentações</div>
+    </div>
+    <div class="mode-card" onclick="enterMode('caixa')">
+      <div class="mode-icon">🛒</div>
+      <div class="mode-title">Frente de Caixa</div>
+      <div class="mode-sub">Registrar vendas e calcular troco</div>
+    </div>
+  </main>
 </div>
 
 <!-- ══════════ FILIAIS PAGE ══════════ -->
@@ -755,6 +855,139 @@
   </main>
 </div>
 
+<!-- ══════════ CAIXA APP ══════════ -->
+<div id="caixaApp">
+  <header>
+    <a class="brand" href="#">
+      <div class="brand-icon">📦</div>StockPro
+    </a>
+    <div class="header-right">
+      <span class="role-badge" id="caixaRoleBadge"></span>
+      <span class="header-user" id="caixaHeaderUser"></span>
+      <button class="btn-back-mode" onclick="backToModeSelect()" title="Voltar à seleção">← Modos</button>
+      <button class="btn-change-pass" onclick="openChangePass()" title="Trocar Senha">🔑</button>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <!-- Cotação do dia -->
+  <div class="cotacao-bar" id="cotacaoBar">
+    <span>💱 Cotação:</span>
+    <span id="cotDispBRL">1 USD = R$ --</span>
+    <span>|</span>
+    <span id="cotDispPYG">1 USD = ₲ --</span>
+    <button class="btn-edit-cotacao" id="btnEditCotacao" onclick="openCotacaoModal()" style="display:none">✏️ Editar</button>
+    <span class="cotacao-aviso" id="cotAviso" style="display:none">⚠️ Cotação não definida para hoje</span>
+  </div>
+
+  <div class="caixa-layout">
+    <!-- Produtos -->
+    <div>
+      <input class="caixa-search" type="text" id="caixaSearch" placeholder="🔍 Buscar produto..." oninput="renderCaixaProducts()">
+      <div class="caixa-grid" id="caixaGrid"></div>
+    </div>
+
+    <!-- Carrinho -->
+    <div class="caixa-cart">
+      <div class="cart-title">🛒 Carrinho</div>
+      <div id="cartItems"><div class="cart-empty">Nenhum item adicionado</div></div>
+      <div class="cart-total-row">
+        <span>Total USD:</span>
+        <span class="cart-total-usd" id="cartTotalUSD">$0.00</span>
+      </div>
+      <button class="btn-cobrar" id="btnCobrar" onclick="openPaymentModal()" disabled>💳 Cobrar</button>
+      <button class="btn-limpar-cart" onclick="clearCart()">🗑 Limpar carrinho</button>
+    </div>
+  </div>
+
+  <!-- Histórico de vendas (admin only) -->
+  <div class="vendas-block" id="vendasBlock" style="display:none">
+    <div class="sec-hd" style="padding:0 0 16px">
+      <div>
+        <div class="sec-title">📋 Histórico de Vendas</div>
+        <div class="sec-sub">Todas as vendas registradas nesta filial</div>
+      </div>
+    </div>
+    <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg)">
+            <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Data/Hora</th>
+            <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Itens</th>
+            <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Total USD</th>
+            <th style="padding:12px;text-align:center;font-size:12px;color:var(--text-2)">Moeda</th>
+            <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Recebido</th>
+            <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Troco</th>
+            <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Operador</th>
+          </tr>
+        </thead>
+        <tbody id="vendasBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — COTAÇÃO DO DIA ══════════ -->
+<div class="overlay" id="cotacaoModal" onclick="overlayClick(event,'cotacaoModal')">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hd">
+      <span class="modal-title edit">💱 Cotação do Dia</span>
+      <button class="btn-x" onclick="closeOverlay('cotacaoModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="modal-label" for="cotBRL">1 USD = R$ (Reais Brasileiros) *</label>
+        <input class="modal-input" type="number" id="cotBRL" min="0" step="0.01" placeholder="Ex: 5.80">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="modal-label" for="cotPYG">1 USD = ₲ (Guaranis Paraguaios) *</label>
+        <input class="modal-input" type="number" id="cotPYG" min="0" step="1" placeholder="Ex: 7500">
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('cotacaoModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="saveCotacao()">Salvar Cotação</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — PAGAMENTO ══════════ -->
+<div class="overlay" id="paymentModal" onclick="overlayClick(event,'paymentModal')">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hd">
+      <span class="modal-title edit">💳 Pagamento</span>
+      <button class="btn-x" onclick="closeOverlay('paymentModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pay-total-box">
+        <div class="pay-total-label">Total a cobrar</div>
+        <div class="pay-total-val" id="payTotalUSD">$0.00</div>
+      </div>
+      <div class="field">
+        <label class="modal-label" for="payMoeda">Moeda de pagamento</label>
+        <select class="modal-input" id="payMoeda" onchange="updatePaymentCalc()">
+          <option value="USD">Dólar americano (USD $)</option>
+          <option value="BRL">Real brasileiro (BRL R$)</option>
+          <option value="PYG">Guarani paraguaio (PYG ₲)</option>
+        </select>
+      </div>
+      <div class="pay-equiv" id="payEquiv" style="display:none"></div>
+      <div class="field" style="margin-bottom:0">
+        <label class="modal-label" for="payRecebido">Valor recebido</label>
+        <input class="modal-input" type="number" id="payRecebido" min="0" step="0.01" placeholder="0.00" oninput="updatePaymentCalc()">
+      </div>
+      <div class="pay-troco-box" id="payTrocoBox" style="display:none">
+        <span class="pay-troco-label">Troco</span>
+        <span class="pay-troco-val" id="payTrocoVal">--</span>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('paymentModal')">Cancelar</button>
+      <button class="btn-confirm save" id="btnConfirmPayment" onclick="confirmPayment()" disabled>✅ Confirmar Venda</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ MODAL — ENTRADA/SAÍDA ══════════ -->
 <div class="overlay" id="movOverlay" onclick="overlayClick(event,'movOverlay')">
   <div class="modal">
@@ -855,9 +1088,16 @@
       <button class="btn-x" onclick="closeOverlay('filialModal')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="field" style="margin-bottom:0">
+      <div class="field">
         <label class="modal-label" for="filialNome">Nome da Filial *</label>
         <input class="modal-input" type="text" id="filialNome" placeholder="Ex: São Paulo, Bahia, Centro...">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600">
+          <input type="checkbox" id="filialCaixaEnabled" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+          🛒 Habilitar Frente de Caixa nesta filial
+        </label>
+        <div style="font-size:12px;color:var(--text-3);margin-top:6px;padding-left:28px">Ao entrar nesta filial, será possível escolher entre Estoque e Caixa</div>
       </div>
     </div>
     <div class="modal-ft">
@@ -1002,6 +1242,14 @@ let unsubFiliais  = null;
 let unsubProducts = null;
 let unsubHistory  = null;
 let unsubPhotos   = null;
+let unsubCotacao  = null;
+let unsubVendas   = null;
+
+// Caixa state
+let cart     = [];   // [{productId, name, emoji, photo, unit, qty, precoUSD}]
+let cotacao  = { brl: 0, pyg: 0, date: '' };
+let vendas   = [];
+let currentMode = null;  // 'estoque' | 'caixa'
 
 /* ══════════════════════════════════════════
    FIRESTORE — helper de coleção por filial
@@ -1065,6 +1313,8 @@ function stopListeners() {
   if (unsubProducts) { unsubProducts(); unsubProducts = null; }
   if (unsubHistory)  { unsubHistory();  unsubHistory  = null; }
   if (unsubPhotos)   { unsubPhotos();   unsubPhotos   = null; }
+  if (unsubCotacao)  { unsubCotacao();  unsubCotacao  = null; }
+  if (unsubVendas)   { unsubVendas();   unsubVendas   = null; }
 }
 
 /* ══════════════════════════════════════════
@@ -1124,10 +1374,31 @@ function enterFilial(filialId) {
   const f = filiais.find(x => x.id === filialId);
   if (!f) return;
   currentFilial = f;
-  // Mantém o listener de filiais ativo (para o dropdown no app)
   document.getElementById('filialPage').style.display = 'none';
+  photos = {};
+  setupRealtimeListeners();
+  if (f.caixaEnabled) {
+    showModeSelectPage();
+  } else {
+    showEstoqueApp();
+  }
+}
+
+function showModeSelectPage() {
+  document.getElementById('modePage').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('caixaApp').style.display = 'none';
+  const badge = document.getElementById('modeRoleBadge');
+  badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
+  badge.className = 'role-badge ' + user.role;
+  document.getElementById('modeHeaderUser').textContent = '👤 ' + user.name;
+}
+
+function showEstoqueApp() {
+  currentMode = 'estoque';
+  document.getElementById('modePage').style.display = 'none';
+  document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  // Atualiza cabeçalho do app
   document.getElementById('filialNameBadge').textContent = currentFilial.nome;
   const badge = document.getElementById('roleBadge');
   badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
@@ -1135,17 +1406,48 @@ function enterFilial(filialId) {
   document.getElementById('headerUser').textContent = '👤 ' + user.name;
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
-  photos = {};
-  setupRealtimeListeners();
+}
+
+function showCaixaApp() {
+  currentMode = 'caixa';
+  document.getElementById('modePage').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('caixaApp').style.display = 'block';
+  const badge = document.getElementById('caixaRoleBadge');
+  badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
+  badge.className = 'role-badge ' + user.role;
+  document.getElementById('caixaHeaderUser').textContent = '👤 ' + user.name;
+  document.getElementById('btnEditCotacao').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('vendasBlock').style.display = user.role === 'admin' ? '' : 'none';
+  setupCaixaListeners();
+  cart = [];
+  renderCart();
+  renderCaixaProducts();
+}
+
+function enterMode(mode) {
+  if (mode === 'estoque') showEstoqueApp();
+  else showCaixaApp();
+}
+
+function backToModeSelect() {
+  if (unsubCotacao) { unsubCotacao(); unsubCotacao = null; }
+  if (unsubVendas)  { unsubVendas();  unsubVendas  = null; }
+  cart = []; vendas = []; cotacao = { brl:0, pyg:0, date:'' };
+  document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  showModeSelectPage();
 }
 
 function backToFiliais() {
   closeFilialDropdown();
   stopListeners();
-  currentFilial = null;
-  products = []; history = []; photos = {};
+  currentFilial = null; currentMode = null;
+  products = []; history = []; photos = []; cart = []; vendas = [];
+  cotacao = { brl:0, pyg:0, date:'' };
   document.getElementById('app').style.display = 'none';
-  // Listener de filiais continua ativo; apenas mostra a página
+  document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('modePage').style.display = 'none';
   document.getElementById('filialPage').style.display = 'block';
 }
 
@@ -1349,12 +1651,305 @@ async function seedUsers() {
   await batch.commit();
 }
 
+/* ══════════════════════════════════════════
+   CAIXA — COTAÇÃO
+══════════════════════════════════════════ */
+function setupCaixaListeners() {
+  if (unsubCotacao) { unsubCotacao(); unsubCotacao = null; }
+  if (unsubVendas)  { unsubVendas();  unsubVendas  = null; }
+
+  const today = new Date().toISOString().slice(0,10);
+  unsubCotacao = col('cotacao').doc('atual').onSnapshot(snap => {
+    if (snap.exists) {
+      cotacao = snap.data();
+    } else {
+      cotacao = { brl:0, pyg:0, date:'' };
+    }
+    renderCotacaoBar();
+  }, console.error);
+
+  unsubVendas = col('vendas').orderBy('ts','desc').limit(200).onSnapshot(snap => {
+    vendas = snap.docs.map(d => d.data());
+    renderVendas();
+  }, console.error);
+}
+
+function renderCotacaoBar() {
+  const today = new Date().toISOString().slice(0,10);
+  const hasToday = cotacao.date === today && cotacao.brl > 0 && cotacao.pyg > 0;
+  document.getElementById('cotDispBRL').textContent = hasToday ? `1 USD = R$ ${Number(cotacao.brl).toFixed(2)}` : '1 USD = R$ --';
+  document.getElementById('cotDispPYG').textContent = hasToday ? `1 USD = ₲ ${Number(cotacao.pyg).toLocaleString('pt-BR')}` : '1 USD = ₲ --';
+  document.getElementById('cotAviso').style.display = hasToday ? 'none' : (user && user.role === 'admin' ? 'inline' : 'none');
+}
+
+function openCotacaoModal() {
+  if (!user || user.role !== 'admin') return;
+  document.getElementById('cotBRL').value = cotacao.brl > 0 ? cotacao.brl : '';
+  document.getElementById('cotPYG').value = cotacao.pyg > 0 ? cotacao.pyg : '';
+  document.getElementById('cotacaoModal').classList.add('on');
+  setTimeout(() => document.getElementById('cotBRL').focus(), 120);
+}
+
+function saveCotacao() {
+  const brl = parseFloat(document.getElementById('cotBRL').value);
+  const pyg  = parseFloat(document.getElementById('cotPYG').value);
+  if (!brl || brl <= 0 || !pyg || pyg <= 0) { toast('Informe ambas as cotações', 'error'); return; }
+  const today = new Date().toISOString().slice(0,10);
+  col('cotacao').doc('atual').set({ brl, pyg, date: today, user: user.name, ts: new Date().toISOString() })
+    .then(() => { toast('✅ Cotação salva!', 'success'); closeOverlay('cotacaoModal'); })
+    .catch(console.error);
+}
+
+/* ══════════════════════════════════════════
+   CAIXA — CARRINHO
+══════════════════════════════════════════ */
+function renderCaixaProducts() {
+  const grid   = document.getElementById('caixaGrid');
+  const search = (document.getElementById('caixaSearch').value || '').toLowerCase();
+  const list   = products.filter(p => !search || p.name.toLowerCase().includes(search) || (p.category||'').toLowerCase().includes(search));
+
+  if (!list.length) {
+    grid.innerHTML = '<div style="color:var(--text-3);text-align:center;padding:40px 0;font-size:14px">Nenhum produto encontrado</div>';
+    return;
+  }
+
+  grid.innerHTML = list.map(p => {
+    const ph = photos[p.id];
+    const imgHtml = ph
+      ? `<img class="caixa-card-photo" src="${ph}" alt="">`
+      : `<div class="caixa-card-emoji">${p.emoji || '📦'}</div>`;
+    const preco = p.venda > 0 ? `$${Number(p.venda).toFixed(2)}` : 'Sem preço';
+    const zero  = p.qty <= 0;
+    return `<div class="caixa-card${zero?' zero':''}" onclick="${zero?'':``addToCart(${p.id})``}">
+      ${imgHtml}
+      <div class="caixa-card-name">${p.name}</div>
+      <div class="caixa-card-price">${preco}</div>
+      <div class="caixa-card-stock">${p.qty} ${p.unit} em estoque</div>
+      ${!zero && p.venda > 0 ? `<button class="caixa-card-btn" onclick="event.stopPropagation();addToCart(${p.id})">＋ Adicionar</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function addToCart(productId) {
+  const p = products.find(x => x.id === productId);
+  if (!p || p.venda <= 0 || p.qty <= 0) return;
+  const existing = cart.find(x => x.productId === productId);
+  if (existing) {
+    if (existing.qty >= p.qty) { toast('Quantidade máxima atingida', 'error'); return; }
+    existing.qty++;
+  } else {
+    cart.push({ productId: p.id, name: p.name, emoji: p.emoji || '📦', unit: p.unit, qty: 1, precoUSD: p.venda });
+  }
+  renderCart();
+}
+
+function removeFromCart(productId) {
+  cart = cart.filter(x => x.productId !== productId);
+  renderCart();
+}
+
+function changeCartQty(productId, delta) {
+  const item = cart.find(x => x.productId === productId);
+  if (!item) return;
+  const p = products.find(x => x.id === productId);
+  const newQty = item.qty + delta;
+  if (newQty <= 0) { removeFromCart(productId); return; }
+  if (p && newQty > p.qty) { toast('Quantidade máxima atingida', 'error'); return; }
+  item.qty = newQty;
+  renderCart();
+}
+
+function clearCart() {
+  cart = [];
+  renderCart();
+}
+
+function renderCart() {
+  const container = document.getElementById('cartItems');
+  const btnCobrar = document.getElementById('btnCobrar');
+
+  if (!cart.length) {
+    container.innerHTML = '<div class="cart-empty">Nenhum item adicionado</div>';
+    document.getElementById('cartTotalUSD').textContent = '$0.00';
+    btnCobrar.disabled = true;
+    return;
+  }
+
+  const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
+  container.innerHTML = cart.map(item => `
+    <div class="cart-item">
+      <span class="cart-item-emoji">${item.emoji}</span>
+      <div class="cart-item-info">
+        <div class="cart-item-name">${item.name}</div>
+        <div class="cart-item-sub">$${item.precoUSD.toFixed(2)} × ${item.qty} = $${(item.qty * item.precoUSD).toFixed(2)}</div>
+      </div>
+      <div class="cart-item-qty">
+        <button class="cart-qty-btn" onclick="changeCartQty(${item.productId},-1)">−</button>
+        <span class="cart-qty-val">${item.qty}</span>
+        <button class="cart-qty-btn" onclick="changeCartQty(${item.productId},1)">+</button>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('cartTotalUSD').textContent = `$${total.toFixed(2)}`;
+  btnCobrar.disabled = false;
+}
+
+/* ══════════════════════════════════════════
+   CAIXA — PAGAMENTO
+══════════════════════════════════════════ */
+function openPaymentModal() {
+  if (!cart.length) return;
+  const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
+  document.getElementById('payTotalUSD').textContent = `$${total.toFixed(2)}`;
+  document.getElementById('payMoeda').value = 'USD';
+  document.getElementById('payRecebido').value = '';
+  document.getElementById('payTrocoBox').style.display = 'none';
+  document.getElementById('payEquiv').style.display = 'none';
+  document.getElementById('btnConfirmPayment').disabled = true;
+  document.getElementById('paymentModal').classList.add('on');
+  updatePaymentCalc();
+  setTimeout(() => document.getElementById('payRecebido').focus(), 120);
+}
+
+function updatePaymentCalc() {
+  const total    = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
+  const moeda    = document.getElementById('payMoeda').value;
+  const recebido = parseFloat(document.getElementById('payRecebido').value) || 0;
+  const today    = new Date().toISOString().slice(0,10);
+  const hasCot   = cotacao.date === today && cotacao.brl > 0 && cotacao.pyg > 0;
+
+  let totalNaMoeda, prefix, equiv;
+  if (moeda === 'USD') {
+    totalNaMoeda = total;
+    prefix = '$';
+    document.getElementById('payEquiv').style.display = 'none';
+  } else if (moeda === 'BRL') {
+    totalNaMoeda = hasCot ? total * cotacao.brl : null;
+    prefix = 'R$ ';
+    equiv = hasCot ? `Equivale a R$ ${(total * cotacao.brl).toFixed(2)}` : '⚠️ Cotação BRL não definida hoje';
+    document.getElementById('payEquiv').textContent = equiv;
+    document.getElementById('payEquiv').style.display = 'block';
+  } else {
+    totalNaMoeda = hasCot ? total * cotacao.pyg : null;
+    prefix = '₲ ';
+    equiv = hasCot ? `Equivale a ₲ ${Math.round(total * cotacao.pyg).toLocaleString('pt-BR')}` : '⚠️ Cotação PYG não definida hoje';
+    document.getElementById('payEquiv').textContent = equiv;
+    document.getElementById('payEquiv').style.display = 'block';
+  }
+
+  if (totalNaMoeda === null) {
+    document.getElementById('payTrocoBox').style.display = 'none';
+    document.getElementById('btnConfirmPayment').disabled = true;
+    return;
+  }
+
+  if (recebido > 0) {
+    const troco = recebido - totalNaMoeda;
+    const trocoBox = document.getElementById('payTrocoBox');
+    const trocoVal = document.getElementById('payTrocoVal');
+    trocoBox.style.display = 'flex';
+    trocoBox.className = 'pay-troco-box' + (troco < 0 ? ' negative' : '');
+
+    if (moeda === 'PYG') {
+      trocoVal.textContent = `${prefix}${Math.round(troco).toLocaleString('pt-BR')}`;
+    } else {
+      trocoVal.textContent = `${prefix}${troco.toFixed(2)}`;
+    }
+    document.getElementById('payTrocoBox').querySelector('.pay-troco-label').textContent = troco < 0 ? 'Falta' : 'Troco';
+    document.getElementById('btnConfirmPayment').disabled = troco < 0;
+  } else {
+    document.getElementById('payTrocoBox').style.display = 'none';
+    document.getElementById('btnConfirmPayment').disabled = true;
+  }
+}
+
+async function confirmPayment() {
+  const total    = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
+  const moeda    = document.getElementById('payMoeda').value;
+  const recebido = parseFloat(document.getElementById('payRecebido').value) || 0;
+  const today    = new Date().toISOString().slice(0,10);
+  const hasCot   = cotacao.date === today;
+
+  let totalNaMoeda;
+  if (moeda === 'USD')     totalNaMoeda = total;
+  else if (moeda === 'BRL') totalNaMoeda = total * cotacao.brl;
+  else                      totalNaMoeda = total * cotacao.pyg;
+
+  const troco = recebido - totalNaMoeda;
+
+  // Salvar venda
+  const vendaId = Date.now();
+  const venda = {
+    id: vendaId,
+    ts: new Date().toISOString(),
+    items: cart.map(x => ({ productId: x.productId, name: x.name, emoji: x.emoji, unit: x.unit, qty: x.qty, precoUSD: x.precoUSD, subtotalUSD: +(x.qty * x.precoUSD).toFixed(2) })),
+    totalUSD: +total.toFixed(2),
+    moedaPagamento: moeda,
+    cotacaoBRL: cotacao.brl,
+    cotacaoPYG: cotacao.pyg,
+    valorPago: +recebido.toFixed(moeda === 'PYG' ? 0 : 2),
+    troco: +(moeda === 'PYG' ? Math.round(troco) : +troco.toFixed(2)),
+    user: user.name
+  };
+  col('vendas').doc(String(vendaId)).set(venda).catch(console.error);
+
+  // Baixar estoque
+  cart.forEach(item => {
+    const p = products.find(x => x.id === item.productId);
+    if (!p) return;
+    p.qty = Math.max(0, p.qty - item.qty);
+    saveProduct(p);
+    const entry = { id: Date.now() + Math.random(), datetime: new Date().toISOString(), productId: p.id, productName: p.name, emoji: p.emoji, type: 'saida', qty: item.qty, balance: p.qty, obs: `Venda #${vendaId}`, user: user.name };
+    saveHistoryEntry(entry);
+  });
+
+  closeOverlay('paymentModal');
+  cart = [];
+  renderCart();
+  renderCaixaProducts();
+  toast(`✅ Venda registrada! Total: $${total.toFixed(2)}`, 'success');
+}
+
+/* ══════════════════════════════════════════
+   CAIXA — HISTÓRICO DE VENDAS
+══════════════════════════════════════════ */
+function renderVendas() {
+  if (!user || user.role !== 'admin') return;
+  const tbody = document.getElementById('vendasBody');
+  if (!vendas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda registrada</td></tr>';
+    return;
+  }
+  const symb = { USD: '$', BRL: 'R$ ', PYG: '₲ ' };
+  tbody.innerHTML = vendas.map(v => {
+    const dt  = new Date(v.ts).toLocaleString('pt-BR');
+    const itens = v.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ');
+    const moeda = v.moedaPagamento;
+    const s = symb[moeda] || '';
+    const pago  = moeda === 'PYG' ? `${s}${Math.round(v.valorPago).toLocaleString('pt-BR')}` : `${s}${Number(v.valorPago).toFixed(2)}`;
+    const troco = moeda === 'PYG' ? `${s}${Math.round(v.troco).toLocaleString('pt-BR')}` : `${s}${Number(v.troco).toFixed(2)}`;
+    return `<tr class="venda-row">
+      <td>${dt}</td>
+      <td class="venda-items">${itens}</td>
+      <td style="text-align:right;font-weight:700">$${Number(v.totalUSD).toFixed(2)}</td>
+      <td style="text-align:center">${moeda}</td>
+      <td style="text-align:right">${pago}</td>
+      <td style="text-align:right;color:var(--success);font-weight:700">${troco}</td>
+      <td>${v.user}</td>
+    </tr>`;
+  }).join('');
+}
+
 function doLogout() {
   stopListeners();
   if (unsubFiliais) { unsubFiliais(); unsubFiliais = null; }
-  user = null; currentFilial = null; products = []; history = []; photos = {}; filiais = [];
+  user = null; currentFilial = null; currentMode = null;
+  products = []; history = []; photos = {}; filiais = [];
+  cart = []; vendas = []; cotacao = { brl:0, pyg:0, date:'' };
   localStorage.removeItem('sp_session');
   document.getElementById('app').style.display = 'none';
+  document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('modePage').style.display = 'none';
   document.getElementById('filialPage').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('lu').value = '';
@@ -1407,15 +2002,16 @@ function renderFiliais() {
   empty.style.display = 'none';
 
   grid.innerHTML = filiais.map(f => {
+    const caixaBadge = f.caixaEnabled ? '<span class="caixa-badge">🛒 Caixa</span>' : '';
     const adminActions = isAdmin ? `
       <div class="filial-admin-actions">
-        <button class="btn-rename-filial" onclick="openFilialModal('${f.id}')">✏️ Renomear</button>
+        <button class="btn-rename-filial" onclick="openFilialModal('${f.id}')">✏️ Editar</button>
         <button class="btn-del-filial"    onclick="deleteFilial('${f.id}')">🗑 Excluir</button>
       </div>` : '';
     return `
       <div class="filial-card">
         <div class="filial-icon">🏪</div>
-        <div class="filial-nome">${f.nome}</div>
+        <div class="filial-nome">${f.nome}${caixaBadge}</div>
         <button class="btn-enter-filial" onclick="enterFilial('${f.id}')">Entrar →</button>
         ${adminActions}
       </div>`;
@@ -1426,11 +2022,13 @@ function openFilialModal(filialId) {
   editFilialId = filialId;
   if (filialId) {
     const f = filiais.find(x => x.id === filialId);
-    document.getElementById('filialModalTitle').textContent = '✏️ Renomear Filial';
+    document.getElementById('filialModalTitle').textContent = '✏️ Editar Filial';
     document.getElementById('filialNome').value = f ? f.nome : '';
+    document.getElementById('filialCaixaEnabled').checked = f ? !!f.caixaEnabled : false;
   } else {
     document.getElementById('filialModalTitle').textContent = '🏪 Nova Filial';
     document.getElementById('filialNome').value = '';
+    document.getElementById('filialCaixaEnabled').checked = false;
   }
   document.getElementById('filialModal').classList.add('on');
   setTimeout(() => document.getElementById('filialNome').focus(), 120);
@@ -1438,15 +2036,16 @@ function openFilialModal(filialId) {
 
 function saveFilial() {
   const nome = document.getElementById('filialNome').value.trim();
+  const caixaEnabled = document.getElementById('filialCaixaEnabled').checked;
   if (!nome) { toast('Informe o nome da filial', 'error'); return; }
 
   if (editFilialId) {
-    db.collection('lojas').doc(editFilialId).update({ nome })
-      .then(() => toast(`✅ Filial renomeada para "${nome}"!`, 'success'))
+    db.collection('lojas').doc(editFilialId).update({ nome, caixaEnabled })
+      .then(() => toast(`✅ Filial "${nome}" atualizada!`, 'success'))
       .catch(console.error);
   } else {
     const id = 'filial_' + Date.now();
-    db.collection('lojas').doc(id).set({ id, nome, createdAt: new Date().toISOString() })
+    db.collection('lojas').doc(id).set({ id, nome, caixaEnabled, createdAt: new Date().toISOString() })
       .then(() => toast(`✅ Filial "${nome}" criada!`, 'success'))
       .catch(console.error);
   }
