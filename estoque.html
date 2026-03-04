@@ -914,6 +914,7 @@
           <option value="30">Últimos 30 dias</option>
           <option value="todos">Tudo</option>
         </select>
+        <button class="btn-clr" onclick="clearVendas()" title="Limpar histórico de vendas">🗑</button>
       </div>
     </div>
 
@@ -2488,6 +2489,17 @@ function clearHistory() {
   if (!confirm(`Apagar ${history.length} registros? Esta ação não pode ser desfeita.`)) return;
   history = []; renderHistory(); toast('🗑 Histórico apagado.','info');
   col('historico').get().then(snap => {
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    return batch.commit();
+  }).catch(console.error);
+}
+
+function clearVendas() {
+  if (!vendas.length) { toast('Histórico de vendas já está vazio.','info'); return; }
+  if (!confirm(`Apagar ${vendas.length} venda(s)? Esta ação não pode ser desfeita.`)) return;
+  vendas = []; renderVendas(); toast('🗑 Histórico de vendas apagado.','info');
+  col('vendas').get().then(snap => {
     const batch = db.batch();
     snap.docs.forEach(d => batch.delete(d.ref));
     return batch.commit();
