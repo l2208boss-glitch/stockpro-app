@@ -589,6 +589,10 @@
     /* ─── CAIXA APP ─── */
     #caixaApp { display:none; }
     #caixaApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
+    /* ─── PRODUCAO APP ─── */
+    #producaoApp { display:none; min-height:100vh; background:var(--bg); }
+    #producaoApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
+    #producaoApp main { max-width:900px; margin:0 auto; padding:28px 16px 60px; }
     .cotacao-bar { background:var(--primary-light); border-bottom:1px solid #c7d2fe; padding:10px 24px; display:flex; align-items:center; gap:20px; font-size:13px; font-weight:600; flex-wrap:wrap; }
     .cotacao-bar span { color:var(--primary-dark); }
     .btn-edit-cotacao { background:none; border:1px solid var(--primary); border-radius:6px; color:var(--primary); font-size:12px; padding:3px 10px; cursor:pointer; }
@@ -714,18 +718,7 @@
       <button class="btn-logout" onclick="doLogout()">Sair</button>
     </div>
   </header>
-  <main class="mode-select-main">
-    <div class="mode-card" onclick="enterMode('estoque')">
-      <div class="mode-icon">📦</div>
-      <div class="mode-title">Estoque</div>
-      <div class="mode-sub">Gerenciar produtos e movimentações</div>
-    </div>
-    <div class="mode-card" onclick="enterMode('caixa')">
-      <div class="mode-icon">🛒</div>
-      <div class="mode-title">Frente de Caixa</div>
-      <div class="mode-sub">Registrar vendas e calcular troco</div>
-    </div>
-  </main>
+  <main class="mode-select-main" id="modeCardsContainer"></main>
 </div>
 
 <!-- ══════════ FILIAIS PAGE ══════════ -->
@@ -899,46 +892,6 @@
       </div>
     </div>
 
-    <!-- ══════════ PRODUÇÃO ══════════ -->
-    <div id="producaoSection" style="margin-top:28px;display:none">
-
-      <!-- ADMIN VIEW -->
-      <div id="pAdminView" style="display:none">
-        <div class="sec-hd" style="margin-bottom:16px">
-          <div>
-            <div class="sec-title">📋 Produção da Equipe</div>
-            <div class="sec-sub">Registros diários e indicadores de desempenho</div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span id="pMetaLabel" style="font-size:13px;font-weight:700;color:var(--primary);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:var(--radius-sm)">Meta: — pç/dia</span>
-            <button class="btn-clr" style="padding:7px 12px;font-size:13px" onclick="openMetaModal()">⚙️ Meta</button>
-            <select id="pPeriodo" onchange="renderProducaoAdmin()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
-              <option value="14">14 dias</option>
-              <option value="30">30 dias</option>
-              <option value="60">60 dias</option>
-            </select>
-          </div>
-        </div>
-        <div class="proc-chart-wrap">
-          <canvas id="producaoChart" height="110"></canvas>
-        </div>
-        <div id="pAdminList"></div>
-      </div>
-
-      <!-- OPERATOR VIEW -->
-      <div id="pOpView" style="display:none">
-        <div class="sec-hd" style="margin-bottom:16px">
-          <div>
-            <div class="sec-title">📋 Registro do Dia</div>
-            <div class="sec-sub">Preencha ao final do seu turno</div>
-          </div>
-        </div>
-        <div id="pMetaBar"></div>
-        <div id="pFormArea"></div>
-        <div id="pHistArea" style="margin-top:20px"></div>
-      </div>
-
-    </div>
   </main>
 </div>
 
@@ -1025,6 +978,66 @@
       </table>
     </div>
   </div>
+</div>
+
+<!-- ══════════ PRODUCAO APP ══════════ -->
+<div id="producaoApp">
+  <header>
+    <a class="brand" href="#">
+      <div class="brand-icon">📦</div>StockPro
+    </a>
+    <div class="header-right">
+      <span style="font-size:13px;font-weight:600;color:var(--text-2);background:var(--surface);border:1px solid var(--border);padding:5px 12px;border-radius:var(--radius-sm)" id="procFilialBadge"></span>
+      <span class="role-badge" id="procRoleBadge"></span>
+      <span class="header-user" id="procHeaderUser"></span>
+      <button class="btn-back-mode" id="procBtnBack" onclick="backFromProducao()" title="Voltar à seleção" style="display:none">← Modos</button>
+      <button class="btn-change-pass" onclick="openChangePass()" title="Trocar Senha">🔑</button>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+  <main>
+
+    <!-- ADMIN VIEW -->
+    <div id="pAdminView" style="display:none">
+      <div class="sec-hd" style="margin-bottom:16px">
+        <div>
+          <div class="sec-title">📋 Produção da Equipe</div>
+          <div class="sec-sub">Registros diários e indicadores de desempenho</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="pMetaLabel" style="font-size:13px;font-weight:700;color:var(--primary);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:var(--radius-sm)">Meta: — pç/dia</span>
+          <button class="btn-clr" style="padding:7px 12px;font-size:13px" onclick="openMetaModal()">⚙️ Meta</button>
+          <select id="pFonte" onchange="renderProducaoAdmin()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
+            <option value="filial">📍 Filial atual</option>
+            <option value="geral">🌐 Sem filial</option>
+          </select>
+          <select id="pPeriodo" onchange="renderProducaoAdmin()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
+            <option value="14">14 dias</option>
+            <option value="30">30 dias</option>
+            <option value="60">60 dias</option>
+          </select>
+        </div>
+      </div>
+      <div class="proc-chart-wrap">
+        <canvas id="producaoChart" height="110"></canvas>
+      </div>
+      <div id="pAdminList"></div>
+    </div>
+
+    <!-- OPERATOR VIEW -->
+    <div id="pOpView" style="display:none">
+      <div class="sec-hd" style="margin-bottom:16px">
+        <div>
+          <div class="sec-title">📋 Registro do Dia</div>
+          <div class="sec-sub">Preencha ao final do seu turno</div>
+        </div>
+      </div>
+      <div id="pMetaBar"></div>
+      <div id="pFormArea"></div>
+      <div id="pHistArea" style="margin-top:20px"></div>
+    </div>
+
+  </main>
 </div>
 
 <!-- ══════════ MODAL — COTAÇÃO DO DIA ══════════ -->
@@ -1275,11 +1288,11 @@
         <input class="modal-input" type="password" id="uPassword" placeholder="senha de acesso">
       </div>
       <div class="field">
-        <label class="modal-label" for="uFilial">Filial Atribuída *</label>
+        <label class="modal-label" for="uFilial">Filial Atribuída <span style="font-size:11px;color:var(--text-2);font-weight:400">(opcional se checklist habilitado)</span></label>
         <select class="modal-input" id="uFilial">
-          <option value="">Selecione uma filial...</option>
+          <option value="">— Nenhuma (apenas checklist) —</option>
         </select>
-        <div class="field-err" id="uFilialErr">Selecione uma filial para este operador.</div>
+        <div class="field-err" id="uFilialErr">Selecione uma filial ou habilite o checklist de produção.</div>
       </div>
       <div class="field">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600">
@@ -1537,9 +1550,19 @@ function startSession(userData) {
   document.getElementById('loginPage').style.display = 'none';
   if (user.role === 'op' && user.filialId) {
     directEnterFilial(user.filialId);
+  } else if (user.role === 'op' && user.checklistEnabled) {
+    enterChecklistMode();
   } else {
     showFilialPage();
   }
+}
+
+function enterChecklistMode() {
+  // Operador sem filial mas com checklist: usa bucket virtual '__geral__'
+  currentFilial = { id: '__geral__', nome: 'Geral' };
+  document.getElementById('filialPage').style.display = 'none';
+  photos = {};
+  showProducaoApp();
 }
 
 async function directEnterFilial(filialId) {
@@ -1576,7 +1599,8 @@ function enterFilial(filialId) {
   document.getElementById('filialPage').style.display = 'none';
   photos = {};
   setupRealtimeListeners();
-  if (f.caixaEnabled) {
+  const needsModeSelect = f.caixaEnabled || user.role === 'admin' || user.checklistEnabled;
+  if (needsModeSelect) {
     showModeSelectPage();
   } else {
     showEstoqueApp();
@@ -1587,16 +1611,37 @@ function showModeSelectPage() {
   document.getElementById('modePage').style.display = 'block';
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('producaoApp').style.display = 'none';
   const badge = document.getElementById('modeRoleBadge');
   badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
   badge.className = 'role-badge ' + user.role;
   document.getElementById('modeHeaderUser').textContent = '👤 ' + user.name;
+  // Renderizar cards conforme permissões
+  const hasCaixa    = currentFilial && currentFilial.caixaEnabled;
+  const hasProducao = user.role === 'admin' || user.checklistEnabled;
+  let cards = `<div class="mode-card" onclick="enterMode('estoque')">
+    <div class="mode-icon">📦</div>
+    <div class="mode-title">Estoque</div>
+    <div class="mode-sub">Gerenciar produtos e movimentações</div>
+  </div>`;
+  if (hasProducao) cards += `<div class="mode-card" onclick="enterMode('producao')">
+    <div class="mode-icon">📋</div>
+    <div class="mode-title">Produção</div>
+    <div class="mode-sub">Registro diário da equipe</div>
+  </div>`;
+  if (hasCaixa) cards += `<div class="mode-card" onclick="enterMode('caixa')">
+    <div class="mode-icon">🛒</div>
+    <div class="mode-title">Frente de Caixa</div>
+    <div class="mode-sub">Registrar vendas e calcular troco</div>
+  </div>`;
+  document.getElementById('modeCardsContainer').innerHTML = cards;
 }
 
 function showEstoqueApp() {
   currentMode = 'estoque';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('producaoApp').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('filialNameBadge').textContent = currentFilial.nome;
   const badge = document.getElementById('roleBadge');
@@ -1606,13 +1651,6 @@ function showEstoqueApp() {
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnCopiarProdutos').style.display = user.role === 'admin' ? '' : 'none';
-  // Produção
-  const isAdmin   = user.role === 'admin';
-  const hasChecklist = isAdmin || user.checklistEnabled;
-  document.getElementById('producaoSection').style.display = hasChecklist ? '' : 'none';
-  document.getElementById('pAdminView').style.display      = isAdmin ? '' : 'none';
-  document.getElementById('pOpView').style.display         = (!isAdmin && user.checklistEnabled) ? '' : 'none';
-  if (hasChecklist) setupProducaoListener();
 }
 
 function showCaixaApp() {
@@ -1634,7 +1672,8 @@ function showCaixaApp() {
 
 function enterMode(mode) {
   if (mode === 'estoque') showEstoqueApp();
-  else showCaixaApp();
+  else if (mode === 'caixa') showCaixaApp();
+  else if (mode === 'producao') showProducaoApp();
 }
 
 function backToModeSelect() {
@@ -1646,6 +1685,36 @@ function backToModeSelect() {
   showModeSelectPage();
 }
 
+function showProducaoApp() {
+  currentMode = 'producao';
+  document.getElementById('modePage').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('producaoApp').style.display = 'block';
+  const isAdmin = user.role === 'admin';
+  // Header
+  document.getElementById('procFilialBadge').textContent = currentFilial.nome;
+  const badge = document.getElementById('procRoleBadge');
+  badge.textContent = isAdmin ? 'Admin' : 'Operador';
+  badge.className = 'role-badge ' + user.role;
+  document.getElementById('procHeaderUser').textContent = '👤 ' + user.name;
+  // Back button: só mostra se tem modo select para voltar (tem filial real)
+  const hasFilial = !!(user.filialId || user.role === 'admin');
+  document.getElementById('procBtnBack').style.display = hasFilial ? '' : 'none';
+  // Vistas
+  document.getElementById('pAdminView').style.display = isAdmin ? '' : 'none';
+  document.getElementById('pOpView').style.display    = (!isAdmin && user.checklistEnabled) ? '' : 'none';
+  setupProducaoListener();
+}
+
+function backFromProducao() {
+  if (unsubProducao) { unsubProducao(); unsubProducao = null; }
+  producoes = [];
+  if (producaoChart) { producaoChart.destroy(); producaoChart = null; }
+  document.getElementById('producaoApp').style.display = 'none';
+  showModeSelectPage();
+}
+
 function backToFiliais() {
   closeFilialDropdown();
   stopListeners();
@@ -1654,6 +1723,7 @@ function backToFiliais() {
   cotacao = { brl:0, pix:0, pyg:0, date:'' };
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('producaoApp').style.display = 'none';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('filialPage').style.display = 'block';
 }
@@ -1744,7 +1814,9 @@ async function openUsersModal() {
   const snap = await db.collection('usuarios').get();
   const ops = snap.docs.map(d => d.data()).filter(u => u.role !== 'admin');
   const items = ops.length ? ops.map(u => {
-    const filialNome = filiais.find(f => f.id === u.filialId)?.nome || '⚠️ Sem filial';
+    const filialNome = u.checklistEnabled && !u.filialId
+      ? '📋 Apenas Checklist'
+      : (filiais.find(f => f.id === u.filialId)?.nome || '⚠️ Sem filial');
     return `<div class="user-item">
       <div class="user-info">
         <div class="user-name">👤 ${u.name}</div>
@@ -1767,7 +1839,7 @@ function openUserForm(userId) {
   document.getElementById('uUsernameErr').style.display = 'none';
   document.getElementById('uFilialErr').style.display = 'none';
   const sel = document.getElementById('uFilial');
-  sel.innerHTML = '<option value="">Selecione uma filial...</option>' +
+  sel.innerHTML = '<option value="">— Nenhuma (apenas checklist) —</option>' +
     filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
   if (userId) {
     db.collection('usuarios').doc(userId).get().then(doc => {
@@ -1796,13 +1868,16 @@ function openUserForm(userId) {
 }
 
 async function saveUserForm() {
-  const name     = document.getElementById('uName').value.trim();
-  const username = document.getElementById('uUsername').value.trim().toLowerCase();
-  const password = document.getElementById('uPassword').value;
-  const filialId = document.getElementById('uFilial').value;
+  const name             = document.getElementById('uName').value.trim();
+  const username         = document.getElementById('uUsername').value.trim().toLowerCase();
+  const password         = document.getElementById('uPassword').value;
+  const filialId         = document.getElementById('uFilial').value || null;
+  const checklistEnabled = document.getElementById('uChecklistEnabled').checked;
+  const metaDiaria       = checklistEnabled ? (parseInt(document.getElementById('uMetaDiaria').value) || 300) : null;
   let valid = true;
-  if (!filialId) { document.getElementById('uFilialErr').style.display = 'block'; valid = false; }
-  else           { document.getElementById('uFilialErr').style.display = 'none'; }
+  // Filial é obrigatória apenas se checklist não estiver habilitado
+  if (!filialId && !checklistEnabled) { document.getElementById('uFilialErr').style.display = 'block'; valid = false; }
+  else                                { document.getElementById('uFilialErr').style.display = 'none'; }
   if (!name || !username || !password) { valid = false; }
   if (!valid) return;
   // Verificar username único
@@ -1815,8 +1890,6 @@ async function saveUserForm() {
     }
   }
   document.getElementById('uUsernameErr').style.display = 'none';
-  const checklistEnabled = document.getElementById('uChecklistEnabled').checked;
-  const metaDiaria = checklistEnabled ? (parseInt(document.getElementById('uMetaDiaria').value) || 300) : null;
   const id = editUserId || db.collection('usuarios').doc().id;
   await db.collection('usuarios').doc(id).set({ id, name, username, password, role:'op', filialId, checklistEnabled, metaDiaria });
   closeOverlay('userFormModal');
@@ -2210,6 +2283,7 @@ function doLogout() {
   localStorage.removeItem('sp_session');
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
+  document.getElementById('producaoApp').style.display = 'none';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('filialPage').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
@@ -2899,7 +2973,7 @@ function setupProducaoListener() {
   loadMetaProducao();
   unsubProducao = col('producao').orderBy('ts','desc').limit(500).onSnapshot(snap => {
     producoes = snap.docs.map(d => d.data());
-    if (currentMode === 'estoque') renderProducaoSection();
+    if (currentMode === 'producao') renderProducaoSection();
   }, console.error);
 }
 
@@ -2909,7 +2983,7 @@ async function loadMetaProducao() {
       .collection('config').doc('meta').get();
     metaProducao = doc.exists ? (doc.data().metaDiaria || 300) : 300;
   } catch(e) { metaProducao = 300; }
-  if (currentMode === 'estoque') renderProducaoSection();
+  if (currentMode === 'producao') renderProducaoSection();
 }
 
 function renderProducaoSection() {
@@ -2919,9 +2993,23 @@ function renderProducaoSection() {
 }
 
 /* ── ADMIN ── */
-function renderProducaoAdmin() {
+async function renderProducaoAdmin() {
   const dias   = parseInt(document.getElementById('pPeriodo')?.value || '14');
+  const fonte  = document.getElementById('pFonte')?.value || 'filial';
   const cutoff = new Date(Date.now() - dias * 864e5); cutoff.setHours(0,0,0,0);
+
+  // Dados: filial atual (realtime) ou geral (fetch pontual)
+  let dados = producoes;
+  let metaUsar = metaProducao;
+  if (fonte === 'geral') {
+    try {
+      const snap = await db.collection('lojas').doc('__geral__')
+        .collection('producao').orderBy('ts','desc').limit(500).get();
+      dados = snap.docs.map(d => d.data());
+      const mDoc = await db.collection('lojas').doc('__geral__').collection('config').doc('meta').get();
+      metaUsar = mDoc.exists ? (mDoc.data().metaDiaria || 300) : 300;
+    } catch(e) { dados = []; }
+  }
 
   // Preenche todos os dias do período (incluindo dias sem registro)
   const byDate = {};
@@ -2929,7 +3017,7 @@ function renderProducaoAdmin() {
     const key = new Date(Date.now() - i * 864e5).toISOString().slice(0,10);
     byDate[key] = { total: 0, avariados: 0, registros: [] };
   }
-  producoes.filter(p => new Date(p.date + 'T00:00:00') >= cutoff).forEach(p => {
+  dados.filter(p => new Date(p.date + 'T00:00:00') >= cutoff).forEach(p => {
     if (!byDate[p.date]) byDate[p.date] = { total: 0, avariados: 0, registros: [] };
     byDate[p.date].total     += (p.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
     byDate[p.date].avariados += (p.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
@@ -2939,12 +3027,13 @@ function renderProducaoAdmin() {
   const labels       = Object.keys(byDate).map(d => { const [,m,day]=d.split('-'); return `${day}/${m}`; });
   const dataTotal    = Object.values(byDate).map(d => d.total);
   const dataAvariado = Object.values(byDate).map(d => d.avariados);
-  const dataMeta     = Array(labels.length).fill(metaProducao);
+  const dataMeta     = Array(labels.length).fill(metaUsar);
 
-  document.getElementById('pMetaLabel').textContent = `Meta: ${metaProducao} pç/dia`;
+  const metaLabelEl = document.getElementById('pMetaLabel');
+  if (metaLabelEl) metaLabelEl.textContent = `Meta: ${metaUsar} pç/dia`;
   renderProducaoChart(labels, dataTotal, dataAvariado, dataMeta);
 
-  const filtered = producoes.filter(p => new Date(p.date + 'T00:00:00') >= cutoff)
+  const filtered = dados.filter(p => new Date(p.date + 'T00:00:00') >= cutoff)
     .sort((a,b) => b.ts.localeCompare(a.ts));
 
   const list = document.getElementById('pAdminList');
@@ -2953,10 +3042,10 @@ function renderProducaoAdmin() {
     list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-2)">Nenhum registro no período. Os operadores ainda não preencheram o checklist.</div>';
     return;
   }
-  list.innerHTML = filtered.map((p,i) => {
+  list.innerHTML = filtered.map(p => {
     const qtd = (p.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
     const av  = (p.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
-    const pct = metaProducao > 0 ? Math.round(qtd/metaProducao*100) : 0;
+    const pct = metaUsar > 0 ? Math.round(qtd/metaUsar*100) : 0;
     const cor = pct >= 100 ? 'var(--success)' : pct >= 70 ? '#f59e0b' : 'var(--danger)';
     const [y,m,day] = p.date.split('-');
     const prodRows  = (p.produtos ||[]).map(r=>`<div class="proc-detail-row"><span>${r.nome||'—'}</span><span>${r.qtd||0} ${r.unit||''} · ${r.avariados||0} avariados</span></div>`).join('');
@@ -3166,8 +3255,11 @@ function openMetaModal() {
 async function saveMeta() {
   const val = parseInt(document.getElementById('metaInput').value);
   if (!val || val < 1) { toast('Informe uma meta válida.','error'); return; }
+  // Se admin estiver vendo "Sem filial" ou operador sem filial → salvar em __geral__
+  const fonte = document.getElementById('pFonte')?.value || 'filial';
+  const filialSrc = (fonte === 'geral' || !user.filialId) ? '__geral__' : currentFilial.id;
   try {
-    await db.collection('lojas').doc(currentFilial.id).collection('config').doc('meta')
+    await db.collection('lojas').doc(filialSrc).collection('config').doc('meta')
       .set({ metaDiaria:val, updatedBy:user.name, ts:new Date().toISOString() });
     metaProducao = val;
     closeOverlay('metaModal');
