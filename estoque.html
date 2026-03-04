@@ -2205,8 +2205,8 @@ function renderStats() {
 
   document.getElementById('statsBar').innerHTML = `
     <div class="stat"><div class="stat-icon blue">📦</div><div><div class="stat-label">Produtos</div><div class="stat-value">${total}</div></div></div>
-    <div class="stat"><div class="stat-icon green">📊</div><div><div class="stat-label">Total em Estoque</div><div class="stat-value">${totQty.toLocaleString('pt-BR')}</div></div></div>
-    <div class="stat"><div class="stat-icon red">⚠️</div><div><div class="stat-label">Estoque Baixo</div><div class="stat-value">${low}</div></div></div>
+    ${isAdmin ? `<div class="stat"><div class="stat-icon green">📊</div><div><div class="stat-label">Total em Estoque</div><div class="stat-value">${totQty.toLocaleString('pt-BR')}</div></div></div>` : ''}
+    ${isAdmin ? `<div class="stat"><div class="stat-icon red">⚠️</div><div><div class="stat-label">Estoque Baixo</div><div class="stat-value">${low}</div></div></div>` : ''}
     <div class="stat"><div class="stat-icon yellow">🚫</div><div><div class="stat-label">Sem Estoque</div><div class="stat-value">${zero}</div></div></div>
     ${adminStats}`;
 }
