@@ -1033,6 +1033,9 @@
         </div>
       </div>
       <div id="pMetaBar"></div>
+      <div class="proc-chart-wrap" id="pOpChartWrap" style="display:none;margin-bottom:20px">
+        <canvas id="producaoOpChart" height="90"></canvas>
+      </div>
       <div id="pFormArea"></div>
       <div id="pHistArea" style="margin-top:20px"></div>
     </div>
@@ -1456,10 +1459,11 @@ let vendas   = [];
 let currentMode = null;  // 'estoque' | 'caixa'
 
 // Produção state
-let producoes     = [];
-let metaProducao  = 300;
-let unsubProducao = null;
-let producaoChart = null;
+let producoes      = [];
+let metaProducao   = 300;
+let unsubProducao  = null;
+let producaoChart  = null;
+let producaoOpChart = null;
 
 /* ══════════════════════════════════════════
    FIRESTORE — helper de coleção por filial
@@ -1526,7 +1530,9 @@ function stopListeners() {
   if (unsubCotacao)  { unsubCotacao();  unsubCotacao  = null; }
   if (unsubVendas)   { unsubVendas();   unsubVendas   = null; }
   if (unsubProducao) { unsubProducao(); unsubProducao = null; }
-  producoes = []; if (producaoChart) { producaoChart.destroy(); producaoChart = null; }
+  producoes = [];
+  if (producaoChart)   { producaoChart.destroy();   producaoChart   = null; }
+  if (producaoOpChart) { producaoOpChart.destroy(); producaoOpChart = null; }
 }
 
 /* ══════════════════════════════════════════
@@ -1708,9 +1714,10 @@ function showProducaoApp() {
 }
 
 function backFromProducao() {
-  if (unsubProducao) { unsubProducao(); unsubProducao = null; }
+  if (unsubProducao)   { unsubProducao();   unsubProducao   = null; }
   producoes = [];
-  if (producaoChart) { producaoChart.destroy(); producaoChart = null; }
+  if (producaoChart)   { producaoChart.destroy();   producaoChart   = null; }
+  if (producaoOpChart) { producaoOpChart.destroy(); producaoOpChart = null; }
   document.getElementById('producaoApp').style.display = 'none';
   showModeSelectPage();
 }
@@ -3058,8 +3065,9 @@ async function renderProducaoAdmin() {
           <div style="font-weight:700;font-size:14px">${day}/${m}/${y} — ${p.userName}</div>
           <div style="font-size:12px;color:var(--text-2);margin-top:2px">${qtd} peças produzidas · ${av} avariadas</div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:13px;font-weight:700;color:${cor}">${pct}% da meta</span>
+          <button onclick="event.stopPropagation();deleteProducao('${p.id}','${fonte}')" title="Excluir registro" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--danger);padding:2px 4px">🗑</button>
           <span style="color:var(--text-3)">▾</span>
         </div>
       </div>
@@ -3102,13 +3110,15 @@ function renderProducaoChart(labels, dataTotal, dataAvariado, dataMeta) {
 /* ── OPERADOR ── */
 function renderProducaoOp() {
   const today    = getTodayStr();
-  const todayRec = producoes.find(p => p.userId === user.id && p.date === today);
-  const recentes = producoes.filter(p => p.userId === user.id && p.date !== today).slice(0,7);
+  const meus     = producoes.filter(p => p.userId === user.id).sort((a,b)=>a.date.localeCompare(b.date));
+  const todayRec = meus.find(p => p.date === today);
+  const recentes = meus.filter(p => p.date !== today).slice(-7);
 
-  const qtdHoje = todayRec ? (todayRec.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0) : 0;
-  const pct     = metaProducao > 0 ? Math.min(100, Math.round(qtdHoje/metaProducao*100)) : 0;
+  const qtdHoje  = todayRec ? (todayRec.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0) : 0;
+  const pct      = metaProducao > 0 ? Math.min(100, Math.round(qtdHoje/metaProducao*100)) : 0;
   const barColor = pct >= 100 ? 'var(--success)' : pct >= 70 ? '#f59e0b' : 'var(--primary)';
 
+  // ── Barra de progresso do dia ──
   const metaBar = document.getElementById('pMetaBar');
   if (metaBar) metaBar.innerHTML = `
     <div class="proc-meta-bar">
@@ -3119,6 +3129,45 @@ function renderProducaoOp() {
       <div class="proc-progress"><div class="proc-progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
     </div>`;
 
+  // ── Gráfico de evolução (últimos 14 dias) ──
+  const dias   = 14;
+  const labels = [], dataTotal = [], dataAv = [], dataMeta = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    const d   = new Date(Date.now() - i * 864e5).toISOString().slice(0,10);
+    const rec = meus.find(p => p.date === d);
+    const [,mm,dd] = d.split('-');
+    labels.push(`${dd}/${mm}`);
+    dataTotal.push(rec ? (rec.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0) : 0);
+    dataAv.push(rec    ? (rec.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0) : 0);
+    dataMeta.push(metaProducao);
+  }
+  const wrap = document.getElementById('pOpChartWrap');
+  if (wrap) wrap.style.display = '';
+  const ctx2 = document.getElementById('producaoOpChart')?.getContext('2d');
+  if (ctx2) {
+    if (producaoOpChart) { producaoOpChart.destroy(); producaoOpChart = null; }
+    producaoOpChart = new Chart(ctx2, {
+      data: {
+        labels,
+        datasets: [
+          { type:'bar',  label:'Produzido', data:dataTotal, backgroundColor:'rgba(99,102,241,0.75)', borderColor:'#6366f1', borderWidth:1, borderRadius:4 },
+          { type:'bar',  label:'Avariados', data:dataAv,    backgroundColor:'rgba(239,68,68,0.5)',   borderColor:'#ef4444', borderWidth:1, borderRadius:4 },
+          { type:'line', label:'Meta',      data:dataMeta,  borderColor:'#f59e0b', borderWidth:2.5, borderDash:[6,4], pointRadius:0, fill:false, tension:0 }
+        ]
+      },
+      options: {
+        responsive:true,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ position:'top', labels:{ font:{ size:12 } } } },
+        scales:{
+          x:{ grid:{ display:false } },
+          y:{ beginAtZero:true, grid:{ color:'rgba(0,0,0,0.05)' }, ticks:{ stepSize:50 } }
+        }
+      }
+    });
+  }
+
+  // ── Formulário / card do dia ──
   const formArea = document.getElementById('pFormArea');
   if (formArea) {
     if (todayRec) {
@@ -3139,17 +3188,19 @@ function renderProducaoOp() {
     }
   }
 
+  // ── Histórico recente ──
   const histArea = document.getElementById('pHistArea');
-  if (histArea && recentes.length) {
+  if (histArea) {
+    if (!recentes.length) { histArea.innerHTML = ''; return; }
     histArea.innerHTML = `<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text-1)">📁 Registros Anteriores</div>` +
-      recentes.map(p => {
+      [...recentes].reverse().map(p => {
         const qtd = (p.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
         const av  = (p.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
         const [y,m,day] = p.date.split('-');
         const pct2 = metaProducao > 0 ? Math.round(qtd/metaProducao*100) : 0;
         const cor  = pct2>=100?'var(--success)':pct2>=70?'#f59e0b':'var(--danger)';
         return `<div class="proc-admin-card" style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">
             <div style="font-weight:600;font-size:13px">${day}/${m}/${y}</div>
             <div style="display:flex;gap:12px;align-items:center">
               <span style="font-size:12px;color:var(--text-2)">${qtd} peças${av?` · ${av} av.`:''}</span>
@@ -3266,6 +3317,19 @@ async function saveMeta() {
     toast('✅ Meta atualizada!','success');
     renderProducaoSection();
   } catch(e) { console.error(e); toast('Erro ao salvar meta.','error'); }
+}
+
+/* ══════════════════════════════════════════
+   DELETAR REGISTRO DE PRODUÇÃO (admin)
+══════════════════════════════════════════ */
+async function deleteProducao(docId, fonte) {
+  if (!confirm('Excluir este registro de produção? Esta ação não pode ser desfeita.')) return;
+  try {
+    const filialSrc = fonte === 'geral' ? 'producao-geral' : currentFilial.id;
+    await db.collection('lojas').doc(filialSrc).collection('producao').doc(docId).delete();
+    toast('🗑 Registro excluído.', 'info');
+    renderProducaoAdmin();
+  } catch(e) { console.error(e); toast('Erro ao excluir: ' + e.message, 'error'); }
 }
 
 /* ══════════════════════════════════════════
