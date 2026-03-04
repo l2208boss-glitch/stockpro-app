@@ -495,6 +495,23 @@
     }
     @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } .filiaisGrid { grid-template-columns: 1fr; } }
 
+    /* ─── EXPIRY ─── */
+    .card.expired  { border-color: #f87171; }
+    .card.expiring { border-color: #fb923c; }
+    .card-expiry { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-bottom: 10px; min-height: 18px; }
+    .card-expiry.exp-critical { color: var(--danger); }
+    .card-expiry.exp-warn     { color: var(--warning); }
+    .card-expiry.exp-ok       { color: var(--text-3); font-weight: 500; }
+
+    /* ─── CHANGE PASSWORD ─── */
+    .btn-change-pass {
+      width: 34px; height: 34px; border: 1.5px solid var(--border-2);
+      background: var(--bg); border-radius: var(--radius-sm);
+      font-size: 15px; cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .btn-change-pass:hover { background: var(--primary-light); border-color: var(--primary); }
+
     /* ─── USERS MODAL ─── */
     .users-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 300px; overflow-y: auto; }
     .user-item {
@@ -556,6 +573,7 @@
     <div class="header-right">
       <span class="role-badge" id="filialRoleBadge"></span>
       <span class="header-user" id="filialHeaderUser"></span>
+      <button class="btn-change-pass" onclick="openChangePass()" title="Trocar Senha">🔑</button>
       <button class="btn-logout" onclick="doLogout()">Sair</button>
     </div>
   </header>
@@ -596,6 +614,7 @@
       </div>
       <span class="role-badge" id="roleBadge"></span>
       <span class="header-user" id="headerUser"></span>
+      <button class="btn-change-pass" onclick="openChangePass()" title="Trocar Senha">🔑</button>
       <button class="btn-logout" onclick="doLogout()">Sair</button>
     </div>
   </header>
@@ -608,6 +627,7 @@
         <div class="sec-title">Produtos em Estoque</div>
         <div class="sec-sub">Clique em Entrada ou Saída para registrar movimentação</div>
       </div>
+      <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
     </div>
     <div class="grid" id="prodGrid"></div>
 
@@ -686,7 +706,7 @@
 <div class="overlay" id="editOverlay" onclick="overlayClick(event,'editOverlay')">
   <div class="modal wide">
     <div class="modal-hd">
-      <span class="modal-title edit">✏️ Editar Produto</span>
+      <span class="modal-title edit" id="editModalTitle">✏️ Editar Produto</span>
       <button class="btn-x" onclick="closeOverlay('editOverlay')">✕</button>
     </div>
     <div class="modal-body">
@@ -715,6 +735,11 @@
           <label class="modal-label" for="eVenda">Venda (R$)</label>
           <input class="modal-input" type="number" id="eVenda" placeholder="0,00" min="0" step="0.01">
         </div>
+      </div>
+
+      <div class="field" style="margin-bottom:20px">
+        <label class="modal-label" for="eValidade">Validade (opcional)</label>
+        <input class="modal-input" type="date" id="eValidade">
       </div>
 
       <div class="photo-section">
@@ -752,6 +777,36 @@
     <div class="modal-ft">
       <button class="btn-cancel" onclick="closeOverlay('filialModal')">Cancelar</button>
       <button class="btn-confirm save" id="btnSaveFilial" onclick="saveFilial()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — TROCAR SENHA ══════════ -->
+<div class="overlay" id="changePassModal" onclick="overlayClick(event,'changePassModal')">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title edit">🔑 Trocar Senha</span>
+      <button class="btn-x" onclick="closeOverlay('changePassModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="modal-label" for="cpCurrent">Senha atual *</label>
+        <input class="modal-input" type="password" id="cpCurrent" placeholder="Digite sua senha atual">
+        <div class="field-err" id="cpCurrentErr">Senha atual incorreta.</div>
+      </div>
+      <div class="field">
+        <label class="modal-label" for="cpNew">Nova senha *</label>
+        <input class="modal-input" type="password" id="cpNew" placeholder="Nova senha">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="modal-label" for="cpConfirm">Confirmar nova senha *</label>
+        <input class="modal-input" type="password" id="cpConfirm" placeholder="Repita a nova senha">
+        <div class="field-err" id="cpConfirmErr">As senhas não coincidem.</div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('changePassModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="saveChangePass()">Salvar</button>
     </div>
   </div>
 </div>
@@ -993,6 +1048,7 @@ function enterFilial(filialId) {
   badge.className = 'role-badge ' + user.role;
   document.getElementById('headerUser').textContent = '👤 ' + user.name;
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
   photos = {};
   setupRealtimeListeners();
 }
@@ -1049,6 +1105,36 @@ function switchFilial(filialId) {
   document.getElementById('filialNameBadge').textContent = currentFilial.nome;
   setupRealtimeListeners();
   toast('📍 ' + f.nome, 'info');
+}
+
+/* ══════════════════════════════════════════
+   CHANGE PASSWORD
+══════════════════════════════════════════ */
+function openChangePass() {
+  document.getElementById('cpCurrent').value = '';
+  document.getElementById('cpNew').value     = '';
+  document.getElementById('cpConfirm').value = '';
+  document.getElementById('cpCurrentErr').style.display = 'none';
+  document.getElementById('cpConfirmErr').style.display = 'none';
+  document.getElementById('changePassModal').classList.add('on');
+  setTimeout(() => document.getElementById('cpCurrent').focus(), 120);
+}
+
+async function saveChangePass() {
+  const current = document.getElementById('cpCurrent').value;
+  const newPass = document.getElementById('cpNew').value;
+  const confirm = document.getElementById('cpConfirm').value;
+  document.getElementById('cpCurrentErr').style.display = 'none';
+  document.getElementById('cpConfirmErr').style.display = 'none';
+  if (!current || !newPass || !confirm) { toast('Preencha todos os campos', 'error'); return; }
+  const snap = await db.collection('usuarios')
+    .where('username','==',user.username).where('password','==',current).limit(1).get();
+  if (snap.empty) { document.getElementById('cpCurrentErr').style.display = 'block'; return; }
+  if (newPass !== confirm) { document.getElementById('cpConfirmErr').style.display = 'block'; return; }
+  await db.collection('usuarios').doc(user.id).update({ password: newPass });
+  user.password = newPass;
+  closeOverlay('changePassModal');
+  toast('✅ Senha alterada com sucesso!', 'success');
 }
 
 /* ══════════════════════════════════════════
@@ -1210,6 +1296,7 @@ document.addEventListener('keydown', e => {
     closeOverlay('filialModal');
     closeOverlay('usersModal');
     closeOverlay('userFormModal');
+    closeOverlay('changePassModal');
     closeFilialDropdown();
   }
 });
@@ -1328,8 +1415,28 @@ function photoHTML(p, size) {
 function renderProducts() {
   const isAdmin = user && user.role === 'admin';
   document.getElementById('prodGrid').innerHTML = products.map(p => {
-    const cls   = p.qty===0 ? 'zero' : p.qty<=5 ? 'low' : '';
-    const alert = p.qty===0
+    // Validade
+    let expiryHTML = '', expiryCls = '';
+    if (p.validade) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const expDate = new Date(p.validade + 'T00:00:00');
+      const days = Math.ceil((expDate - today) / (1000*60*60*24));
+      if (days < 0) {
+        expiryHTML = `<div class="card-expiry exp-critical">🔴 VENCIDO</div>`;
+        expiryCls = 'expired';
+      } else if (days <= 7) {
+        expiryHTML = `<div class="card-expiry exp-critical">🔴 Vence em ${days}d</div>`;
+        expiryCls = 'expired';
+      } else if (days <= 30) {
+        expiryHTML = `<div class="card-expiry exp-warn">🟡 Vence em ${days}d</div>`;
+        expiryCls = 'expiring';
+      } else {
+        expiryHTML = `<div class="card-expiry exp-ok">📅 Val: ${expDate.toLocaleDateString('pt-BR')}</div>`;
+      }
+    }
+    const qtyCls = p.qty===0 ? 'zero' : p.qty<=5 ? 'low' : '';
+    const cls    = expiryCls || qtyCls;
+    const alert  = p.qty===0
       ? `<div class="card-alert zero-alert">⛔ Sem estoque</div>`
       : p.qty<=5
         ? `<div class="card-alert low-alert">⚠️ Estoque baixo</div>`
@@ -1370,6 +1477,7 @@ function renderProducts() {
           <div class="card-meta">${p.category} &middot; ${p.unit}</div>
           <div class="card-qty"><span class="qty-num">${p.qty}</span><span class="qty-unit">${p.unit}</span></div>
           ${alert}
+          ${expiryHTML}
           <div class="card-actions">
             <button class="btn-in"  onclick="openMov(${p.id},'entrada')">＋ Entrada</button>
             <button class="btn-out" onclick="openMov(${p.id},'saida')">－ Saída</button>
@@ -1474,16 +1582,29 @@ document.getElementById('mObs').addEventListener('keydown', e => { if(e.key==='E
 ══════════════════════════════════════════ */
 function openEditProduct(productId) {
   if (!user || user.role!=='admin') return;
-  const p = products.find(x => x.id===productId);
-  if (!p) return;
   editId = productId;
-  editPhotoTemp = photos[productId] || null;
-  document.getElementById('eName').value  = p.name;
-  document.getElementById('eCat').value   = p.category;
-  document.getElementById('eUnit').value  = p.unit;
-  document.getElementById('eEmoji').value = p.emoji;
-  document.getElementById('eCusto').value = p.custo || '';
-  document.getElementById('eVenda').value = p.venda || '';
+  editPhotoTemp = productId ? (photos[productId] || null) : null;
+  if (productId) {
+    const p = products.find(x => x.id===productId);
+    if (!p) return;
+    document.getElementById('eName').value     = p.name;
+    document.getElementById('eCat').value      = p.category;
+    document.getElementById('eUnit').value     = p.unit;
+    document.getElementById('eEmoji').value    = p.emoji;
+    document.getElementById('eCusto').value    = p.custo || '';
+    document.getElementById('eVenda').value    = p.venda || '';
+    document.getElementById('eValidade').value = p.validade || '';
+    document.getElementById('editModalTitle').textContent = '✏️ Editar Produto';
+  } else {
+    document.getElementById('eName').value     = '';
+    document.getElementById('eCat').value      = '';
+    document.getElementById('eUnit').value     = 'un';
+    document.getElementById('eEmoji').value    = '📦';
+    document.getElementById('eCusto').value    = '';
+    document.getElementById('eVenda').value    = '';
+    document.getElementById('eValidade').value = '';
+    document.getElementById('editModalTitle').textContent = '✏️ Novo Produto';
+  }
   refreshPhotoPreview();
   document.getElementById('editOverlay').classList.add('on');
   setTimeout(() => document.getElementById('eName').focus(), 120);
@@ -1527,8 +1648,33 @@ function handlePhotoUpload(event) {
 function removePhoto() { editPhotoTemp = null; refreshPhotoPreview(); }
 
 function saveEditProduct() {
-  const name = document.getElementById('eName').value.trim();
+  const name     = document.getElementById('eName').value.trim();
+  const validade = document.getElementById('eValidade').value || null;
   if (!name) { toast('Informe o nome do produto', 'error'); return; }
+
+  if (editId === null) {
+    // Novo produto
+    const newId = Date.now();
+    const p = {
+      id:       newId,
+      name,
+      category: document.getElementById('eCat').value.trim()   || 'Geral',
+      unit:     document.getElementById('eUnit').value.trim()  || 'un',
+      emoji:    document.getElementById('eEmoji').value.trim() || '📦',
+      custo:    parseFloat(document.getElementById('eCusto').value) || 0,
+      venda:    parseFloat(document.getElementById('eVenda').value) || 0,
+      qty:      0,
+      validade,
+    };
+    if (editPhotoTemp) photos[newId] = editPhotoTemp;
+    products.push(p);
+    renderAll(); closeOverlay('editOverlay');
+    toast(`✅ Produto "${p.name}" adicionado!`, 'success');
+    saveProduct(p);
+    savePhoto(newId, editPhotoTemp || null);
+    return;
+  }
+
   const p = products.find(x => x.id===editId);
   if (!p) return;
   p.name     = name;
@@ -1537,6 +1683,7 @@ function saveEditProduct() {
   p.emoji    = document.getElementById('eEmoji').value.trim() || p.emoji;
   p.custo    = parseFloat(document.getElementById('eCusto').value) || 0;
   p.venda    = parseFloat(document.getElementById('eVenda').value) || 0;
+  p.validade = validade;
   if (editPhotoTemp) photos[editId] = editPhotoTemp;
   else               delete photos[editId];
   renderAll(); closeOverlay('editOverlay');
