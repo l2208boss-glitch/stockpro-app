@@ -1046,11 +1046,11 @@
           <input class="modal-input" type="text" id="eEmoji" placeholder="Ex: ☕" maxlength="4">
         </div>
         <div class="field">
-          <label class="modal-label" for="eCusto">Custo (R$)</label>
+          <label class="modal-label" id="labelCusto" for="eCusto">Custo (R$)</label>
           <input class="modal-input" type="number" id="eCusto" placeholder="0,00" min="0" step="0.01">
         </div>
         <div class="field">
-          <label class="modal-label" for="eVenda">Venda (R$)</label>
+          <label class="modal-label" id="labelVenda" for="eVenda">Venda (R$)</label>
           <input class="modal-input" type="number" id="eVenda" placeholder="0,00" min="0" step="0.01">
         </div>
       </div>
@@ -2068,7 +2068,12 @@ function renderAll() {
   document.getElementById('reportsBlock').style.display = (user && user.role === 'admin') ? '' : 'none';
 }
 
-function fmtMoney(v) { return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function fmtMoney(v) {
+  if (currentFilial && currentFilial.caixaEnabled) {
+    return '$' + v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
 
 function renderStats() {
   const total   = products.length;
@@ -2272,6 +2277,9 @@ function openEditProduct(productId) {
   if (!user || user.role!=='admin') return;
   editId = productId;
   editPhotoTemp = productId ? (photos[productId] || null) : null;
+  const isUSD = currentFilial && currentFilial.caixaEnabled;
+  document.getElementById('labelCusto').textContent = isUSD ? 'Custo (USD $)' : 'Custo (R$)';
+  document.getElementById('labelVenda').textContent = isUSD ? 'Venda (USD $)' : 'Venda (R$)';
   const _delBtn = document.getElementById('btnDeleteProduct');
   const _editFt = document.getElementById('editModalFt');
   _delBtn.style.display = productId ? '' : 'none';
