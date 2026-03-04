@@ -3,7 +3,7 @@
    network-first para o Firebase (Firestore já tem seu próprio cache offline).
 */
 
-const CACHE_NAME = 'stockpro-v2';
+const CACHE_NAME = 'stockpro-v3';
 
 // Arquivos do app que ficam em cache (shell)
 const SHELL = [
