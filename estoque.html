@@ -1720,7 +1720,7 @@ function renderCaixaProducts() {
       : `<div class="caixa-card-emoji">${p.emoji || '📦'}</div>`;
     const preco = p.venda > 0 ? `$${Number(p.venda).toFixed(2)}` : 'Sem preço';
     const zero  = p.qty <= 0;
-    return `<div class="caixa-card${zero?' zero':''}" onclick="${zero?'':``addToCart(${p.id})``}">
+    return `<div class="caixa-card${zero?' zero':''}" onclick="${zero?'':'addToCart('+p.id+')'}">
       ${imgHtml}
       <div class="caixa-card-name">${p.name}</div>
       <div class="caixa-card-price">${preco}</div>
