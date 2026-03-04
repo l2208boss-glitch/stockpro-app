@@ -6,7 +6,7 @@
    - Firestore/Auth API: passa direto, tem cache próprio offline.
 */
 
-const CACHE_NAME = 'stockpro-v4';
+const CACHE_NAME = 'stockpro-v5';
 
 const STATIC_ASSETS = [
   '/stockpro-app/icon.svg',
@@ -32,6 +32,11 @@ self.addEventListener('activate', event => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+// Permite que a página force a ativação imediata do novo SW
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', event => {
