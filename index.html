@@ -1558,8 +1558,8 @@ function startSession(userData) {
 }
 
 function enterChecklistMode() {
-  // Operador sem filial mas com checklist: usa bucket virtual '__geral__'
-  currentFilial = { id: '__geral__', nome: 'Geral' };
+  // Operador sem filial mas com checklist: usa bucket virtual 'producao-geral'
+  currentFilial = { id: 'producao-geral', nome: 'Geral' };
   document.getElementById('filialPage').style.display = 'none';
   photos = {};
   showProducaoApp();
@@ -3003,10 +3003,10 @@ async function renderProducaoAdmin() {
   let metaUsar = metaProducao;
   if (fonte === 'geral') {
     try {
-      const snap = await db.collection('lojas').doc('__geral__')
+      const snap = await db.collection('lojas').doc('producao-geral')
         .collection('producao').orderBy('ts','desc').limit(500).get();
       dados = snap.docs.map(d => d.data());
-      const mDoc = await db.collection('lojas').doc('__geral__').collection('config').doc('meta').get();
+      const mDoc = await db.collection('lojas').doc('producao-geral').collection('config').doc('meta').get();
       metaUsar = mDoc.exists ? (mDoc.data().metaDiaria || 300) : 300;
     } catch(e) { dados = []; }
   }
@@ -3255,9 +3255,9 @@ function openMetaModal() {
 async function saveMeta() {
   const val = parseInt(document.getElementById('metaInput').value);
   if (!val || val < 1) { toast('Informe uma meta válida.','error'); return; }
-  // Se admin estiver vendo "Sem filial" ou operador sem filial → salvar em __geral__
+  // Se admin estiver vendo "Sem filial" ou operador sem filial → salvar em producao-geral
   const fonte = document.getElementById('pFonte')?.value || 'filial';
-  const filialSrc = (fonte === 'geral' || !user.filialId) ? '__geral__' : currentFilial.id;
+  const filialSrc = (fonte === 'geral' || !user.filialId) ? 'producao-geral' : currentFilial.id;
   try {
     await db.collection('lojas').doc(filialSrc).collection('config').doc('meta')
       .set({ metaDiaria:val, updatedBy:user.name, ts:new Date().toISOString() });
