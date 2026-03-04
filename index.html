@@ -741,6 +741,7 @@
         <div class="sec-sub">Clique em "Entrar" para acessar o estoque da filial</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn-users" id="btnProducaoGeral" style="display:none" onclick="enterProducaoGeral()">📋 Produção Geral</button>
         <button class="btn-users" id="btnGerenciarUsers" style="display:none" onclick="openUsersModal()">👥 Usuários</button>
         <button class="btn-nova-filial" id="btnNovaFilial" style="display:none" onclick="openFilialModal(null)">＋ Nova Filial</button>
       </div>
@@ -1589,6 +1590,14 @@ function enterChecklistMode() {
   showProducaoApp();
 }
 
+function enterProducaoGeral() {
+  // Admin acessa produção geral direto da página de filiais
+  currentFilial = { id: 'producao-geral', nome: 'Geral' };
+  document.getElementById('filialPage').style.display = 'none';
+  photos = {};
+  showProducaoApp();
+}
+
 async function directEnterFilial(filialId) {
   try {
     const snap = await db.collection('lojas').doc(filialId).get();
@@ -1613,6 +1622,7 @@ function showFilialPage() {
   document.getElementById('filialHeaderUser').textContent = '👤 ' + user.name;
   document.getElementById('btnNovaFilial').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnGerenciarUsers').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnProducaoGeral').style.display = user.role === 'admin' ? '' : 'none';
   setupFiliaisListener();
 }
 
@@ -1737,7 +1747,10 @@ function backFromProducao() {
   if (producaoChart)   { producaoChart.destroy();   producaoChart   = null; }
   if (producaoOpChart) { producaoOpChart.destroy(); producaoOpChart = null; }
   document.getElementById('producaoApp').style.display = 'none';
-  showModeSelectPage();
+  // Se entrou pela página de filiais (sem filial real), volta para lá
+  const filialReal = filiais.find(f => f.id === currentFilial?.id);
+  if (filialReal) showModeSelectPage();
+  else backToFiliais();
 }
 
 function backToFiliais() {
