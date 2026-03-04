@@ -767,7 +767,7 @@
     </div>
     <div class="grid" id="prodGrid"></div>
 
-    <div class="history-box">
+    <div class="history-box" id="historyBlock">
       <div class="history-hd">
         <div>
           <div class="sec-title">Histórico de Movimentações</div>
@@ -1790,7 +1790,7 @@ function renderCaixaProducts() {
       ${imgHtml}
       <div class="caixa-card-name">${p.name}</div>
       <div class="caixa-card-price">${preco}</div>
-      <div class="caixa-card-stock">${p.qty} ${p.unit} em estoque</div>
+      ${user && user.role === 'admin' ? `<div class="caixa-card-stock">${p.qty} ${p.unit} em estoque</div>` : ''}
       ${!zero && p.venda > 0 ? `<button class="caixa-card-btn" onclick="event.stopPropagation();addToCart('${p.id}')">＋ Adicionar</button>` : ''}
     </div>`;
   }).join('');
@@ -2174,8 +2174,10 @@ function deleteFilial(filialId) {
    RENDER (estoque)
 ══════════════════════════════════════════ */
 function renderAll() {
+  const isAdmin = user && user.role === 'admin';
   renderStats(); renderProducts(); renderHistory(); populateFilter();
-  document.getElementById('reportsBlock').style.display = (user && user.role === 'admin') ? '' : 'none';
+  document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
+  document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
 }
 
 function fmtMoney(v) {
@@ -2242,10 +2244,10 @@ function renderProducts() {
       }
     }
     const qtyCls = p.qty===0 ? 'zero' : p.qty<=5 ? 'low' : '';
-    const cls    = expiryCls || qtyCls;
+    const cls    = expiryCls || (isAdmin ? qtyCls : (p.qty===0 ? 'zero' : ''));
     const alert  = p.qty===0
       ? `<div class="card-alert zero-alert">⛔ Sem estoque</div>`
-      : p.qty<=5
+      : (isAdmin && p.qty<=5)
         ? `<div class="card-alert low-alert">⚠️ Estoque baixo</div>`
         : `<div class="card-alert"></div>`;
 
@@ -2282,7 +2284,7 @@ function renderProducts() {
         <div class="card-body">
           <div class="card-name">${p.name}</div>
           <div class="card-meta">${p.category} &middot; ${p.unit}</div>
-          <div class="card-qty"><span class="qty-num">${p.qty}</span><span class="qty-unit">${p.unit}</span></div>
+          ${isAdmin ? `<div class="card-qty"><span class="qty-num">${p.qty}</span><span class="qty-unit">${p.unit}</span></div>` : ''}
           ${alert}
           ${expiryHTML}
           <div class="card-actions">
@@ -2351,7 +2353,7 @@ function openMov(productId, type) {
   const ph = photos[p.id];
   mp.innerHTML = ph ? `<img src="${ph}" style="width:44px;height:44px;object-fit:cover;border-radius:8px">` : p.emoji;
   document.getElementById('mpName').textContent = p.name;
-  document.getElementById('mpQty').textContent  = `Estoque atual: ${p.qty} ${p.unit}`;
+  document.getElementById('mpQty').textContent  = user.role === 'admin' ? `Estoque atual: ${p.qty} ${p.unit}` : '';
   document.getElementById('mQty').value  = '';
   document.getElementById('mObs').value  = '';
   document.getElementById('mQtyErr').style.display = 'none';
