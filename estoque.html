@@ -6,6 +6,7 @@
   <title>StockPro</title>
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1360,8 +1361,8 @@ function doLogout() {
   document.getElementById('lp').value = '';
 }
 
-// Auto-restore session on page load
-(async function restoreSession() {
+// Auto-restore session on page load (requires anonymous auth first)
+firebase.auth().signInAnonymously().catch(console.error).finally(async () => {
   const saved = localStorage.getItem('sp_session');
   if (saved) {
     try {
@@ -1369,7 +1370,7 @@ function doLogout() {
       if (!snap.empty) startSession(snap.docs[0].data());
     } catch(e) { console.error(e); }
   }
-})();
+});
 
 document.getElementById('lu').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('lp').focus(); });
 document.getElementById('lp').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
