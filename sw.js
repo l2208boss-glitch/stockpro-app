@@ -1,47 +1,43 @@
 /* StockPro — Service Worker
-   Estratégia: cache-first para o shell do app,
-   network-first para o Firebase (Firestore já tem seu próprio cache offline).
+   Estratégia:
+   - HTML (estoque.html, raiz): NETWORK-FIRST → sempre busca versão nova da rede,
+     cai para cache só se offline.
+   - Firebase SDKs (gstatic.com): CACHE-FIRST → grandes e estáticos, não mudam.
+   - Firestore/Auth API: passa direto, tem cache próprio offline.
 */
 
-const CACHE_NAME = 'stockpro-v3';
+const CACHE_NAME = 'stockpro-v4';
 
-// Arquivos do app que ficam em cache (shell)
-const SHELL = [
-  '/stockpro-app/',
-  '/stockpro-app/estoque.html',
+const STATIC_ASSETS = [
   '/stockpro-app/icon.svg',
   '/stockpro-app/manifest.json',
-  // Firebase SDKs via CDN — ficam em cache após primeira carga
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js',
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',
 ];
 
-// Instala e pré-cacheia o shell
+// Instala: pré-cacheia só os assets estáticos (NÃO o HTML)
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(SHELL))
+      .then(cache => cache.addAll(STATIC_ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
-// Limpa caches antigos ao ativar nova versão
+// Ativa: limpa caches antigos e assume controle imediatamente
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Intercept de requisições: cache-first para shell, passa direto Firebase Auth/Firestore
 self.addEventListener('fetch', event => {
   const url = event.request.url;
 
-  // Deixa o Firestore/Auth passar direto — ele tem cache próprio offline
+  // Firestore/Auth passam direto — têm cache offline próprio
   if (url.includes('firestore.googleapis.com') ||
       url.includes('googleapis.com/google.firestore') ||
       url.includes('securetoken.googleapis.com') ||
@@ -49,22 +45,39 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // HTML (navegação): NETWORK-FIRST — sempre tenta buscar versão nova
+  if (event.request.mode === 'navigate' ||
+      url.endsWith('.html') ||
+      url.endsWith('/stockpro-app/') ||
+      url.endsWith('/stockpro-app')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Guarda cópia nova no cache para uso offline
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(event.request)
+            .then(cached => cached || caches.match('/stockpro-app/estoque.html'))
+        )
+    );
+    return;
+  }
+
+  // Assets estáticos (Firebase SDKs, ícones): CACHE-FIRST
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
-
       return fetch(event.request).then(response => {
-        // Guarda em cache arquivos do gstatic (Firebase SDKs)
         if (url.includes('gstatic.com') && response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => {
-        // Se offline e não está em cache, retorna o app shell
-        if (event.request.mode === 'navigate') {
-          return caches.match('/stockpro-app/estoque.html');
-        }
       });
     })
   );
