@@ -15,6 +15,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -646,6 +648,34 @@
     .vendas-block { margin-top:28px; padding:0 24px 24px; }
     .venda-row td { padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); }
     .venda-items { font-size:12px; color:var(--text-2); max-width:200px; }
+
+    /* ─── PRODUÇÃO ─── */
+    .proc-block { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:14px; }
+    .proc-block-title { font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:12px; }
+    .proc-row { display:flex; gap:7px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    .proc-inp-nome  { flex:2; min-width:120px; padding:7px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; background:var(--bg); color:var(--text-1); }
+    .proc-inp-qty   { flex:1; min-width:60px; max-width:90px; padding:7px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; background:var(--bg); color:var(--text-1); }
+    .proc-inp-unit  { flex:1; min-width:55px; max-width:70px; padding:7px 4px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; background:var(--bg); color:var(--text-1); }
+    .proc-inp-av    { flex:1; min-width:60px; max-width:85px; padding:7px 6px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; background:var(--bg); color:var(--text-1); }
+    .btn-rm-proc    { background:none; border:none; color:var(--text-3); font-size:20px; cursor:pointer; padding:0 2px; line-height:1; flex-shrink:0; }
+    .btn-rm-proc:hover { color:var(--danger); }
+    .btn-add-proc-row { width:100%; padding:8px; background:none; border:1.5px dashed var(--border); border-radius:var(--radius-sm); color:var(--text-3); font-size:13px; cursor:pointer; margin-top:4px; transition:.15s; }
+    .btn-add-proc-row:hover { border-color:var(--primary); color:var(--primary); }
+    .proc-meta-bar  { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+    .proc-meta-info { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; }
+    .proc-meta-title { font-weight:700; color:var(--text-1); }
+    .proc-progress  { height:10px; background:var(--border); border-radius:5px; overflow:hidden; }
+    .proc-progress-fill { height:100%; border-radius:5px; transition:width .4s; }
+    .proc-submitted-card { background:var(--surface); border:2px solid #bbf7d0; border-radius:var(--radius); padding:16px; margin-bottom:14px; }
+    .proc-submitted-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .proc-chart-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px; }
+    .proc-admin-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:10px; }
+    .proc-admin-card-hd { display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+    .proc-admin-card-body { display:none; margin-top:12px; border-top:1px solid var(--border); padding-top:12px; }
+    .proc-admin-card-body.open { display:block; }
+    .proc-detail-section { margin-bottom:12px; }
+    .proc-detail-title { font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .proc-detail-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px solid var(--border); }
   </style>
 </head>
 <body>
@@ -867,6 +897,47 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ══════════ PRODUÇÃO ══════════ -->
+    <div id="producaoSection" style="margin-top:28px;display:none">
+
+      <!-- ADMIN VIEW -->
+      <div id="pAdminView" style="display:none">
+        <div class="sec-hd" style="margin-bottom:16px">
+          <div>
+            <div class="sec-title">📋 Produção da Equipe</div>
+            <div class="sec-sub">Registros diários e indicadores de desempenho</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="pMetaLabel" style="font-size:13px;font-weight:700;color:var(--primary);background:var(--surface);border:1px solid var(--border);padding:7px 12px;border-radius:var(--radius-sm)">Meta: — pç/dia</span>
+            <button class="btn-clr" style="padding:7px 12px;font-size:13px" onclick="openMetaModal()">⚙️ Meta</button>
+            <select id="pPeriodo" onchange="renderProducaoAdmin()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
+              <option value="14">14 dias</option>
+              <option value="30">30 dias</option>
+              <option value="60">60 dias</option>
+            </select>
+          </div>
+        </div>
+        <div class="proc-chart-wrap">
+          <canvas id="producaoChart" height="110"></canvas>
+        </div>
+        <div id="pAdminList"></div>
+      </div>
+
+      <!-- OPERATOR VIEW -->
+      <div id="pOpView" style="display:none">
+        <div class="sec-hd" style="margin-bottom:16px">
+          <div>
+            <div class="sec-title">📋 Registro do Dia</div>
+            <div class="sec-sub">Preencha ao final do seu turno</div>
+          </div>
+        </div>
+        <div id="pMetaBar"></div>
+        <div id="pFormArea"></div>
+        <div id="pHistArea" style="margin-top:20px"></div>
+      </div>
+
     </div>
   </main>
 </div>
@@ -1203,17 +1274,49 @@
         <label class="modal-label" for="uPassword">Senha *</label>
         <input class="modal-input" type="password" id="uPassword" placeholder="senha de acesso">
       </div>
-      <div class="field" style="margin-bottom:0">
+      <div class="field">
         <label class="modal-label" for="uFilial">Filial Atribuída *</label>
         <select class="modal-input" id="uFilial">
           <option value="">Selecione uma filial...</option>
         </select>
         <div class="field-err" id="uFilialErr">Selecione uma filial para este operador.</div>
       </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600">
+          <input type="checkbox" id="uChecklistEnabled" onchange="toggleMetaField()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+          📋 Liberar Registro de Produção
+        </label>
+        <div style="font-size:12px;color:var(--text-3);margin-top:6px;padding-left:28px">Operador poderá preencher o checklist diário de processo</div>
+      </div>
+      <div class="field" id="metaDiariaField" style="display:none;margin-bottom:0">
+        <label class="modal-label" for="uMetaDiaria">Meta diária (peças)</label>
+        <input class="modal-input" type="number" id="uMetaDiaria" placeholder="Ex: 300" min="1">
+      </div>
     </div>
     <div class="modal-ft">
       <button class="btn-cancel" onclick="closeOverlay('userFormModal')">Cancelar</button>
       <button class="btn-confirm save" onclick="saveUserForm()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — META DE PRODUÇÃO ══════════ -->
+<div class="overlay" id="metaModal" onclick="overlayClick(event,'metaModal')">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title edit">⚙️ Meta Diária de Produção</span>
+      <button class="btn-x" onclick="closeOverlay('metaModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="margin-bottom:0">
+        <label class="modal-label" for="metaInput">Meta de peças por dia *</label>
+        <input class="modal-input" type="number" id="metaInput" placeholder="Ex: 300" min="1">
+        <div style="font-size:12px;color:var(--text-3);margin-top:6px">Usada no gráfico e na barra de progresso do operador</div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('metaModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="saveMeta()">Salvar Meta</button>
     </div>
   </div>
 </div>
@@ -1339,6 +1442,12 @@ let cotacao  = { brl: 0, pyg: 0, date: '' };
 let vendas   = [];
 let currentMode = null;  // 'estoque' | 'caixa'
 
+// Produção state
+let producoes     = [];
+let metaProducao  = 300;
+let unsubProducao = null;
+let producaoChart = null;
+
 /* ══════════════════════════════════════════
    FIRESTORE — helper de coleção por filial
 ══════════════════════════════════════════ */
@@ -1403,6 +1512,8 @@ function stopListeners() {
   if (unsubPhotos)   { unsubPhotos();   unsubPhotos   = null; }
   if (unsubCotacao)  { unsubCotacao();  unsubCotacao  = null; }
   if (unsubVendas)   { unsubVendas();   unsubVendas   = null; }
+  if (unsubProducao) { unsubProducao(); unsubProducao = null; }
+  producoes = []; if (producaoChart) { producaoChart.destroy(); producaoChart = null; }
 }
 
 /* ══════════════════════════════════════════
@@ -1495,6 +1606,13 @@ function showEstoqueApp() {
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnCopiarProdutos').style.display = user.role === 'admin' ? '' : 'none';
+  // Produção
+  const isAdmin   = user.role === 'admin';
+  const hasChecklist = isAdmin || user.checklistEnabled;
+  document.getElementById('producaoSection').style.display = hasChecklist ? '' : 'none';
+  document.getElementById('pAdminView').style.display      = isAdmin ? '' : 'none';
+  document.getElementById('pOpView').style.display         = (!isAdmin && user.checklistEnabled) ? '' : 'none';
+  if (hasChecklist) setupProducaoListener();
 }
 
 function showCaixaApp() {
@@ -1658,6 +1776,9 @@ function openUserForm(userId) {
       document.getElementById('uUsername').value = u.username;
       document.getElementById('uPassword').value = u.password || '';
       document.getElementById('uFilial').value   = u.filialId || '';
+      document.getElementById('uChecklistEnabled').checked = u.checklistEnabled || false;
+      document.getElementById('uMetaDiaria').value = u.metaDiaria || '';
+      document.getElementById('metaDiariaField').style.display = u.checklistEnabled ? '' : 'none';
       document.getElementById('uUsername').dataset.original = u.username;
       document.getElementById('userFormModal').classList.add('on');
     });
@@ -1666,6 +1787,9 @@ function openUserForm(userId) {
     document.getElementById('uUsername').value = '';
     document.getElementById('uPassword').value = '';
     document.getElementById('uFilial').value   = '';
+    document.getElementById('uChecklistEnabled').checked = false;
+    document.getElementById('uMetaDiaria').value = '';
+    document.getElementById('metaDiariaField').style.display = 'none';
     document.getElementById('uUsername').dataset.original = '';
     document.getElementById('userFormModal').classList.add('on');
   }
@@ -1691,8 +1815,10 @@ async function saveUserForm() {
     }
   }
   document.getElementById('uUsernameErr').style.display = 'none';
+  const checklistEnabled = document.getElementById('uChecklistEnabled').checked;
+  const metaDiaria = checklistEnabled ? (parseInt(document.getElementById('uMetaDiaria').value) || 300) : null;
   const id = editUserId || db.collection('usuarios').doc().id;
-  await db.collection('usuarios').doc(id).set({ id, name, username, password, role:'op', filialId });
+  await db.collection('usuarios').doc(id).set({ id, name, username, password, role:'op', filialId, checklistEnabled, metaDiaria });
   closeOverlay('userFormModal');
   toast(editUserId ? '✅ Operador atualizado.' : '✅ Operador criado.', 'success');
   openUsersModal();
@@ -2756,6 +2882,298 @@ function renderReports() {
     </tr>`;
   }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-2);padding:20px">Sem movimentações no período.</td></tr>';
   document.getElementById('rTableBody').innerHTML = tableRows;
+}
+
+/* ══════════════════════════════════════════
+   PRODUÇÃO — REGISTRO DIÁRIO
+══════════════════════════════════════════ */
+function toggleMetaField() {
+  const on = document.getElementById('uChecklistEnabled').checked;
+  document.getElementById('metaDiariaField').style.display = on ? '' : 'none';
+}
+
+function getTodayStr() { return new Date().toISOString().slice(0,10); }
+
+function setupProducaoListener() {
+  if (unsubProducao) { unsubProducao(); unsubProducao = null; }
+  loadMetaProducao();
+  unsubProducao = col('producao').orderBy('ts','desc').limit(500).onSnapshot(snap => {
+    producoes = snap.docs.map(d => d.data());
+    if (currentMode === 'estoque') renderProducaoSection();
+  }, console.error);
+}
+
+async function loadMetaProducao() {
+  try {
+    const doc = await db.collection('lojas').doc(currentFilial.id)
+      .collection('config').doc('meta').get();
+    metaProducao = doc.exists ? (doc.data().metaDiaria || 300) : 300;
+  } catch(e) { metaProducao = 300; }
+  if (currentMode === 'estoque') renderProducaoSection();
+}
+
+function renderProducaoSection() {
+  if (!user) return;
+  if (user.role === 'admin') renderProducaoAdmin();
+  else renderProducaoOp();
+}
+
+/* ── ADMIN ── */
+function renderProducaoAdmin() {
+  const dias   = parseInt(document.getElementById('pPeriodo')?.value || '14');
+  const cutoff = new Date(Date.now() - dias * 864e5); cutoff.setHours(0,0,0,0);
+
+  // Preenche todos os dias do período (incluindo dias sem registro)
+  const byDate = {};
+  for (let i = dias - 1; i >= 0; i--) {
+    const key = new Date(Date.now() - i * 864e5).toISOString().slice(0,10);
+    byDate[key] = { total: 0, avariados: 0, registros: [] };
+  }
+  producoes.filter(p => new Date(p.date + 'T00:00:00') >= cutoff).forEach(p => {
+    if (!byDate[p.date]) byDate[p.date] = { total: 0, avariados: 0, registros: [] };
+    byDate[p.date].total     += (p.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
+    byDate[p.date].avariados += (p.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
+    byDate[p.date].registros.push(p);
+  });
+
+  const labels       = Object.keys(byDate).map(d => { const [,m,day]=d.split('-'); return `${day}/${m}`; });
+  const dataTotal    = Object.values(byDate).map(d => d.total);
+  const dataAvariado = Object.values(byDate).map(d => d.avariados);
+  const dataMeta     = Array(labels.length).fill(metaProducao);
+
+  document.getElementById('pMetaLabel').textContent = `Meta: ${metaProducao} pç/dia`;
+  renderProducaoChart(labels, dataTotal, dataAvariado, dataMeta);
+
+  const filtered = producoes.filter(p => new Date(p.date + 'T00:00:00') >= cutoff)
+    .sort((a,b) => b.ts.localeCompare(a.ts));
+
+  const list = document.getElementById('pAdminList');
+  if (!list) return;
+  if (!filtered.length) {
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-2)">Nenhum registro no período. Os operadores ainda não preencheram o checklist.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map((p,i) => {
+    const qtd = (p.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
+    const av  = (p.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
+    const pct = metaProducao > 0 ? Math.round(qtd/metaProducao*100) : 0;
+    const cor = pct >= 100 ? 'var(--success)' : pct >= 70 ? '#f59e0b' : 'var(--danger)';
+    const [y,m,day] = p.date.split('-');
+    const prodRows  = (p.produtos ||[]).map(r=>`<div class="proc-detail-row"><span>${r.nome||'—'}</span><span>${r.qtd||0} ${r.unit||''} · ${r.avariados||0} avariados</span></div>`).join('');
+    const matRows   = (p.materias ||[]).map(r=>`<div class="proc-detail-row"><span>${r.nome||'—'}</span><span>${r.qty||0} ${r.unit||''}</span></div>`).join('');
+    const reagRows  = (p.reagentes||[]).map(r=>`<div class="proc-detail-row"><span>${r.nome||'—'}</span><span>${r.qty||0} ${r.unit||''}</span></div>`).join('');
+    const oleoRows  = (p.oleos    ||[]).map(r=>`<div class="proc-detail-row"><span>${r.nome||'—'}</span><span>${r.qty||0} ${r.unit||''}</span></div>`).join('');
+    return `<div class="proc-admin-card">
+      <div class="proc-admin-card-hd" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div>
+          <div style="font-weight:700;font-size:14px">${day}/${m}/${y} — ${p.userName}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:2px">${qtd} peças produzidas · ${av} avariadas</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:700;color:${cor}">${pct}% da meta</span>
+          <span style="color:var(--text-3)">▾</span>
+        </div>
+      </div>
+      <div class="proc-admin-card-body">
+        ${prodRows  ? `<div class="proc-detail-section"><div class="proc-detail-title">🧪 Produtos Produzidos</div>${prodRows}</div>` : ''}
+        ${matRows   ? `<div class="proc-detail-section"><div class="proc-detail-title">🌾 Matérias-Primas</div>${matRows}</div>` : ''}
+        ${reagRows  ? `<div class="proc-detail-section"><div class="proc-detail-title">⚗️ Reagentes</div>${reagRows}</div>` : ''}
+        ${oleoRows  ? `<div class="proc-detail-section"><div class="proc-detail-title">🛢️ Óleos</div>${oleoRows}</div>` : ''}
+        ${p.obs     ? `<div class="proc-detail-section"><div class="proc-detail-title">📝 Observações</div><div style="font-size:13px">${p.obs}</div></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderProducaoChart(labels, dataTotal, dataAvariado, dataMeta) {
+  const ctx = document.getElementById('producaoChart')?.getContext('2d');
+  if (!ctx) return;
+  if (producaoChart) { producaoChart.destroy(); producaoChart = null; }
+  producaoChart = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'bar',  label:'Produzido',  data:dataTotal,    backgroundColor:'rgba(99,102,241,0.75)', borderColor:'#6366f1', borderWidth:1, borderRadius:4 },
+        { type:'bar',  label:'Avariados',  data:dataAvariado, backgroundColor:'rgba(239,68,68,0.5)',   borderColor:'#ef4444', borderWidth:1, borderRadius:4 },
+        { type:'line', label:'Meta',       data:dataMeta,     borderColor:'#f59e0b', borderWidth:2.5, borderDash:[6,4], pointRadius:0, fill:false, tension:0 }
+      ]
+    },
+    options: {
+      responsive:true,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ position:'top', labels:{ font:{ size:12 } } } },
+      scales:{
+        x:{ grid:{ display:false } },
+        y:{ beginAtZero:true, grid:{ color:'rgba(0,0,0,0.05)' }, ticks:{ stepSize:50 } }
+      }
+    }
+  });
+}
+
+/* ── OPERADOR ── */
+function renderProducaoOp() {
+  const today    = getTodayStr();
+  const todayRec = producoes.find(p => p.userId === user.id && p.date === today);
+  const recentes = producoes.filter(p => p.userId === user.id && p.date !== today).slice(0,7);
+
+  const qtdHoje = todayRec ? (todayRec.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0) : 0;
+  const pct     = metaProducao > 0 ? Math.min(100, Math.round(qtdHoje/metaProducao*100)) : 0;
+  const barColor = pct >= 100 ? 'var(--success)' : pct >= 70 ? '#f59e0b' : 'var(--primary)';
+
+  const metaBar = document.getElementById('pMetaBar');
+  if (metaBar) metaBar.innerHTML = `
+    <div class="proc-meta-bar">
+      <div class="proc-meta-info">
+        <span class="proc-meta-title">📦 Progresso de Hoje</span>
+        <span style="font-weight:700;font-size:15px;color:${barColor}">${qtdHoje} / ${metaProducao} pç (${pct}%)</span>
+      </div>
+      <div class="proc-progress"><div class="proc-progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
+    </div>`;
+
+  const formArea = document.getElementById('pFormArea');
+  if (formArea) {
+    if (todayRec) {
+      const qtdT = (todayRec.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
+      const avT  = (todayRec.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
+      const [y,m,day] = today.split('-');
+      formArea.innerHTML = `
+        <div class="proc-submitted-card">
+          <div class="proc-submitted-hd">
+            <div style="font-weight:700;font-size:14px">✅ Registro de Hoje — ${day}/${m}/${y}</div>
+            <span style="background:var(--primary);color:white;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px">${qtdT} peças</span>
+          </div>
+          <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">${avT>0?`⚠️ ${avT} avariadas &nbsp;·&nbsp;`:''} ${(todayRec.produtos||[]).length} tipo(s) de produto</div>
+          <button class="btn-nova-filial" onclick="renderProducaoForm(true)" style="width:100%">✏️ Editar Registro de Hoje</button>
+        </div>`;
+    } else {
+      renderProducaoForm(false);
+    }
+  }
+
+  const histArea = document.getElementById('pHistArea');
+  if (histArea && recentes.length) {
+    histArea.innerHTML = `<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text-1)">📁 Registros Anteriores</div>` +
+      recentes.map(p => {
+        const qtd = (p.produtos||[]).reduce((s,x)=>s+(Number(x.qtd)||0),0);
+        const av  = (p.produtos||[]).reduce((s,x)=>s+(Number(x.avariados)||0),0);
+        const [y,m,day] = p.date.split('-');
+        const pct2 = metaProducao > 0 ? Math.round(qtd/metaProducao*100) : 0;
+        const cor  = pct2>=100?'var(--success)':pct2>=70?'#f59e0b':'var(--danger)';
+        return `<div class="proc-admin-card" style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:600;font-size:13px">${day}/${m}/${y}</div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <span style="font-size:12px;color:var(--text-2)">${qtd} peças${av?` · ${av} av.`:''}</span>
+              <span style="font-size:12px;font-weight:700;color:${cor}">${pct2}%</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+  }
+}
+
+function makeProcRow(nome, qty, unit, type, avariados) {
+  const unitsMap = {
+    produto:  ['un','kg','g','L','ml','cx','pct','frd'],
+    reagente: ['ml','L','g','kg','mg'],
+    oleo:     ['ml','L','g','kg'],
+    materia:  ['kg','g','L','ml','un','saco']
+  };
+  const units = unitsMap[type] || ['un','kg','g','L','ml'];
+  const unitOpts = units.map(u=>`<option value="${u}"${u===unit?' selected':''}>${u}</option>`).join('');
+  const avField = type==='produto'
+    ? `<input type="number" min="0" placeholder="Avariados" value="${avariados||0}" class="proc-inp-av">`
+    : '';
+  return `<div class="proc-row">
+    <input type="text" placeholder="Nome" value="${nome}" class="proc-inp-nome">
+    <input type="number" min="0" step="0.01" placeholder="Qtd" value="${qty}" class="proc-inp-qty">
+    <select class="proc-inp-unit">${unitOpts}</select>
+    ${avField}
+    <button class="btn-rm-proc" onclick="this.parentElement.remove()">×</button>
+  </div>`;
+}
+
+function addProcRow(containerId, type) {
+  const c = document.getElementById(containerId);
+  if (c) c.insertAdjacentHTML('beforeend', makeProcRow('','','',type,''));
+}
+
+function getProcRows(containerId, type) {
+  const c = document.getElementById(containerId);
+  if (!c) return [];
+  return Array.from(c.querySelectorAll('.proc-row')).map(row => {
+    const ins = row.querySelectorAll('input,select');
+    if (type === 'produto') return { nome:ins[0]?.value?.trim()||'', qtd:parseFloat(ins[1]?.value)||0, unit:ins[2]?.value||'un', avariados:parseFloat(ins[3]?.value)||0 };
+    return { nome:ins[0]?.value?.trim()||'', qty:parseFloat(ins[1]?.value)||0, unit:ins[2]?.value||'' };
+  }).filter(r => r.nome);
+}
+
+function renderProducaoForm(isEdit) {
+  const today    = getTodayStr();
+  const existing = isEdit ? producoes.find(p => p.userId===user.id && p.date===today) : null;
+  const makeRows = (items, type) => (items||[]).map(r => makeProcRow(r.nome||'', r.qty||r.qtd||'', r.unit||'', type, r.avariados||'')).join('');
+  const formArea = document.getElementById('pFormArea');
+  if (!formArea) return;
+  formArea.innerHTML = `
+    <div class="proc-block">
+      <div class="proc-block-title">🧪 Produtos Produzidos</div>
+      <div id="pProdutos">${existing ? makeRows(existing.produtos,'produto') : makeProcRow('','','un','produto','')}</div>
+      <button class="btn-add-proc-row" onclick="addProcRow('pProdutos','produto')">＋ Adicionar Produto</button>
+    </div>
+    <div class="proc-block">
+      <div class="proc-block-title">🌾 Matérias-Primas Usadas</div>
+      <div id="pMaterias">${existing ? makeRows(existing.materias,'materia') : makeProcRow('','','kg','materia','')}</div>
+      <button class="btn-add-proc-row" onclick="addProcRow('pMaterias','materia')">＋ Adicionar Matéria</button>
+    </div>
+    <div class="proc-block">
+      <div class="proc-block-title">⚗️ Reagentes Utilizados</div>
+      <div id="pReagentes">${existing ? makeRows(existing.reagentes,'reagente') : makeProcRow('','','ml','reagente','')}</div>
+      <button class="btn-add-proc-row" onclick="addProcRow('pReagentes','reagente')">＋ Adicionar Reagente</button>
+    </div>
+    <div class="proc-block">
+      <div class="proc-block-title">🛢️ Óleos Utilizados</div>
+      <div id="pOleos">${existing ? makeRows(existing.oleos,'oleo') : makeProcRow('','','ml','oleo','')}</div>
+      <button class="btn-add-proc-row" onclick="addProcRow('pOleos','oleo')">＋ Adicionar Óleo</button>
+    </div>
+    <div class="proc-block">
+      <div class="proc-block-title">📝 Observações do Turno</div>
+      <textarea id="pObs" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg);color:var(--text-1);resize:vertical;min-height:80px;font-family:inherit" placeholder="Anotações, problemas encontrados, observações gerais...">${existing?existing.obs||'':''}</textarea>
+    </div>
+    <button class="btn-nova-filial" onclick="saveProducao()" style="width:100%;padding:14px;font-size:15px;margin-bottom:8px">✅ ${isEdit?'Atualizar':'Registrar'} Produção do Dia</button>
+    ${isEdit?`<button onclick="renderProducaoOp()" style="width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;cursor:pointer;color:var(--text-2)">Cancelar</button>`:''}`;
+}
+
+async function saveProducao() {
+  const today     = getTodayStr();
+  const produtos  = getProcRows('pProdutos',  'produto');
+  const materias  = getProcRows('pMaterias',  'materia');
+  const reagentes = getProcRows('pReagentes', 'reagente');
+  const oleos     = getProcRows('pOleos',     'oleo');
+  const obs       = document.getElementById('pObs')?.value?.trim() || '';
+  if (!produtos.length) { toast('Adicione ao menos um produto produzido.','error'); return; }
+  const docId = user.id + '_' + today;
+  try {
+    await col('producao').doc(docId).set({ id:docId, userId:user.id, userName:user.name, date:today, ts:new Date().toISOString(), produtos, materias, reagentes, oleos, obs });
+    toast('✅ Registro de produção salvo!','success');
+  } catch(e) { console.error(e); toast('Erro ao salvar: '+e.message,'error'); }
+}
+
+function openMetaModal() {
+  document.getElementById('metaInput').value = metaProducao || 300;
+  document.getElementById('metaModal').classList.add('on');
+}
+
+async function saveMeta() {
+  const val = parseInt(document.getElementById('metaInput').value);
+  if (!val || val < 1) { toast('Informe uma meta válida.','error'); return; }
+  try {
+    await db.collection('lojas').doc(currentFilial.id).collection('config').doc('meta')
+      .set({ metaDiaria:val, updatedBy:user.name, ts:new Date().toISOString() });
+    metaProducao = val;
+    closeOverlay('metaModal');
+    toast('✅ Meta atualizada!','success');
+    renderProducaoSection();
+  } catch(e) { console.error(e); toast('Erro ao salvar meta.','error'); }
 }
 
 /* ══════════════════════════════════════════
