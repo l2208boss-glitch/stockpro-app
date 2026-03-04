@@ -696,7 +696,7 @@
     </div>
 
     <!-- ══════════ RELATÓRIOS ══════════ -->
-    <div style="margin-top:28px">
+    <div id="reportsBlock" style="margin-top:28px">
       <div class="sec-hd">
         <div>
           <div class="sec-title">📊 Relatórios</div>
@@ -1464,7 +1464,10 @@ function deleteFilial(filialId) {
 /* ══════════════════════════════════════════
    RENDER (estoque)
 ══════════════════════════════════════════ */
-function renderAll() { renderStats(); renderProducts(); renderHistory(); populateFilter(); }
+function renderAll() {
+  renderStats(); renderProducts(); renderHistory(); populateFilter();
+  document.getElementById('reportsBlock').style.display = (user && user.role === 'admin') ? '' : 'none';
+}
 
 function fmtMoney(v) { return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 
@@ -1837,6 +1840,7 @@ function exportCSV() {
    RELATÓRIOS
 ══════════════════════════════════════════ */
 function toggleReports() {
+  if (!user || user.role !== 'admin') return;
   const sec = document.getElementById('reportsSection');
   const btn = document.getElementById('btnToggleReports');
   if (sec.style.display === 'none') {
