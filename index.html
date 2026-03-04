@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StockPro</title>
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="StockPro">
+  <link rel="apple-touch-icon" href="icon.svg">
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -1263,6 +1270,24 @@ const FIREBASE_CONFIG = {
 };
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.firestore();
+
+// Persistência offline — dados ficam em cache local mesmo sem internet
+db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+  if (err.code === 'failed-precondition') {
+    console.warn('[StockPro] Offline: múltiplas abas abertas, persistence limitada.');
+  } else if (err.code === 'unimplemented') {
+    console.warn('[StockPro] Offline: este browser não suporta persistência offline.');
+  }
+});
+
+// Registra Service Worker para cache do shell do app (PWA offline)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/stockpro-app/sw.js', { scope: '/stockpro-app/' })
+      .then(() => console.log('[StockPro] Service Worker registrado.'))
+      .catch(err => console.warn('[StockPro] SW falhou:', err));
+  });
+}
 
 /* ══════════════════════════════════════════
    DATA

@@ -1,0 +1,19 @@
+{
+  "name": "StockPro",
+  "short_name": "StockPro",
+  "description": "Controle de Estoque e Frente de Caixa",
+  "start_url": "/stockpro-app/",
+  "scope": "/stockpro-app/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f1f5f9",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
