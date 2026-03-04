@@ -948,8 +948,12 @@
     </div>
     <div class="modal-body">
       <div class="field">
-        <label class="modal-label" for="cotBRL">1 USD = R$ (Reais Brasileiros) *</label>
+        <label class="modal-label" for="cotBRL">1 USD = R$ (Reais — dinheiro) *</label>
         <input class="modal-input" type="number" id="cotBRL" min="0" step="0.01" placeholder="Ex: 5.80">
+      </div>
+      <div class="field">
+        <label class="modal-label" for="cotPIX">1 USD = R$ (PIX) *</label>
+        <input class="modal-input" type="number" id="cotPIX" min="0" step="0.01" placeholder="Ex: 5.95">
       </div>
       <div class="field" style="margin-bottom:0">
         <label class="modal-label" for="cotPYG">1 USD = ₲ (Guaranis Paraguaios) *</label>
@@ -980,6 +984,7 @@
         <select class="modal-input" id="payMoeda" onchange="updatePaymentCalc()">
           <option value="USD">Dólar americano (USD $)</option>
           <option value="BRL">Real brasileiro (BRL R$)</option>
+          <option value="PIX">PIX (R$ — Brasil)</option>
           <option value="PYG">Guarani paraguaio (PYG ₲)</option>
         </select>
       </div>
@@ -1445,7 +1450,7 @@ function enterMode(mode) {
 function backToModeSelect() {
   if (unsubCotacao) { unsubCotacao(); unsubCotacao = null; }
   if (unsubVendas)  { unsubVendas();  unsubVendas  = null; }
-  cart = []; vendas = []; cotacao = { brl:0, pyg:0, date:'' };
+  cart = []; vendas = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   showModeSelectPage();
@@ -1456,7 +1461,7 @@ function backToFiliais() {
   stopListeners();
   currentFilial = null; currentMode = null;
   products = []; history = []; photos = []; cart = []; vendas = [];
-  cotacao = { brl:0, pyg:0, date:'' };
+  cotacao = { brl:0, pix:0, pyg:0, date:'' };
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('modePage').style.display = 'none';
@@ -1675,7 +1680,7 @@ function setupCaixaListeners() {
     if (snap.exists) {
       cotacao = snap.data();
     } else {
-      cotacao = { brl:0, pyg:0, date:'' };
+      cotacao = { brl:0, pix:0, pyg:0, date:'' };
     }
     renderCotacaoBar();
   }, console.error);
@@ -1697,6 +1702,7 @@ function renderCotacaoBar() {
 function openCotacaoModal() {
   if (!user || user.role !== 'admin') return;
   document.getElementById('cotBRL').value = cotacao.brl > 0 ? cotacao.brl : '';
+  document.getElementById('cotPIX').value = cotacao.pix > 0 ? cotacao.pix : '';
   document.getElementById('cotPYG').value = cotacao.pyg > 0 ? cotacao.pyg : '';
   document.getElementById('cotacaoModal').classList.add('on');
   setTimeout(() => document.getElementById('cotBRL').focus(), 120);
@@ -1704,10 +1710,11 @@ function openCotacaoModal() {
 
 function saveCotacao() {
   const brl = parseFloat(document.getElementById('cotBRL').value);
-  const pyg  = parseFloat(document.getElementById('cotPYG').value);
-  if (!brl || brl <= 0 || !pyg || pyg <= 0) { toast('Informe ambas as cotações', 'error'); return; }
+  const pix = parseFloat(document.getElementById('cotPIX').value);
+  const pyg = parseFloat(document.getElementById('cotPYG').value);
+  if (!brl || brl <= 0 || !pix || pix <= 0 || !pyg || pyg <= 0) { toast('Informe todas as cotações', 'error'); return; }
   const today = new Date().toISOString().slice(0,10);
-  col('cotacao').doc('atual').set({ brl, pyg, date: today, user: user.name, ts: new Date().toISOString() })
+  col('cotacao').doc('atual').set({ brl, pix, pyg, date: today, user: user.name, ts: new Date().toISOString() })
     .then(() => { toast('✅ Cotação salva!', 'success'); closeOverlay('cotacaoModal'); })
     .catch(console.error);
 }
@@ -1839,6 +1846,11 @@ function updatePaymentCalc() {
     totalNaMoeda = hasCot ? total * cotacao.brl : null;
     prefix = 'R$ ';
     equiv = hasCot ? `Equivale a R$ ${(total * cotacao.brl).toFixed(2)}` : '⚠️ Cotação BRL não definida hoje';
+  } else if (moeda === 'PIX') {
+    const hasPix = hasCot && cotacao.pix > 0;
+    totalNaMoeda = hasPix ? total * cotacao.pix : null;
+    prefix = 'R$ ';
+    equiv = hasPix ? `Equivale a R$ ${(total * cotacao.pix).toFixed(2)} (cotação PIX)` : '⚠️ Cotação PIX não definida hoje';
     document.getElementById('payEquiv').textContent = equiv;
     document.getElementById('payEquiv').style.display = 'block';
   } else {
@@ -1883,8 +1895,9 @@ async function confirmPayment() {
   const hasCot   = cotacao.date === today;
 
   let totalNaMoeda;
-  if (moeda === 'USD')     totalNaMoeda = total;
+  if (moeda === 'USD')                      totalNaMoeda = total;
   else if (moeda === 'BRL') totalNaMoeda = total * cotacao.brl;
+  else if (moeda === 'PIX') totalNaMoeda = total * cotacao.pix;
   else                      totalNaMoeda = total * cotacao.pyg;
 
   const troco = recebido - totalNaMoeda;
@@ -1898,6 +1911,7 @@ async function confirmPayment() {
     totalUSD: +total.toFixed(2),
     moedaPagamento: moeda,
     cotacaoBRL: cotacao.brl,
+    cotacaoPIX: cotacao.pix,
     cotacaoPYG: cotacao.pyg,
     valorPago: +recebido.toFixed(moeda === 'PYG' ? 0 : 2),
     troco: +(moeda === 'PYG' ? Math.round(troco) : +troco.toFixed(2)),
@@ -1930,7 +1944,7 @@ function renderVendas() {
   const tbody   = document.getElementById('vendasBody');
   const resumo  = document.getElementById('vendasResumo');
   const filtro  = document.getElementById('vendasFiltro')?.value || 'hoje';
-  const symb    = { USD: '$', BRL: 'R$ ', PYG: '₲ ' };
+  const symb    = { USD: '$', BRL: 'R$ ', PIX: 'R$ ', PYG: '₲ ' };
 
   // Filtrar por período
   const now   = new Date();
@@ -1945,6 +1959,7 @@ function renderVendas() {
   // Calcular resumo
   const totalUSD  = filtradas.reduce((s,v) => s + v.totalUSD, 0);
   const recBRL    = filtradas.filter(v => v.moedaPagamento==='BRL').reduce((s,v) => s + v.valorPago, 0);
+  const recPIX    = filtradas.filter(v => v.moedaPagamento==='PIX').reduce((s,v) => s + v.valorPago, 0);
   const recPYG    = filtradas.filter(v => v.moedaPagamento==='PYG').reduce((s,v) => s + v.valorPago, 0);
   const recUSD    = filtradas.filter(v => v.moedaPagamento==='USD').reduce((s,v) => s + v.valorPago, 0);
   const trocoTotal = filtradas.reduce((s,v) => s + Math.max(0, v.troco||0), 0);
@@ -1960,6 +1975,7 @@ function renderVendas() {
     : statCard('🧾','Vendas', filtradas.length, 'var(--primary)')
     + statCard('💵','Total USD', `$${totalUSD.toFixed(2)}`, 'var(--success)')
     + (recBRL  > 0 ? statCard('🇧🇷','Recebido BRL', `R$ ${recBRL.toFixed(2)}`,  'var(--text)') : '')
+    + (recPIX  > 0 ? statCard('📱','Recebido PIX', `R$ ${recPIX.toFixed(2)}`,  'var(--primary)') : '')
     + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', `₲ ${Math.round(recPYG).toLocaleString('pt-BR')}`, 'var(--text)') : '')
     + (recUSD  > 0 ? statCard('🇺🇸','Recebido USD', `$${recUSD.toFixed(2)}`,  'var(--text)') : '');
 
@@ -1992,7 +2008,7 @@ function doLogout() {
   if (unsubFiliais) { unsubFiliais(); unsubFiliais = null; }
   user = null; currentFilial = null; currentMode = null;
   products = []; history = []; photos = {}; filiais = [];
-  cart = []; vendas = []; cotacao = { brl:0, pyg:0, date:'' };
+  cart = []; vendas = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
   localStorage.removeItem('sp_session');
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
