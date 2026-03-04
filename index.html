@@ -86,6 +86,53 @@
     .btn-login:hover  { opacity: .92; }
     .btn-login:active { transform: scale(.98); }
 
+    /* ─── FILIAIS PAGE ─── */
+    #filialPage { display: none; min-height: 100vh; background: var(--bg); }
+
+    .filiaisGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 36px;
+    }
+    .filial-card {
+      background: var(--surface); border-radius: var(--radius);
+      box-shadow: var(--shadow-sm); border: 1.5px solid var(--border);
+      padding: 28px 20px 18px;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      transition: all .2s;
+    }
+    .filial-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); border-color: var(--border-2); }
+    .filial-icon { font-size: 44px; }
+    .filial-nome { font-size: 17px; font-weight: 800; color: var(--text); text-align: center; }
+    .btn-enter-filial {
+      width: 100%; padding: 11px;
+      background: linear-gradient(135deg, #4f46e5, #818cf8);
+      color: #fff; border: none; border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: opacity .2s; box-shadow: 0 2px 8px rgba(79,70,229,.3);
+      margin-top: 6px;
+    }
+    .btn-enter-filial:hover { opacity: .88; }
+    .filial-admin-actions { display: flex; gap: 8px; width: 100%; }
+    .btn-rename-filial, .btn-del-filial {
+      flex: 1; padding: 7px; border: none; border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .18s;
+    }
+    .btn-rename-filial { background: var(--primary-light); color: var(--primary-dark); }
+    .btn-rename-filial:hover { background: var(--primary); color: #fff; }
+    .btn-del-filial { background: var(--danger-light); color: var(--danger); }
+    .btn-del-filial:hover { background: var(--danger); color: #fff; }
+
+    .btn-nova-filial {
+      padding: 10px 22px;
+      background: linear-gradient(135deg, #4f46e5, #818cf8);
+      color: #fff; border: none; border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: opacity .2s; box-shadow: 0 2px 8px rgba(79,70,229,.25);
+    }
+    .btn-nova-filial:hover { opacity: .88; }
+
     /* ─── APP ─── */
     #app { display: none; }
 
@@ -111,6 +158,43 @@
     .role-badge.admin { background: var(--primary-light); color: var(--primary-dark); }
     .role-badge.op    { background: #f0fdf4; color: #15803d; }
     .header-user { font-size: 13px; color: var(--text-2); font-weight: 500; }
+    /* ─── FILIAL SWITCHER ─── */
+    .filial-switcher { position: relative; }
+    .filial-switcher-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 99px;
+      font-size: 13px; font-weight: 700;
+      background: #f0fdf4; color: #15803d;
+      border: 1.5px solid #bbf7d0;
+      cursor: pointer; transition: all .2s; user-select: none;
+    }
+    .filial-switcher-btn:hover { background: #dcfce7; border-color: #86efac; }
+    .filial-arrow { font-size: 10px; transition: transform .2s; display: inline-block; }
+    .filial-switcher-btn.open .filial-arrow { transform: rotate(180deg); }
+
+    .filial-dropdown {
+      display: none; position: absolute; top: calc(100% + 8px); left: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+      min-width: 190px; z-index: 500; overflow: hidden;
+      animation: pop .15s ease;
+    }
+    .filial-dropdown.open { display: block; }
+    .filial-dd-item {
+      padding: 10px 16px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: background .15s;
+      display: flex; align-items: center; justify-content: space-between;
+      color: var(--text);
+    }
+    .filial-dd-item:hover { background: var(--primary-light); color: var(--primary); }
+    .filial-dd-item.active { background: #f0fdf4; color: #15803d; }
+    .filial-dd-manage {
+      padding: 9px 16px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: background .15s;
+      display: flex; align-items: center; gap: 8px;
+      color: var(--text-2); border-top: 1px solid var(--border);
+    }
+    .filial-dd-manage:hover { background: var(--bg); color: var(--text); }
     .btn-logout {
       padding: 7px 16px; background: transparent;
       color: var(--danger); border: 1.5px solid var(--danger);
@@ -399,6 +483,7 @@
       header { padding: 0 16px; }
       .header-user, .role-badge { display: none; }
       .grid { grid-template-columns: repeat(2,1fr); gap: 12px; }
+      .filiaisGrid { grid-template-columns: repeat(2,1fr); gap: 12px; }
       .card-photo { height: 120px; }
       .card-body { padding: 12px; }
       .qty-num { font-size: 28px; }
@@ -408,7 +493,7 @@
       .edit-grid { grid-template-columns: 1fr; }
       .toast-wrap { left: 16px; right: 16px; bottom: 16px; }
     }
-    @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 380px) { .grid { grid-template-columns: 1fr; } .filiaisGrid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -434,6 +519,35 @@
   </div>
 </div>
 
+<!-- ══════════ FILIAIS PAGE ══════════ -->
+<div id="filialPage">
+  <header>
+    <a class="brand" href="#">
+      <div class="brand-icon">📦</div>StockPro
+    </a>
+    <div class="header-right">
+      <span class="role-badge" id="filialRoleBadge"></span>
+      <span class="header-user" id="filialHeaderUser"></span>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+  <main>
+    <div class="sec-hd">
+      <div>
+        <div class="sec-title">Selecione uma Filial</div>
+        <div class="sec-sub">Clique em "Entrar" para acessar o estoque da filial</div>
+      </div>
+      <button class="btn-nova-filial" id="btnNovaFilial" style="display:none" onclick="openFilialModal(null)">＋ Nova Filial</button>
+    </div>
+    <div class="filiaisGrid" id="filiaisGrid"></div>
+    <div class="empty-state" id="filiaisEmpty" style="display:none">
+      <div class="empty-icon">🏪</div>
+      <div class="empty-title">Nenhuma filial cadastrada</div>
+      <div class="empty-sub">Clique em "Nova Filial" para começar</div>
+    </div>
+  </main>
+</div>
+
 <!-- ══════════ APP ══════════ -->
 <div id="app">
   <header>
@@ -441,6 +555,14 @@
       <div class="brand-icon">📦</div>StockPro
     </a>
     <div class="header-right">
+      <div class="filial-switcher" id="filialSwitcher">
+        <div class="filial-switcher-btn" id="filialSwitcherBtn" onclick="toggleFilialDropdown()">
+          <span>📍</span>
+          <span id="filialNameBadge"></span>
+          <span class="filial-arrow">▾</span>
+        </div>
+        <div class="filial-dropdown" id="filialDropdown"></div>
+      </div>
       <span class="role-badge" id="roleBadge"></span>
       <span class="header-user" id="headerUser"></span>
       <button class="btn-logout" onclick="doLogout()">Sair</button>
@@ -583,11 +705,31 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — FILIAL ══════════ -->
+<div class="overlay" id="filialModal" onclick="overlayClick(event,'filialModal')">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title edit" id="filialModalTitle">Nova Filial</span>
+      <button class="btn-x" onclick="closeOverlay('filialModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="margin-bottom:0">
+        <label class="modal-label" for="filialNome">Nome da Filial *</label>
+        <input class="modal-input" type="text" id="filialNome" placeholder="Ex: São Paulo, Bahia, Centro...">
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('filialModal')">Cancelar</button>
+      <button class="btn-confirm save" id="btnSaveFilial" onclick="saveFilial()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
 /* ══════════════════════════════════════════
-   FIREBASE — cole aqui o seu config
+   FIREBASE
 ══════════════════════════════════════════ */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyCh5AU8GQDBR1TqDtd4HVO6wcP56p5KTR4",
@@ -629,49 +771,58 @@ const DEFAULT_PRODUCTS = [
 /* ══════════════════════════════════════════
    STATE
 ══════════════════════════════════════════ */
-let user     = null;
-let products = [];
-let history  = [];
-let photos   = {};
-let movState = { productId: null, type: null };
-let editId   = null;
+let user          = null;
+let currentFilial = null;   // filial selecionada
+let filiais       = [];     // lista de filiais do Firestore
+let products      = [];
+let history       = [];
+let photos        = {};
+let movState      = { productId: null, type: null };
+let editId        = null;
 let editPhotoTemp = null;
+let editFilialId  = null;   // null = nova filial, string = editar
 
-// Firestore real-time listener handles
+let unsubFiliais  = null;
 let unsubProducts = null;
 let unsubHistory  = null;
 let unsubPhotos   = null;
 
 /* ══════════════════════════════════════════
+   FIRESTORE — helper de coleção por filial
+══════════════════════════════════════════ */
+function col(name) {
+  return db.collection('lojas').doc(currentFilial.id).collection(name);
+}
+
+/* ══════════════════════════════════════════
    FIRESTORE — save individual records
 ══════════════════════════════════════════ */
 function saveProduct(p) {
-  db.collection('sp_products').doc(String(p.id)).set(p).catch(console.error);
+  col('produtos').doc(String(p.id)).set(p).catch(console.error);
 }
 function saveHistoryEntry(entry) {
-  db.collection('sp_history').doc(String(entry.id)).set(entry).catch(console.error);
+  col('historico').doc(String(entry.id)).set(entry).catch(console.error);
 }
 function savePhoto(productId, dataUrl) {
   if (dataUrl) {
-    db.collection('sp_photos').doc(String(productId)).set({ data: dataUrl }).catch(console.error);
+    col('fotos').doc(String(productId)).set({ data: dataUrl }).catch(console.error);
   } else {
-    db.collection('sp_photos').doc(String(productId)).delete().catch(console.error);
+    col('fotos').doc(String(productId)).delete().catch(console.error);
   }
 }
 
 /* ══════════════════════════════════════════
-   FIRESTORE — real-time listeners
+   FIRESTORE — real-time listeners (filial)
 ══════════════════════════════════════════ */
 function setupRealtimeListeners() {
   if (unsubProducts) unsubProducts();
   if (unsubHistory)  unsubHistory();
   if (unsubPhotos)   unsubPhotos();
 
-  unsubProducts = db.collection('sp_products').onSnapshot(snap => {
+  unsubProducts = col('produtos').onSnapshot(snap => {
     if (snap.empty) {
-      // First access: seed with default products
       const batch = db.batch();
-      DEFAULT_PRODUCTS.forEach(p => batch.set(db.collection('sp_products').doc(String(p.id)), p));
+      DEFAULT_PRODUCTS.forEach(p => batch.set(col('produtos').doc(String(p.id)), p));
       batch.commit();
       return;
     }
@@ -679,13 +830,13 @@ function setupRealtimeListeners() {
     renderStats(); renderProducts(); populateFilter();
   }, console.error);
 
-  unsubHistory = db.collection('sp_history').onSnapshot(snap => {
+  unsubHistory = col('historico').onSnapshot(snap => {
     history = snap.docs.map(d => d.data())
       .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
     renderStats(); renderHistory();
   }, console.error);
 
-  unsubPhotos = db.collection('sp_photos').onSnapshot(snap => {
+  unsubPhotos = col('fotos').onSnapshot(snap => {
     snap.docChanges().forEach(ch => {
       if (ch.type === 'removed') delete photos[ch.doc.id];
       else photos[ch.doc.id] = ch.doc.data().data;
@@ -701,6 +852,17 @@ function stopListeners() {
 }
 
 /* ══════════════════════════════════════════
+   FIRESTORE — filiais listener
+══════════════════════════════════════════ */
+function setupFiliaisListener() {
+  if (unsubFiliais) unsubFiliais();
+  unsubFiliais = db.collection('lojas').onSnapshot(snap => {
+    filiais = snap.docs.map(d => d.data()).sort((a, b) => a.nome.localeCompare(b.nome));
+    renderFiliais();
+  }, console.error);
+}
+
+/* ══════════════════════════════════════════
    AUTH
 ══════════════════════════════════════════ */
 function startSession(found) {
@@ -708,14 +870,92 @@ function startSession(found) {
   localStorage.setItem('sp_session', found.username);
   document.getElementById('loginErr').style.display = 'none';
   document.getElementById('loginPage').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  const badge = document.getElementById('roleBadge');
-  badge.textContent = found.role === 'admin' ? 'Admin' : 'Operador';
-  badge.className = 'role-badge ' + found.role;
-  document.getElementById('headerUser').textContent = '👤 ' + found.name;
-  photos = {};
-  setupRealtimeListeners(); // data loads via onSnapshot
+  showFilialPage();
 }
+
+function showFilialPage() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('filialPage').style.display = 'block';
+  // Atualiza cabeçalho da página de filiais
+  const badge = document.getElementById('filialRoleBadge');
+  badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
+  badge.className = 'role-badge ' + user.role;
+  document.getElementById('filialHeaderUser').textContent = '👤 ' + user.name;
+  document.getElementById('btnNovaFilial').style.display = user.role === 'admin' ? '' : 'none';
+  setupFiliaisListener();
+}
+
+function enterFilial(filialId) {
+  const f = filiais.find(x => x.id === filialId);
+  if (!f) return;
+  currentFilial = f;
+  // Mantém o listener de filiais ativo (para o dropdown no app)
+  document.getElementById('filialPage').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  // Atualiza cabeçalho do app
+  document.getElementById('filialNameBadge').textContent = currentFilial.nome;
+  const badge = document.getElementById('roleBadge');
+  badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
+  badge.className = 'role-badge ' + user.role;
+  document.getElementById('headerUser').textContent = '👤 ' + user.name;
+  photos = {};
+  setupRealtimeListeners();
+}
+
+function backToFiliais() {
+  closeFilialDropdown();
+  stopListeners();
+  currentFilial = null;
+  products = []; history = []; photos = {};
+  document.getElementById('app').style.display = 'none';
+  // Listener de filiais continua ativo; apenas mostra a página
+  document.getElementById('filialPage').style.display = 'block';
+}
+
+/* ──────────────────────────────────────
+   FILIAL DROPDOWN SWITCHER
+────────────────────────────────────── */
+function toggleFilialDropdown() {
+  const dd = document.getElementById('filialDropdown');
+  if (dd.classList.contains('open')) {
+    closeFilialDropdown();
+  } else {
+    renderFilialDropdown();
+    document.getElementById('filialSwitcherBtn').classList.add('open');
+    dd.classList.add('open');
+  }
+}
+
+function closeFilialDropdown() {
+  document.getElementById('filialSwitcherBtn').classList.remove('open');
+  document.getElementById('filialDropdown').classList.remove('open');
+}
+
+function renderFilialDropdown() {
+  const dd = document.getElementById('filialDropdown');
+  const items = filiais.map(f => {
+    const active = currentFilial && f.id === currentFilial.id ? 'active' : '';
+    const check  = active ? ' ✓' : '';
+    return `<div class="filial-dd-item ${active}" onclick="switchFilial('${f.id}')">
+      <span>🏪 ${f.nome}</span><span>${check}</span>
+    </div>`;
+  }).join('');
+  dd.innerHTML = items + `<div class="filial-dd-manage" onclick="backToFiliais()">⚙️ Gerenciar Filiais</div>`;
+}
+
+function switchFilial(filialId) {
+  closeFilialDropdown();
+  if (currentFilial && filialId === currentFilial.id) return;
+  const f = filiais.find(x => x.id === filialId);
+  if (!f) return;
+  stopListeners();
+  products = []; history = []; photos = {};
+  currentFilial = f;
+  document.getElementById('filialNameBadge').textContent = currentFilial.nome;
+  setupRealtimeListeners();
+  toast('📍 ' + f.nome, 'info');
+}
+
 function doLogin() {
   const u = document.getElementById('lu').value.trim();
   const p = document.getElementById('lp').value;
@@ -729,15 +969,19 @@ function doLogin() {
     document.getElementById('lp').focus();
   }
 }
+
 function doLogout() {
   stopListeners();
-  user = null; products = []; history = []; photos = {};
+  if (unsubFiliais) { unsubFiliais(); unsubFiliais = null; }
+  user = null; currentFilial = null; products = []; history = []; photos = {}; filiais = [];
   localStorage.removeItem('sp_session');
   document.getElementById('app').style.display = 'none';
+  document.getElementById('filialPage').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('lu').value = '';
   document.getElementById('lp').value = '';
 }
+
 // Auto-restore session on page load
 (function restoreSession() {
   const saved = localStorage.getItem('sp_session');
@@ -746,12 +990,95 @@ function doLogout() {
     if (found) startSession(found);
   }
 })();
+
 document.getElementById('lu').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('lp').focus(); });
 document.getElementById('lp').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
-document.addEventListener('keydown', e => { if (e.key==='Escape') { closeOverlay('movOverlay'); closeOverlay('editOverlay'); } });
+document.getElementById('filialNome').addEventListener('keydown', e => { if (e.key==='Enter') saveFilial(); });
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') {
+    closeOverlay('movOverlay');
+    closeOverlay('editOverlay');
+    closeOverlay('filialModal');
+    closeFilialDropdown();
+  }
+});
+document.addEventListener('click', e => {
+  const sw = document.getElementById('filialSwitcher');
+  if (sw && !sw.contains(e.target)) closeFilialDropdown();
+});
 
 /* ══════════════════════════════════════════
-   RENDER
+   FILIAIS — render e CRUD
+══════════════════════════════════════════ */
+function renderFiliais() {
+  const grid  = document.getElementById('filiaisGrid');
+  const empty = document.getElementById('filiaisEmpty');
+  const isAdmin = user && user.role === 'admin';
+
+  if (!filiais.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  grid.innerHTML = filiais.map(f => {
+    const adminActions = isAdmin ? `
+      <div class="filial-admin-actions">
+        <button class="btn-rename-filial" onclick="openFilialModal('${f.id}')">✏️ Renomear</button>
+        <button class="btn-del-filial"    onclick="deleteFilial('${f.id}')">🗑 Excluir</button>
+      </div>` : '';
+    return `
+      <div class="filial-card">
+        <div class="filial-icon">🏪</div>
+        <div class="filial-nome">${f.nome}</div>
+        <button class="btn-enter-filial" onclick="enterFilial('${f.id}')">Entrar →</button>
+        ${adminActions}
+      </div>`;
+  }).join('');
+}
+
+function openFilialModal(filialId) {
+  editFilialId = filialId;
+  if (filialId) {
+    const f = filiais.find(x => x.id === filialId);
+    document.getElementById('filialModalTitle').textContent = '✏️ Renomear Filial';
+    document.getElementById('filialNome').value = f ? f.nome : '';
+  } else {
+    document.getElementById('filialModalTitle').textContent = '🏪 Nova Filial';
+    document.getElementById('filialNome').value = '';
+  }
+  document.getElementById('filialModal').classList.add('on');
+  setTimeout(() => document.getElementById('filialNome').focus(), 120);
+}
+
+function saveFilial() {
+  const nome = document.getElementById('filialNome').value.trim();
+  if (!nome) { toast('Informe o nome da filial', 'error'); return; }
+
+  if (editFilialId) {
+    db.collection('lojas').doc(editFilialId).update({ nome })
+      .then(() => toast(`✅ Filial renomeada para "${nome}"!`, 'success'))
+      .catch(console.error);
+  } else {
+    const id = 'filial_' + Date.now();
+    db.collection('lojas').doc(id).set({ id, nome, createdAt: new Date().toISOString() })
+      .then(() => toast(`✅ Filial "${nome}" criada!`, 'success'))
+      .catch(console.error);
+  }
+  closeOverlay('filialModal');
+}
+
+function deleteFilial(filialId) {
+  const f = filiais.find(x => x.id === filialId);
+  if (!confirm(`Excluir a filial "${f?.nome}"?\n\nAtenção: os dados de estoque desta filial permanecerão no banco mas não estarão mais acessíveis pelo sistema.`)) return;
+  db.collection('lojas').doc(filialId).delete()
+    .then(() => toast('🗑 Filial excluída.', 'info'))
+    .catch(console.error);
+}
+
+/* ══════════════════════════════════════════
+   RENDER (estoque)
 ══════════════════════════════════════════ */
 function renderAll() { renderStats(); renderProducts(); renderHistory(); populateFilter(); }
 
@@ -875,7 +1202,6 @@ function populateFilter() {
     if (p.id==cur) o.selected=true;
     sel.appendChild(o);
   });
-  // Show/hide admin-only controls
   const isAdmin = user && user.role==='admin';
   document.getElementById('btnClr').style.display = isAdmin ? '' : 'none';
 }
@@ -895,7 +1221,6 @@ function openMov(productId, type) {
   const isIn = type==='entrada';
   document.getElementById('movTitle').textContent = isIn ? 'Registrar Entrada' : 'Registrar Saída';
   document.getElementById('movTitle').className   = 'modal-title ' + (isIn?'in':'out');
-  // Photo in modal
   const mp = document.getElementById('mpPhoto');
   const ph = photos[p.id];
   mp.innerHTML = ph ? `<img src="${ph}" style="width:44px;height:44px;object-fit:cover;border-radius:8px">` : p.emoji;
@@ -922,12 +1247,10 @@ function confirmMov() {
   if (movState.type==='saida' && qty>p.qty) { toast(`Estoque insuficiente! Disponível: ${p.qty} ${p.unit}`,'error'); return; }
   movState.type==='entrada' ? (p.qty+=qty) : (p.qty-=qty);
   const entry = { id:Date.now(), datetime:new Date().toISOString(), productId:p.id, productName:p.name, emoji:p.emoji, type:movState.type, qty, balance:p.qty, obs, user:user.name };
-  // Optimistic local update
   history.push(entry);
   renderAll();
   closeOverlay('movOverlay');
   toast(`✅ ${movState.type==='entrada'?'Entrada':'Saída'} de ${qty} ${p.unit} — ${p.name}`, 'success');
-  // Persist to Firestore
   saveProduct(p);
   saveHistoryEntry(entry);
 }
@@ -957,7 +1280,6 @@ function openEditProduct(productId) {
 
 function refreshPhotoPreview() {
   const wrap  = document.getElementById('photoPreviewWrap');
-  const emoji = document.getElementById('photoPreviewEmoji');
   const btnRm = document.getElementById('btnRemovePhoto');
   const p     = products.find(x => x.id===editId);
   if (editPhotoTemp) {
@@ -1008,7 +1330,6 @@ function saveEditProduct() {
   else               delete photos[editId];
   renderAll(); closeOverlay('editOverlay');
   toast(`✅ Produto "${p.name}" atualizado!`, 'success');
-  // Persist to Firestore
   saveProduct(p);
   savePhoto(editId, editPhotoTemp || null);
 }
@@ -1026,8 +1347,7 @@ function clearHistory() {
   if (!history.length) { toast('Histórico já está vazio.','info'); return; }
   if (!confirm(`Apagar ${history.length} registros? Esta ação não pode ser desfeita.`)) return;
   history = []; renderHistory(); toast('🗑 Histórico apagado.','info');
-  // Delete all history docs from Firestore
-  db.collection('sp_history').get().then(snap => {
+  col('historico').get().then(snap => {
     const batch = db.batch();
     snap.docs.forEach(d => batch.delete(d.ref));
     return batch.commit();
@@ -1041,7 +1361,7 @@ function exportCSV() {
   const csv  = [head,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
   const url  = URL.createObjectURL(blob);
-  const a    = Object.assign(document.createElement('a'),{href:url,download:`estoque_${new Date().toISOString().split('T')[0]}.csv`});
+  const a    = Object.assign(document.createElement('a'),{href:url,download:`estoque_${currentFilial.nome}_${new Date().toISOString().split('T')[0]}.csv`});
   a.click(); URL.revokeObjectURL(url);
   toast('📥 CSV exportado!','success');
 }
