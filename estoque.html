@@ -759,6 +759,12 @@
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
       </div>
     </div>
+    <div style="margin-bottom:16px;position:relative">
+      <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none">🔍</span>
+      <input id="prodSearch" type="text" placeholder="Pesquisar produto por nome ou categoria..."
+        oninput="renderProducts()"
+        style="width:100%;box-sizing:border-box;padding:10px 14px 10px 42px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text-1);outline:none">
+    </div>
     <div class="grid" id="prodGrid"></div>
 
     <div class="history-box">
@@ -1780,20 +1786,20 @@ function renderCaixaProducts() {
       : `<div class="caixa-card-emoji">${p.emoji || '📦'}</div>`;
     const preco = p.venda > 0 ? `$${Number(p.venda).toFixed(2)}` : 'Sem preço';
     const zero  = p.qty <= 0;
-    return `<div class="caixa-card${zero?' zero':''}" onclick="${zero?'':'addToCart('+p.id+')'}">
+    return `<div class="caixa-card${zero?' zero':''}" onclick="${zero?'':'addToCart(\''+p.id+'\')'}">
       ${imgHtml}
       <div class="caixa-card-name">${p.name}</div>
       <div class="caixa-card-price">${preco}</div>
       <div class="caixa-card-stock">${p.qty} ${p.unit} em estoque</div>
-      ${!zero && p.venda > 0 ? `<button class="caixa-card-btn" onclick="event.stopPropagation();addToCart(${p.id})">＋ Adicionar</button>` : ''}
+      ${!zero && p.venda > 0 ? `<button class="caixa-card-btn" onclick="event.stopPropagation();addToCart('${p.id}')">＋ Adicionar</button>` : ''}
     </div>`;
   }).join('');
 }
 
 function addToCart(productId) {
-  const p = products.find(x => x.id === productId);
+  const p = products.find(x => String(x.id) === String(productId));
   if (!p || p.venda <= 0 || p.qty <= 0) return;
-  const existing = cart.find(x => x.productId === productId);
+  const existing = cart.find(x => String(x.productId) === String(productId));
   if (existing) {
     if (existing.qty >= p.qty) { toast('Quantidade máxima atingida', 'error'); return; }
     existing.qty++;
@@ -1809,9 +1815,9 @@ function removeFromCart(productId) {
 }
 
 function changeCartQty(productId, delta) {
-  const item = cart.find(x => x.productId === productId);
+  const item = cart.find(x => String(x.productId) === String(productId));
   if (!item) return;
-  const p = products.find(x => x.id === productId);
+  const p = products.find(x => String(x.id) === String(productId));
   const newQty = item.qty + delta;
   if (newQty <= 0) { removeFromCart(productId); return; }
   if (p && newQty > p.qty) { toast('Quantidade máxima atingida', 'error'); return; }
@@ -1962,7 +1968,7 @@ async function confirmPayment() {
 
   // Baixar estoque
   cart.forEach(item => {
-    const p = products.find(x => x.id === item.productId);
+    const p = products.find(x => String(x.id) === String(item.productId));
     if (!p) return;
     p.qty = Math.max(0, p.qty - item.qty);
     saveProduct(p);
@@ -2211,7 +2217,11 @@ function photoHTML(p, size) {
 
 function renderProducts() {
   const isAdmin = user && user.role === 'admin';
-  document.getElementById('prodGrid').innerHTML = products.map(p => {
+  const q = (document.getElementById('prodSearch')?.value || '').toLowerCase().trim();
+  const list = q ? products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)
+  ) : products;
+  document.getElementById('prodGrid').innerHTML = list.map(p => {
     // Validade
     let expiryHTML = '', expiryCls = '';
     if (p.validade) {
@@ -2245,7 +2255,7 @@ function renderProducts() {
       : `<span class="emoji-fallback">${p.emoji}</span>`;
 
     const overlay = isAdmin
-      ? `<div class="photo-overlay admin-only"><button class="photo-btn edit-btn" onclick="openEditProduct(${p.id})">✏️ Editar</button></div>`
+      ? `<div class="photo-overlay admin-only"><button class="photo-btn edit-btn" onclick="openEditProduct('${p.id}')">✏️ Editar</button></div>`
       : '';
 
     const custo  = p.custo || 0;
@@ -2263,7 +2273,7 @@ function renderProducts() {
       </div>` : '';
 
     const adminBar = isAdmin
-      ? `<div class="card-admin-bar"><button class="btn-edit-prod" onclick="openEditProduct(${p.id})">✏️ Editar produto</button></div>`
+      ? `<div class="card-admin-bar"><button class="btn-edit-prod" onclick="openEditProduct('${p.id}')">✏️ Editar produto</button></div>`
       : '';
 
     return `
@@ -2276,8 +2286,8 @@ function renderProducts() {
           ${alert}
           ${expiryHTML}
           <div class="card-actions">
-            <button class="btn-in"  onclick="openMov(${p.id},'entrada')">＋ Entrada</button>
-            <button class="btn-out" onclick="openMov(${p.id},'saida')">－ Saída</button>
+            <button class="btn-in"  onclick="openMov('${p.id}','entrada')">＋ Entrada</button>
+            <button class="btn-out" onclick="openMov('${p.id}','saida')">－ Saída</button>
           </div>
         </div>
         ${pricingBar}
@@ -2331,7 +2341,7 @@ function fmtDate(iso) {
    MOV MODAL
 ══════════════════════════════════════════ */
 function openMov(productId, type) {
-  const p = products.find(x => x.id===productId);
+  const p = products.find(x => String(x.id)===String(productId));
   if (!p) return;
   movState = { productId, type };
   const isIn = type==='entrada';
@@ -2358,7 +2368,7 @@ function confirmMov() {
   const err = document.getElementById('mQtyErr');
   if (!qty||qty<1) { err.style.display='block'; document.getElementById('mQty').focus(); return; }
   err.style.display='none';
-  const p = products.find(x => x.id===movState.productId);
+  const p = products.find(x => String(x.id)===String(movState.productId));
   if (!p) return;
   if (movState.type==='saida' && qty>p.qty) { toast(`Estoque insuficiente! Disponível: ${p.qty} ${p.unit}`,'error'); return; }
   movState.type==='entrada' ? (p.qty+=qty) : (p.qty-=qty);
@@ -2389,7 +2399,7 @@ function openEditProduct(productId) {
   _delBtn.style.display = productId ? '' : 'none';
   if (productId) _editFt.classList.add('has-del'); else _editFt.classList.remove('has-del');
   if (productId) {
-    const p = products.find(x => x.id===productId);
+    const p = products.find(x => String(x.id)===String(productId));
     if (!p) return;
     document.getElementById('eName').value     = p.name;
     document.getElementById('eCat').value      = p.category;
@@ -2417,7 +2427,7 @@ function openEditProduct(productId) {
 function refreshPhotoPreview() {
   const wrap  = document.getElementById('photoPreviewWrap');
   const btnRm = document.getElementById('btnRemovePhoto');
-  const p     = products.find(x => x.id===editId);
+  const p     = products.find(x => String(x.id)===String(editId));
   if (editPhotoTemp) {
     wrap.innerHTML = `<img src="${editPhotoTemp}" style="width:100%;height:100%;object-fit:cover">`;
     btnRm.style.display = '';
@@ -2479,7 +2489,7 @@ function saveEditProduct() {
     return;
   }
 
-  const p = products.find(x => x.id===editId);
+  const p = products.find(x => String(x.id)===String(editId));
   if (!p) return;
   p.name     = name;
   p.category = document.getElementById('eCat').value.trim()   || p.category;
@@ -2501,7 +2511,7 @@ function saveEditProduct() {
 ══════════════════════════════════════════ */
 async function deleteProduct() {
   if (!editId || !user || user.role !== 'admin') return;
-  const p = products.find(x => x.id === editId);
+  const p = products.find(x => String(x.id) === String(editId));
   if (!p) return;
   if (!confirm(`Excluir o produto "${p.name}"?\n\nO histórico de movimentações será mantido, mas o produto será removido do estoque.`)) return;
   closeOverlay('editOverlay');
