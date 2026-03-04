@@ -539,6 +539,32 @@
       cursor: pointer; transition: opacity .2s;
     }
     .btn-users:hover { opacity: .85; }
+
+    /* ─── RELATÓRIOS ─── */
+    .btn-toggle-reports { padding: 9px 16px; background: var(--primary-light); color: var(--primary-dark); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s; }
+    .btn-toggle-reports:hover { background: var(--primary); color: #fff; }
+    .btn-toggle-reports.open { background: var(--primary); color: #fff; }
+    .report-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; margin-bottom: 20px; }
+    .report-stat { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 18px 20px; box-shadow: var(--shadow-sm); }
+    .report-stat-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-3); margin-bottom: 8px; }
+    .report-stat-val { font-size: 24px; font-weight: 800; }
+    .report-stat-val.rdanger  { color: var(--danger); }
+    .report-stat-val.rsuccess { color: var(--success); }
+    .report-stat-val.rprimary { color: var(--primary); font-size: 15px; font-weight: 700; }
+    .report-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 20px; }
+    .report-card-hd { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; }
+    .chart-wrap { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .chart-row { display: flex; align-items: center; gap: 10px; }
+    .chart-label { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 0 180px; }
+    .chart-bar-wrap { flex: 1; background: #f1f5f9; border-radius: 4px; height: 22px; overflow: hidden; }
+    .chart-bar-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 4px; transition: width .5s ease; min-width: 2px; }
+    .chart-val { font-size: 13px; font-weight: 700; color: var(--text); text-align: right; flex: 0 0 38px; }
+    @media (max-width: 640px) { .chart-label { flex: 0 0 110px; } }
+
+    /* ─── EXCLUIR PRODUTO (admin) ─── */
+    .btn-del-prod { padding: 13px; background: var(--danger-light); color: var(--danger); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; }
+    .btn-del-prod:hover { background: var(--danger); color: #fff; }
+    .modal-ft.has-del { grid-template-columns: auto 1fr 1fr; }
   </style>
 </head>
 <body>
@@ -667,6 +693,64 @@
         </div>
       </div>
     </div>
+
+    <!-- ══════════ RELATÓRIOS ══════════ -->
+    <div style="margin-top:28px">
+      <div class="sec-hd">
+        <div>
+          <div class="sec-title">📊 Relatórios</div>
+          <div class="sec-sub">Giro de estoque, produtos mais vendidos e análise de movimentações</div>
+        </div>
+        <button class="btn-toggle-reports" id="btnToggleReports" onclick="toggleReports()">📊 Ver Relatórios</button>
+      </div>
+      <div id="reportsSection" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+          <select class="fsel" id="rPeriod" onchange="renderReports()">
+            <option value="0">Todo o período</option>
+            <option value="7">Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+        </div>
+        <div class="report-stats">
+          <div class="report-stat">
+            <div class="report-stat-lbl">Total de Saídas (qtd)</div>
+            <div class="report-stat-val rdanger" id="rStatSaidas">0</div>
+          </div>
+          <div class="report-stat">
+            <div class="report-stat-lbl">Total de Entradas (qtd)</div>
+            <div class="report-stat-val rsuccess" id="rStatEntradas">0</div>
+          </div>
+          <div class="report-stat">
+            <div class="report-stat-lbl">Produto + Vendido</div>
+            <div class="report-stat-val rprimary" id="rStatTop">—</div>
+          </div>
+        </div>
+
+        <div class="report-card">
+          <div class="report-card-hd">🏆 Top 10 — Mais Vendidos (total de saídas)</div>
+          <div id="rChartRows" class="chart-wrap"></div>
+        </div>
+
+        <div class="report-card">
+          <div class="report-card-hd">📋 Detalhamento por Produto — Giro de Estoque</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>↑ Entradas</th>
+                  <th>↓ Saídas</th>
+                  <th>Saldo Atual</th>
+                  <th>Índice de Giro</th>
+                </tr>
+              </thead>
+              <tbody id="rTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -754,7 +838,8 @@
         <input type="file" id="filePhotoInput" accept="image/*" onchange="handlePhotoUpload(event)">
       </div>
     </div>
-    <div class="modal-ft">
+    <div class="modal-ft" id="editModalFt">
+      <button class="btn-del-prod" id="btnDeleteProduct" onclick="deleteProduct()" style="display:none">🗑 Excluir</button>
       <button class="btn-cancel" onclick="closeOverlay('editOverlay')">Cancelar</button>
       <button class="btn-confirm save" onclick="saveEditProduct()">Salvar</button>
     </div>
@@ -963,7 +1048,7 @@ function setupRealtimeListeners() {
   unsubHistory = col('historico').onSnapshot(snap => {
     history = snap.docs.map(d => d.data())
       .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-    renderStats(); renderHistory();
+    renderStats(); renderHistory(); renderReports();
   }, console.error);
 
   unsubPhotos = col('fotos').onSnapshot(snap => {
@@ -1584,6 +1669,10 @@ function openEditProduct(productId) {
   if (!user || user.role!=='admin') return;
   editId = productId;
   editPhotoTemp = productId ? (photos[productId] || null) : null;
+  const _delBtn = document.getElementById('btnDeleteProduct');
+  const _editFt = document.getElementById('editModalFt');
+  _delBtn.style.display = productId ? '' : 'none';
+  if (productId) _editFt.classList.add('has-del'); else _editFt.classList.remove('has-del');
   if (productId) {
     const p = products.find(x => x.id===productId);
     if (!p) return;
@@ -1693,6 +1782,25 @@ function saveEditProduct() {
 }
 
 /* ══════════════════════════════════════════
+   DELETE PRODUCT (admin)
+══════════════════════════════════════════ */
+async function deleteProduct() {
+  if (!editId || !user || user.role !== 'admin') return;
+  const p = products.find(x => x.id === editId);
+  if (!p) return;
+  if (!confirm(`Excluir o produto "${p.name}"?\n\nO histórico de movimentações será mantido, mas o produto será removido do estoque.`)) return;
+  closeOverlay('editOverlay');
+  try {
+    await col('produtos').doc(String(p.id)).delete();
+    await col('fotos').doc(String(p.id)).delete().catch(() => {});
+    toast(`🗑 Produto "${p.name}" excluído.`, 'info');
+  } catch(e) {
+    console.error(e);
+    toast('Erro ao excluir produto.', 'error');
+  }
+}
+
+/* ══════════════════════════════════════════
    OVERLAY HELPERS
 ══════════════════════════════════════════ */
 function overlayClick(e, id) { if (e.target===document.getElementById(id)) closeOverlay(id); }
@@ -1722,6 +1830,94 @@ function exportCSV() {
   const a    = Object.assign(document.createElement('a'),{href:url,download:`estoque_${currentFilial.nome}_${new Date().toISOString().split('T')[0]}.csv`});
   a.click(); URL.revokeObjectURL(url);
   toast('📥 CSV exportado!','success');
+}
+
+/* ══════════════════════════════════════════
+   RELATÓRIOS
+══════════════════════════════════════════ */
+function toggleReports() {
+  const sec = document.getElementById('reportsSection');
+  const btn = document.getElementById('btnToggleReports');
+  if (sec.style.display === 'none') {
+    sec.style.display = 'block';
+    btn.textContent = '▲ Ocultar Relatórios';
+    btn.classList.add('open');
+    renderReports();
+  } else {
+    sec.style.display = 'none';
+    btn.textContent = '📊 Ver Relatórios';
+    btn.classList.remove('open');
+  }
+}
+
+function renderReports() {
+  const sec = document.getElementById('reportsSection');
+  if (!sec || sec.style.display === 'none') return;
+
+  const period = parseInt(document.getElementById('rPeriod').value) || 0;
+  let rows = [...history];
+  if (period > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - period);
+    rows = rows.filter(r => new Date(r.datetime) >= cutoff);
+  }
+
+  const saidas   = rows.filter(r => r.type === 'saida');
+  const entradas = rows.filter(r => r.type === 'entrada');
+
+  // Agrega por produto
+  const prodMap = {};
+  products.forEach(p => {
+    prodMap[p.id] = { id: p.id, name: p.name, emoji: p.emoji || '📦', saidas: 0, entradas: 0, saldo: p.qty };
+  });
+  rows.forEach(r => {
+    if (!prodMap[r.productId]) {
+      prodMap[r.productId] = { id: r.productId, name: r.productName, emoji: r.emoji || '📦', saidas: 0, entradas: 0, saldo: 0 };
+    }
+    if (r.type === 'saida')   prodMap[r.productId].saidas   += r.qty;
+    if (r.type === 'entrada') prodMap[r.productId].entradas += r.qty;
+  });
+
+  const prodList  = Object.values(prodMap).sort((a, b) => b.saidas - a.saidas);
+  const top10     = prodList.filter(p => p.saidas > 0).slice(0, 10);
+  const maxSaidas = top10.length ? top10[0].saidas : 1;
+
+  const totalSaidas   = saidas.reduce((s, r) => s + r.qty, 0);
+  const totalEntradas = entradas.reduce((s, r) => s + r.qty, 0);
+  const topProd = prodList.find(p => p.saidas > 0);
+
+  // Stats
+  document.getElementById('rStatSaidas').textContent   = totalSaidas.toLocaleString('pt-BR');
+  document.getElementById('rStatEntradas').textContent = totalEntradas.toLocaleString('pt-BR');
+  document.getElementById('rStatTop').textContent      = topProd ? `${topProd.emoji} ${topProd.name}` : '—';
+
+  // Gráfico de barras — top 10
+  const barRows = top10.length ? top10.map(p => {
+    const pct   = (p.saidas / maxSaidas * 100).toFixed(1);
+    const label = p.name.length > 22 ? p.name.substring(0, 21) + '…' : p.name;
+    return `<div class="chart-row">
+      <div class="chart-label">${p.emoji} ${label}</div>
+      <div class="chart-bar-wrap"><div class="chart-bar-fill" style="width:${pct}%"></div></div>
+      <div class="chart-val">${p.saidas}</div>
+    </div>`;
+  }).join('') : '<div style="padding:16px;color:var(--text-2);text-align:center">Sem saídas registradas no período.</div>';
+  document.getElementById('rChartRows').innerHTML = barRows;
+
+  // Tabela detalhada — todos com movimentação
+  const tableProds = prodList.filter(p => p.saidas > 0 || p.entradas > 0);
+  const tableRows = tableProds.length ? tableProds.map(p => {
+    const giroNum = p.saldo > 0 ? p.saidas / p.saldo : null;
+    const giroTxt = giroNum !== null ? giroNum.toFixed(2) + '×' : p.saidas > 0 ? '∞' : '0.00×';
+    const giroColor = giroNum !== null && giroNum >= 1 ? 'var(--success)' : giroNum === null && p.saidas > 0 ? 'var(--warning)' : 'var(--text-2)';
+    return `<tr>
+      <td><span style="font-size:15px">${p.emoji}</span> ${p.name}</td>
+      <td style="color:var(--success);font-weight:700">+${p.entradas}</td>
+      <td style="color:var(--danger);font-weight:700">-${p.saidas}</td>
+      <td style="font-weight:600">${p.saldo}</td>
+      <td style="font-weight:700;color:${giroColor}">${giroTxt}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-2);padding:20px">Sem movimentações no período.</td></tr>';
+  document.getElementById('rTableBody').innerHTML = tableRows;
 }
 
 /* ══════════════════════════════════════════
