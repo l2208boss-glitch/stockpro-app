@@ -1685,6 +1685,9 @@ function showEstoqueApp() {
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnCopiarProdutos').style.display = user.role === 'admin' ? '' : 'none';
+  const isAdmin = user.role === 'admin';
+  document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
+  document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
 }
 
 function showCaixaApp() {
