@@ -2778,10 +2778,16 @@ function parsearListaLote(texto) {
   return linhas.map(linha => {
     let nome = linha, qty = 1, m;
     if ((m = linha.match(/^(\d+)\s+(.+)$/))) {
+      // "145 Master" → qty=145, nome=Master
       qty = parseInt(m[1]); nome = m[2].trim();
     } else if ((m = linha.match(/^(.+?)\s+[xX](\d+)$/)) || (m = linha.match(/^(.+?)\s+(\d+)[xX]$/))) {
+      // "Master x145" ou "Master 145x"
       nome = m[1].trim(); qty = parseInt(m[2]);
     } else if ((m = linha.match(/^(.+?)\s*[-–]\s*(\d+)$/))) {
+      // "Master - 145" ou "Master–145"
+      nome = m[1].trim(); qty = parseInt(m[2]);
+    } else if ((m = linha.match(/^(.+?)\s+(\d+)$/))) {
+      // "Master 145" (nome seguido de número) — formato sem separador
       nome = m[1].trim(); qty = parseInt(m[2]);
     }
     if (!qty || qty < 1) qty = 1;
@@ -2791,9 +2797,14 @@ function parsearListaLote(texto) {
 
 function encontrarProduto(nome) {
   const lower = nome.toLowerCase();
+  // 1. Correspondência exata (case-insensitive)
   let p = products.find(x => x.name.toLowerCase() === lower);
   if (p) return p;
-  p = products.find(x => x.name.toLowerCase().includes(lower) || lower.includes(x.name.toLowerCase()));
+  // 2. Nome do produto CONTÉM o termo buscado (ex: busca "master" → acha "Master 200")
+  p = products.find(x => x.name.toLowerCase().includes(lower));
+  if (p) return p;
+  // 3. Termo buscado COMEÇA com o nome do produto (ex: busca "masteron enantato" → acha "Masteron Enantato")
+  p = products.find(x => lower.startsWith(x.name.toLowerCase()) && x.name.length > 3);
   return p || null;
 }
 
@@ -2850,12 +2861,21 @@ function renderLotePreview() {
   });
 
   html += '</tbody></table>';
-  const ativos = itens.filter(x => x.ativo && x.produto).length;
-  html += `<p style="margin:10px 0 0;font-size:12px;color:var(--text-2)">${ativos} de ${itens.length} ${ativos === 1 ? 'item será processado' : 'itens serão processados'}. Desmarque os que quiser ignorar.</p>`;
+  const processaveis   = itens.filter(x => x.ativo && x.produto);
+  const ativos         = processaveis.length;
+  const totalUnidades  = processaveis.reduce((s, x) => s + x.qty, 0);
+  const naoEncontrados = itens.filter(x => !x.produto).length;
+
+  let resumo = `<div style="margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;font-size:12px">`;
+  resumo += `<span style="background:var(--success-light);color:var(--success);padding:4px 10px;border-radius:99px;font-weight:700">✓ ${ativos} produto${ativos!==1?'s':''} · ${totalUnidades} unidades no total</span>`;
+  if (naoEncontrados) resumo += `<span style="background:var(--danger-light);color:var(--danger);padding:4px 10px;border-radius:99px;font-weight:700">⚠️ ${naoEncontrados} não encontrado${naoEncontrados!==1?'s':''}</span>`;
+  resumo += `<span style="color:var(--text-3);padding:4px 0">Desmarque os que quiser ignorar.</span></div>`;
+  html += resumo;
+
   document.getElementById('lotePreviewWrap').innerHTML = html;
 
   const btn = document.getElementById('btnConfirmarLote');
-  btn.textContent = `✅ Confirmar ${ativos} ${isIn ? (ativos === 1 ? 'Entrada' : 'Entradas') : (ativos === 1 ? 'Saída' : 'Saídas')}`;
+  btn.textContent = `✅ Confirmar ${isIn ? 'Entrada' : 'Saída'} de ${totalUnidades} unidades`;
   btn.className   = 'btn-confirm ' + (isIn ? 'in' : 'out');
 }
 

@@ -6,7 +6,7 @@
    - Firestore/Auth API: passa direto, tem cache próprio offline.
 */
 
-const CACHE_NAME = 'stockpro-v15';
+const CACHE_NAME = 'stockpro-v16';
 
 const STATIC_ASSETS = [
   '/stockpro-app/icon.svg',
