@@ -1469,23 +1469,24 @@ db.enablePersistence({ synchronizeTabs: true }).catch(err => {
 // Registra Service Worker — força atualização automática ao detectar nova versão
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/stockpro-app/sw.js', { scope: '/stockpro-app/' })
-      .then(reg => {
-        // Força o SW em espera a ativar imediatamente (sem precisar fechar abas)
+    navigator.serviceWorker.register('/stockpro-app/sw.js', {
+      scope: '/stockpro-app/',
+      updateViaCache: 'none'   // nunca usa cache HTTP para o sw.js
+    }).then(reg => {
         if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         reg.addEventListener('updatefound', () => {
           const newSW = reg.installing;
           newSW.addEventListener('statechange', () => {
-            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-              // Novo SW instalado — recarrega a página para usar a versão nova
-              navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
-              window.location.reload();
+            if (newSW.state === 'installed') {
+              if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
             }
           });
         });
+        // Verifica novo deploy a cada 60 segundos — atualiza automaticamente
+        setInterval(() => { if (!document.hidden) reg.update(); }, 60000);
       })
       .catch(err => console.warn('[StockPro] SW falhou:', err));
-    // Quando o SW toma controle, recarrega para garantir HTML fresco
+    // Quando o novo SW assume controle, recarrega a página automaticamente
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) { refreshing = true; window.location.reload(); }
