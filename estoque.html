@@ -2796,16 +2796,42 @@ function parsearListaLote(texto) {
 }
 
 function encontrarProduto(nome) {
-  const lower = nome.toLowerCase();
+  const lower = nome.toLowerCase().trim();
+  if (!lower) return null;
+
   // 1. Correspondência exata (case-insensitive)
   let p = products.find(x => x.name.toLowerCase() === lower);
   if (p) return p;
-  // 2. Nome do produto CONTÉM o termo buscado (ex: busca "master" → acha "Master 200")
-  p = products.find(x => x.name.toLowerCase().includes(lower));
-  if (p) return p;
-  // 3. Termo buscado COMEÇA com o nome do produto (ex: busca "masteron enantato" → acha "Masteron Enantato")
-  p = products.find(x => lower.startsWith(x.name.toLowerCase()) && x.name.length > 3);
-  return p || null;
+
+  // 2. Nome do produto CONTÉM o termo buscado — preferir o match MAIS LONGO (mais específico)
+  //    Ex: busca "master" → se há "Master" e "Master Enantato", retorna "Master" (mais curto = match exato melhor)
+  //    Ex: busca "master enan" → "Master Enantato" contém "master enan" → retorna corretamente
+  const matches2 = products.filter(x => x.name.toLowerCase().includes(lower));
+  if (matches2.length === 1) return matches2[0];
+  if (matches2.length > 1) {
+    // Prefere o nome mais curto (mais próximo de match exato)
+    matches2.sort((a, b) => a.name.length - b.name.length);
+    return matches2[0];
+  }
+
+  // 3. Termo buscado COMEÇA com o nome do produto — preferir o match MAIS LONGO
+  //    Ex: busca "masteron enantato 200mg" → se há "Masteron" e "Masteron Enantato", retorna "Masteron Enantato"
+  const matches3 = products.filter(x => lower.startsWith(x.name.toLowerCase()) && x.name.length > 3);
+  if (matches3.length === 1) return matches3[0];
+  if (matches3.length > 1) {
+    // Prefere o nome mais longo (match mais específico)
+    matches3.sort((a, b) => b.name.length - a.name.length);
+    return matches3[0];
+  }
+
+  // 4. Produto COMEÇA com o termo buscado (ex: busca "mast" → acha "Master")
+  const matches4 = products.filter(x => x.name.toLowerCase().startsWith(lower) && lower.length >= 3);
+  if (matches4.length >= 1) {
+    matches4.sort((a, b) => a.name.length - b.name.length);
+    return matches4[0];
+  }
+
+  return null;
 }
 
 function interpretarLote() {
@@ -2838,9 +2864,18 @@ function renderLotePreview() {
         </tr>
       </thead><tbody>`;
 
+  // Pré-calcular totais consolidados para verificar estoque corretamente
+  const totaisPorProduto = {};
+  itens.filter(x => x.ativo && x.produto).forEach(item => {
+    const pid = String(item.produto.id);
+    totaisPorProduto[pid] = (totaisPorProduto[pid] || 0) + item.qty;
+  });
+
   itens.forEach((item, i) => {
     const encontrou  = !!item.produto;
-    const semEstoque = !isIn && item.produto && item.qty > item.produto.qty;
+    // Verifica contra total CONSOLIDADO, não só esta linha
+    const totalConsolidado = item.produto ? (totaisPorProduto[String(item.produto.id)] || 0) : 0;
+    const semEstoque = !isIn && item.produto && item.ativo && totalConsolidado > item.produto.qty;
     const cor = !encontrou ? '#ef4444' : semEstoque ? '#f59e0b' : 'var(--text-1)';
     const nomeProd = item.produto ? `${item.produto.emoji} ${item.produto.name}` : '⚠️ Não encontrado';
     html += `
@@ -2866,11 +2901,33 @@ function renderLotePreview() {
   const totalUnidades  = processaveis.reduce((s, x) => s + x.qty, 0);
   const naoEncontrados = itens.filter(x => !x.produto).length;
 
+  // Consolidar por produto para mostrar resumo claro
+  const porProduto = {};
+  processaveis.forEach(item => {
+    const pid = String(item.produto.id);
+    if (!porProduto[pid]) porProduto[pid] = { produto: item.produto, total: 0, count: 0 };
+    porProduto[pid].total += item.qty;
+    porProduto[pid].count++;
+  });
+  const produtosUnicos = Object.keys(porProduto).length;
+
   let resumo = `<div style="margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;font-size:12px">`;
-  resumo += `<span style="background:var(--success-light);color:var(--success);padding:4px 10px;border-radius:99px;font-weight:700">✓ ${ativos} produto${ativos!==1?'s':''} · ${totalUnidades} unidades no total</span>`;
+  resumo += `<span style="background:var(--success-light);color:var(--success);padding:4px 10px;border-radius:99px;font-weight:700">✓ ${produtosUnicos} produto${produtosUnicos!==1?'s':''} · ${totalUnidades} unidades no total</span>`;
   if (naoEncontrados) resumo += `<span style="background:var(--danger-light);color:var(--danger);padding:4px 10px;border-radius:99px;font-weight:700">⚠️ ${naoEncontrados} não encontrado${naoEncontrados!==1?'s':''}</span>`;
   resumo += `<span style="color:var(--text-3);padding:4px 0">Desmarque os que quiser ignorar.</span></div>`;
-  html += resumo;
+
+  // Mostrar resumo consolidado por produto (especialmente quando há linhas duplicadas)
+  let resumoProd = `<div style="margin:8px 0 0;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:12px">`;
+  resumoProd += `<strong style="color:var(--text-1)">📊 Resumo por produto:</strong>`;
+  Object.values(porProduto).forEach(pp => {
+    const seta = isIn ? '📈' : '📉';
+    const corQty = !isIn && pp.total > pp.produto.qty ? 'color:#ef4444;font-weight:700' : 'font-weight:700';
+    const estoqueInfo = !isIn ? ` — estoque atual: ${pp.produto.qty} ${pp.produto.unit}` : '';
+    const dupsInfo = pp.count > 1 ? ` <span style="color:var(--primary)">(${pp.count} linhas somadas)</span>` : '';
+    resumoProd += `<div style="margin:3px 0">${seta} ${pp.produto.emoji} ${pp.produto.name}: <span style="${corQty}">${isIn ? '+' : '-'}${pp.total} ${pp.produto.unit}</span>${dupsInfo}${estoqueInfo}</div>`;
+  });
+  resumoProd += `</div>`;
+  html += resumo + resumoProd;
 
   document.getElementById('lotePreviewWrap').innerHTML = html;
 
@@ -2901,39 +2958,88 @@ function confirmarLote() {
   const processaveis = itens.filter(x => x.ativo && x.produto);
   if (!processaveis.length) { toast('Nenhum item válido para processar.', 'error'); return; }
 
+  // 1. Re-resolve referências de produto (podem ter ficado obsoletas desde o preview)
+  processaveis.forEach(item => {
+    const fresh = products.find(x => String(x.id) === String(item.produto.id));
+    if (fresh) item.produto = fresh;
+  });
+
+  // 2. Consolidar por produto — soma quantidades de linhas que referenciam o mesmo produto
+  const consolidado = {};
+  processaveis.forEach(item => {
+    const pid = String(item.produto.id);
+    if (!consolidado[pid]) {
+      consolidado[pid] = { produto: item.produto, totalQty: 0, linhas: [] };
+    }
+    consolidado[pid].totalQty += item.qty;
+    consolidado[pid].linhas.push({ linha: item.linha, qty: item.qty });
+  });
+
+  // 3. Verificar estoque contra totais CONSOLIDADOS (não individuais)
   if (!isIn) {
-    const semEstoque = processaveis.filter(x => x.qty > x.produto.qty);
+    const semEstoque = Object.values(consolidado).filter(c => c.totalQty > c.produto.qty);
     if (semEstoque.length) {
-      toast(`⚠️ ${semEstoque.length} item(s) com estoque insuficiente. Ajuste a quantidade ou desmarque-os.`, 'error');
+      const detalhes = semEstoque.map(c =>
+        `${c.produto.emoji} ${c.produto.name}: precisa ${c.totalQty}, tem ${c.produto.qty}`
+      ).join('\n');
+      toast(`⚠️ Estoque insuficiente:\n${detalhes}`, 'error');
       return;
     }
   }
 
+  // 4. Usar Firestore batch — TODAS as escritas são atômicas (tudo ou nada)
+  const fbBatch = db.batch();
   const ts = Date.now();
-  processaveis.forEach((item, idx) => {
-    const p = item.produto;
-    const delta = isIn ? item.qty : -item.qty;
+  let entryIdx = 0;
+  const resumoItens = [];
+
+  Object.values(consolidado).forEach(c => {
+    const p = c.produto;
+    const delta = isIn ? c.totalQty : -c.totalQty;
+    const qtyAntes = p.qty;
+
+    // Atualiza qty atomicamente via FieldValue.increment no batch
+    const docRef = col('produtos').doc(String(p.id));
+    fbBatch.update(docRef, { qty: firebase.firestore.FieldValue.increment(delta) });
+
+    // Atualiza estado local
     p.qty += delta;
+
+    // Cria entrada de histórico com total consolidado
     const entry = {
-      id:          ts + idx,
+      id:          ts + entryIdx,
       datetime:    new Date().toISOString(),
       productId:   p.id,
       productName: p.name,
       emoji:       p.emoji,
       type,
-      qty:         item.qty,
+      qty:         c.totalQty,
       balance:     p.qty,
-      obs:         `Lote: ${item.linha}`,
+      obs:         c.linhas.length > 1
+                     ? `Lote (${c.linhas.length} linhas): ${c.linhas.map(l => l.qty).join(' + ')} = ${c.totalQty}`
+                     : `Lote: ${c.linhas[0].linha}`,
       user:        user.name
     };
     history.push(entry);
-    saveQtyDelta(p.id, delta);
-    saveHistoryEntry(entry);
+    fbBatch.set(col('historico').doc(String(entry.id)), entry);
+    entryIdx++;
+
+    resumoItens.push(`${p.emoji} ${p.name}: ${isIn ? '+' : '-'}${c.totalQty} (${qtyAntes} → ${p.qty})`);
   });
+
+  // 5. Commit atômico — se falhar, NADA é salvo
+  fbBatch.commit()
+    .then(() => {
+      console.log('[StockPro] Lote processado OK:', resumoItens.join(', '));
+    })
+    .catch(err => {
+      console.error('[StockPro] Erro no batch do lote:', err);
+      toast('⚠️ Erro ao salvar no servidor. Recarregue a página e verifique.', 'error');
+    });
 
   renderAll();
   closeOverlay('loteOverlay');
-  toast(`✅ ${processaveis.length} ${isIn ? 'entradas' : 'saídas'} registradas em lote!`, 'success');
+  toast(`✅ ${Object.keys(consolidado).length} produto${Object.keys(consolidado).length > 1 ? 's' : ''} processado${Object.keys(consolidado).length > 1 ? 's' : ''}:\n${resumoItens.join('\n')}`, 'success');
 }
 
 /* ══════════════════════════════════════════
