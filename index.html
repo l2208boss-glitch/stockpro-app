@@ -529,7 +529,7 @@
     .btn-change-pass:hover { background: var(--primary-light); border-color: var(--primary); }
 
     /* ─── USERS MODAL ─── */
-    .users-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 300px; overflow-y: auto; }
+    .users-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 380px; overflow-y: auto; }
     .user-item {
       display: flex; align-items: center; justify-content: space-between;
       padding: 12px 14px; background: var(--bg);
@@ -555,6 +555,35 @@
       cursor: pointer; transition: opacity .2s;
     }
     .btn-users:hover { opacity: .85; }
+
+    /* ─── PRESENÇA / ONLINE ─── */
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); }
+      60%       { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    .presence-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block;
+    }
+    .presence-dot.online  { background: #22c55e; animation: pulse-green 2s infinite; }
+    .presence-dot.away    { background: #f59e0b; }
+    .presence-dot.offline { background: #cbd5e1; }
+    .presence-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+    }
+    .presence-tag.online  { background: #dcfce7; color: #15803d; }
+    .presence-tag.away    { background: #fef3c7; color: #b45309; }
+    .presence-tag.offline { background: var(--bg); color: var(--text-3); border: 1px solid var(--border); }
+    .online-count-badge {
+      background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700;
+      padding: 1px 7px; border-radius: 99px; margin-left: 5px;
+    }
+    .presence-header {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600; color: #15803d;
+      margin-bottom: 12px; padding: 10px 14px;
+      background: #dcfce7; border-radius: var(--radius-sm); border: 1px solid #bbf7d0;
+    }
 
     /* ─── RELATÓRIOS ─── */
     .btn-toggle-reports { padding: 9px 16px; background: var(--primary-light); color: var(--primary-dark); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s; }
@@ -1552,6 +1581,15 @@ let unsubProducao  = null;
 let producaoChart  = null;
 let producaoOpChart = null;
 
+// Presença state
+let heartbeatInterval    = null;
+let unsubPresencaGlobal  = null;
+let unsubPresencaModal   = null;
+let unsubUsuariosModal   = null;
+let presencaMap          = {};   // userId → presença doc
+let _modalUsuarios       = [];
+let _modalPresenca       = {};
+
 /* ══════════════════════════════════════════
    FIRESTORE — helper de coleção por filial
 ══════════════════════════════════════════ */
@@ -1645,6 +1683,99 @@ function stopListeners() {
 }
 
 /* ══════════════════════════════════════════
+   PRESENÇA — Heartbeat & Online Status
+══════════════════════════════════════════ */
+function updatePresence(online) {
+  if (!user) return;
+  db.collection('presenca').doc(String(user.id)).set({
+    userId: user.id, username: user.username, name: user.name,
+    online: online,
+    ts: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(() => {});
+}
+
+function startHeartbeat() {
+  updatePresence(true);
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => updatePresence(true), 60000);
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  updatePresence(false);
+}
+
+function presencaLabel(data) {
+  if (!data || !data.ts) return { status: 'offline', label: 'Nunca acessou' };
+  const ts = data.ts.toDate ? data.ts.toDate() : new Date(data.ts);
+  const diffMin = Math.floor((Date.now() - ts.getTime()) / 60000);
+  if (data.online && diffMin <= 3) return { status: 'online', label: 'Online agora' };
+  if (diffMin < 60)   return { status: 'away',    label: `Há ${diffMin}min` };
+  if (diffMin < 1440) return { status: 'offline',  label: `Há ${Math.floor(diffMin/60)}h` };
+  return { status: 'offline', label: 'Offline' };
+}
+
+function setupGlobalPresencaListener() {
+  if (unsubPresencaGlobal) unsubPresencaGlobal();
+  unsubPresencaGlobal = db.collection('presenca').onSnapshot(snap => {
+    presencaMap = {};
+    snap.docs.forEach(d => { presencaMap[String(d.id)] = d.data(); });
+    // Atualiza badge no botão Usuários
+    const btn = document.getElementById('btnGerenciarUsers');
+    if (btn) {
+      const count = Object.values(presencaMap).filter(p => presencaLabel(p).status === 'online').length;
+      let badge = btn.querySelector('.online-count-badge');
+      if (count > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'online-count-badge'; btn.appendChild(badge); }
+        badge.textContent = count + ' online';
+      } else if (badge) { badge.remove(); }
+    }
+  }, console.error);
+}
+
+function stopPresencaModal() {
+  if (unsubPresencaModal)  { unsubPresencaModal();  unsubPresencaModal  = null; }
+  if (unsubUsuariosModal)  { unsubUsuariosModal();  unsubUsuariosModal  = null; }
+}
+
+function _renderUsersModalBody() {
+  const ops = _modalUsuarios.filter(u => u.role !== 'admin');
+  const onlineOps = ops.filter(u => presencaLabel(_modalPresenca[String(u.id)]).status === 'online');
+
+  const onlineBar = onlineOps.length > 0
+    ? `<div class="presence-header">
+         <span class="presence-dot online"></span>
+         <span>${onlineOps.length} operador${onlineOps.length > 1 ? 'es' : ''} online agora: <strong>${onlineOps.map(u => u.name.split(' ')[0]).join(', ')}</strong></span>
+       </div>` : '';
+
+  const items = ops.length ? ops.map(u => {
+    const filialNome = u.checklistEnabled && !u.filialId
+      ? '📋 Apenas Checklist'
+      : (filiais.find(f => f.id === u.filialId)?.nome || '⚠️ Sem filial');
+    const { status, label } = presencaLabel(_modalPresenca[String(u.id)]);
+    return `<div class="user-item">
+      <div class="user-info">
+        <div class="user-name">👤 ${u.name}</div>
+        <div class="user-meta">@${u.username} · ${filialNome}</div>
+        <div style="margin-top:5px">
+          <span class="presence-tag ${status}">
+            <span class="presence-dot ${status}"></span>${label}
+          </span>
+        </div>
+      </div>
+      <div class="user-actions">
+        <button class="btn-user-edit" onclick="openUserForm('${u.id}')">✏️ Editar</button>
+        <button class="btn-user-del"  onclick="deleteUser('${u.id}','${u.name}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('') : '<div style="text-align:center;padding:20px;color:var(--text-2)">Nenhum operador cadastrado.</div>';
+
+  document.getElementById('usersModalBody').innerHTML =
+    `${onlineBar}<div class="users-list">${items}</div>
+     <button class="btn-add-user" onclick="openUserForm(null)">＋ Adicionar Operador</button>`;
+}
+
+/* ══════════════════════════════════════════
    FIRESTORE — filiais listener
 ══════════════════════════════════════════ */
 function setupFiliaisListener() {
@@ -1663,6 +1794,8 @@ function startSession(userData) {
   localStorage.setItem('sp_session', userData.username);
   document.getElementById('loginErr').style.display = 'none';
   document.getElementById('loginPage').style.display = 'none';
+  startHeartbeat();
+  if (user.role === 'admin') setupGlobalPresencaListener();
   if (user.role === 'op' && user.filialId) {
     directEnterFilial(user.filialId);
   } else if (user.role === 'op' && user.checklistEnabled) {
@@ -1940,30 +2073,23 @@ async function saveChangePass() {
 ══════════════════════════════════════════ */
 let editUserId = null;
 
-async function openUsersModal() {
+function openUsersModal() {
+  stopPresencaModal();
+  _modalUsuarios = []; _modalPresenca = {};
   document.getElementById('usersModalBody').innerHTML =
     '<div style="text-align:center;padding:24px;color:var(--text-2)">Carregando...</div>';
   document.getElementById('usersModal').classList.add('on');
-  const snap = await db.collection('usuarios').get();
-  const ops = snap.docs.map(d => d.data()).filter(u => u.role !== 'admin');
-  const items = ops.length ? ops.map(u => {
-    const filialNome = u.checklistEnabled && !u.filialId
-      ? '📋 Apenas Checklist'
-      : (filiais.find(f => f.id === u.filialId)?.nome || '⚠️ Sem filial');
-    return `<div class="user-item">
-      <div class="user-info">
-        <div class="user-name">👤 ${u.name}</div>
-        <div class="user-meta">@${u.username} · ${filialNome}</div>
-      </div>
-      <div class="user-actions">
-        <button class="btn-user-edit" onclick="openUserForm('${u.id}')">✏️ Editar</button>
-        <button class="btn-user-del"  onclick="deleteUser('${u.id}','${u.name}')">🗑</button>
-      </div>
-    </div>`;
-  }).join('') : '<div style="text-align:center;padding:20px;color:var(--text-2)">Nenhum operador cadastrado.</div>';
-  document.getElementById('usersModalBody').innerHTML =
-    `<div class="users-list">${items}</div>
-     <button class="btn-add-user" onclick="openUserForm(null)">＋ Adicionar Operador</button>`;
+
+  unsubUsuariosModal = db.collection('usuarios').onSnapshot(snap => {
+    _modalUsuarios = snap.docs.map(d => d.data());
+    _renderUsersModalBody();
+  }, console.error);
+
+  unsubPresencaModal = db.collection('presenca').onSnapshot(snap => {
+    _modalPresenca = {};
+    snap.docs.forEach(d => { _modalPresenca[String(d.id)] = d.data(); });
+    _renderUsersModalBody();
+  }, console.error);
 }
 
 function openUserForm(userId) {
@@ -2408,11 +2534,15 @@ function renderVendas() {
 }
 
 function doLogout() {
+  stopHeartbeat();
+  if (unsubPresencaGlobal) { unsubPresencaGlobal(); unsubPresencaGlobal = null; }
+  stopPresencaModal();
   stopListeners();
   if (unsubFiliais) { unsubFiliais(); unsubFiliais = null; }
   user = null; currentFilial = null; currentMode = null;
   products = []; history = []; photos = {}; filiais = [];
   cart = []; vendas = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
+  presencaMap = {}; _modalUsuarios = []; _modalPresenca = {};
   localStorage.removeItem('sp_session');
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
@@ -2434,6 +2564,8 @@ firebase.auth().signInAnonymously().catch(console.error).finally(async () => {
     } catch(e) { console.error(e); }
   }
 });
+
+window.addEventListener('beforeunload', () => { updatePresence(false); });
 
 document.getElementById('lu').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('lp').focus(); });
 document.getElementById('lp').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
@@ -3257,7 +3389,10 @@ async function deleteProduct() {
    OVERLAY HELPERS
 ══════════════════════════════════════════ */
 function overlayClick(e, id) { if (e.target===document.getElementById(id)) closeOverlay(id); }
-function closeOverlay(id)    { document.getElementById(id).classList.remove('on'); }
+function closeOverlay(id) {
+  document.getElementById(id).classList.remove('on');
+  if (id === 'usersModal') stopPresencaModal();
+}
 
 /* ══════════════════════════════════════════
    HISTORY UTILS
