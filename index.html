@@ -2147,7 +2147,7 @@ function renderCaixaProducts() {
       ${imgHtml}
       <div class="caixa-card-name">${p.name}</div>
       <div class="caixa-card-price">${preco}</div>
-      ${user && user.role === 'admin' ? `<div class="caixa-card-stock">${p.qty} ${p.unit} em estoque</div>` : ''}
+      ${user && user.role === 'admin' ? `<div class="caixa-card-stock">${p.qty} em estoque</div>` : ''}
       ${!zero && p.venda > 0 ? `<button class="caixa-card-btn" onclick="event.stopPropagation();addToCart('${p.id}')">＋ Adicionar</button>` : ''}
     </div>`;
   }).join('');
