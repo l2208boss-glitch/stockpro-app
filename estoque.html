@@ -2679,7 +2679,16 @@ function renderHistory() {
       <td style="font-weight:600">${r.balance}</td>
       <td style="color:var(--text-2);font-size:13px;max-width:180px">${r.obs||'—'}</td>
       <td style="color:var(--text-3);font-size:12px">${r.user}</td>
+      <td><button onclick="deleteHistoryEntry('${r.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.45;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.opacity=1;this.style.background='var(--danger-light)'" onmouseout="this.style.opacity=.45;this.style.background='none'" title="Excluir permanentemente">🗑</button></td>
     </tr>`).join('');
+}
+
+function deleteHistoryEntry(id) {
+  if (!confirm('Excluir este registro permanentemente? Esta ação não pode ser desfeita.')) return;
+  history = history.filter(r => String(r.id) !== String(id));
+  col('historico').doc(String(id)).delete().catch(console.error);
+  renderHistory(); renderStats(); renderReports();
+  toast('🗑 Registro excluído', 'success');
 }
 
 function populateFilter() {
