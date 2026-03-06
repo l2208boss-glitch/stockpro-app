@@ -302,14 +302,18 @@
     .btn-out:hover { background: var(--danger);  color: #fff; }
     .btn-in:active, .btn-out:active { transform: scale(.95); }
 
-    .card-admin-bar { padding: 0 16px 14px; }
-    .btn-edit-prod {
-      width: 100%; padding: 7px; background: var(--bg);
+    .card-admin-bar { padding: 0 16px 14px; display:flex; gap:6px; }
+    .btn-edit-prod, .btn-adj-prod {
+      flex:1; padding: 7px; background: var(--bg);
       border: 1.5px dashed var(--border-2); border-radius: var(--radius-sm);
       font-size: 12px; font-weight: 600; color: var(--text-2);
       cursor: pointer; transition: all .18s;
     }
     .btn-edit-prod:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+    .btn-adj-prod:hover  { background: #fef3c7; color: #b45309; border-color: #f59e0b; }
+    .btn-confirm.adj { background: #f59e0b; }
+    .btn-confirm.adj:hover { background: #d97706; }
+    .modal-title.adj { color: #b45309; }
 
     /* ─── PRICING (admin only) ─── */
     .card-pricing {
@@ -363,6 +367,7 @@
     .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
     .badge-in  { background: var(--success-light); color: var(--success); }
     .badge-out { background: var(--danger-light);  color: var(--danger); }
+    .badge-adj { background: #f59e0b22; color: #b45309; }
 
     .empty-state { text-align: center; padding: 56px 24px; color: var(--text-2); }
     .empty-icon  { font-size: 48px; margin-bottom: 12px; }
@@ -815,6 +820,7 @@
             <option value="">Todos os tipos</option>
             <option value="entrada">Entrada</option>
             <option value="saida">Saída</option>
+            <option value="ajuste">Ajuste</option>
           </select>
           <button class="btn-csv" onclick="exportCSV()">📥 Exportar CSV</button>
           <button class="btn-clr" id="btnClr" onclick="clearHistory()">🗑</button>
@@ -1141,6 +1147,27 @@
     <div class="modal-ft">
       <button class="btn-cancel" onclick="closeOverlay('movOverlay')">Cancelar</button>
       <button class="btn-confirm" id="btnConfirm" onclick="confirmMov()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — AJUSTE DE ESTOQUE ══════════ -->
+<div class="overlay" id="ajusteOverlay" onclick="overlayClick(event,'ajusteOverlay')">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title adj" id="ajusteTitle">⚖️ Ajuste de Estoque</span>
+      <button class="btn-x" onclick="closeOverlay('ajusteOverlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="ajusteProdInfo" style="margin-bottom:14px;font-weight:600;font-size:15px"></div>
+      <label class="modal-label">Contagem física atual (quantidade real)</label>
+      <input id="ajusteQty" type="number" min="0" class="modal-inp" placeholder="Ex: 845">
+      <div id="ajusteDiff" style="margin-top:8px;font-size:13px;padding:8px;border-radius:6px;display:none"></div>
+      <div id="ajusteErr" style="color:var(--danger);font-size:12px;margin-top:4px;display:none">Informe a quantidade física contada</div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('ajusteOverlay')">Cancelar</button>
+      <button class="btn-confirm adj" onclick="confirmAjuste()">⚖️ Aplicar Ajuste</button>
     </div>
   </div>
 </div>
@@ -1537,6 +1564,15 @@ function col(name) {
 function saveProduct(p) {
   col('produtos').doc(String(p.id)).set(p).catch(console.error);
 }
+// Atualiza APENAS a qty de forma atômica — evita race conditions em lotes
+function saveQtyDelta(productId, delta) {
+  col('produtos').doc(String(productId))
+    .update({ qty: firebase.firestore.FieldValue.increment(delta) })
+    .catch(err => {
+      console.error('[StockPro] Erro ao salvar qty:', err);
+      toast('⚠️ Erro ao salvar no servidor. Recarregue a página.', 'error');
+    });
+}
 function saveHistoryEntry(entry) {
   col('historico').doc(String(entry.id)).set(entry).catch(console.error);
 }
@@ -1557,13 +1593,24 @@ function setupRealtimeListeners() {
   if (unsubPhotos)   unsubPhotos();
 
   unsubProducts = col('produtos').onSnapshot(snap => {
-    if (snap.empty) {
+    if (snap.empty && products.length === 0) {
       const batch = db.batch();
       DEFAULT_PRODUCTS.forEach(p => batch.set(col('produtos').doc(String(p.id)), p));
       batch.commit();
       return;
     }
-    products = snap.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
+    // Aplica apenas os documentos que mudaram — evita reverter writes pendentes
+    snap.docChanges().forEach(ch => {
+      const data = ch.doc.data();
+      if (ch.type === 'removed') {
+        products = products.filter(p => String(p.id) !== String(data.id));
+      } else {
+        const idx = products.findIndex(p => String(p.id) === String(data.id));
+        if (idx >= 0) products[idx] = data;
+        else products.push(data);
+      }
+    });
+    products.sort((a, b) => a.id - b.id);
     renderStats(); renderProducts(); populateFilter();
   }, console.error);
 
@@ -2278,7 +2325,7 @@ async function confirmPayment() {
     const p = products.find(x => String(x.id) === String(item.productId));
     if (!p) return;
     p.qty = Math.max(0, p.qty - item.qty);
-    saveProduct(p);
+    saveQtyDelta(p.id, -item.qty);
     const entry = { id: Date.now() + Math.random(), datetime: new Date().toISOString(), productId: p.id, productName: p.name, emoji: p.emoji, type: 'saida', qty: item.qty, balance: p.qty, obs: `Venda #${vendaId}`, user: user.name };
     saveHistoryEntry(entry);
   });
@@ -2583,7 +2630,10 @@ function renderProducts() {
       </div>` : '';
 
     const adminBar = isAdmin
-      ? `<div class="card-admin-bar"><button class="btn-edit-prod" onclick="openEditProduct('${p.id}')">✏️ Editar produto</button></div>`
+      ? `<div class="card-admin-bar">
+           <button class="btn-edit-prod" onclick="openEditProduct('${p.id}')">✏️ Editar</button>
+           <button class="btn-adj-prod"  onclick="openAjuste('${p.id}')">⚖️ Ajustar</button>
+         </div>`
       : '';
 
     return `
@@ -2621,8 +2671,8 @@ function renderHistory() {
     <tr>
       <td style="white-space:nowrap;color:var(--text-3);font-size:13px">${fmtDate(r.datetime)}</td>
       <td><span style="font-size:16px">${r.emoji}</span> ${r.productName}</td>
-      <td><span class="badge ${r.type==='entrada'?'badge-in':'badge-out'}">${r.type==='entrada'?'▲ Entrada':'▼ Saída'}</span></td>
-      <td style="font-weight:700;color:${r.type==='entrada'?'var(--success)':'var(--danger)'}">${r.type==='entrada'?'+':'-'}${r.qty}</td>
+      <td><span class="badge ${r.type==='entrada'?'badge-in':r.type==='ajuste'?'badge-adj':'badge-out'}">${r.type==='entrada'?'▲ Entrada':r.type==='ajuste'?'⚖️ Ajuste':'▼ Saída'}</span></td>
+      <td style="font-weight:700;color:${r.type==='entrada'?'var(--success)':r.type==='ajuste'?(r.delta>=0?'var(--success)':'var(--danger)'):'var(--danger)'}">${r.type==='ajuste'?(r.delta>=0?'+'+r.delta:r.delta):r.type==='entrada'?'+'+r.qty:'-'+r.qty}</td>
       <td style="font-weight:600">${r.balance}</td>
       <td style="color:var(--text-2);font-size:13px;max-width:180px">${r.obs||'—'}</td>
       <td style="color:var(--text-3);font-size:12px">${r.user}</td>
@@ -2681,13 +2731,14 @@ function confirmMov() {
   const p = products.find(x => String(x.id)===String(movState.productId));
   if (!p) return;
   if (movState.type==='saida' && qty>p.qty) { toast(`Estoque insuficiente! Disponível: ${p.qty} ${p.unit}`,'error'); return; }
-  movState.type==='entrada' ? (p.qty+=qty) : (p.qty-=qty);
+  const delta = movState.type==='entrada' ? qty : -qty;
+  p.qty += delta;
   const entry = { id:Date.now(), datetime:new Date().toISOString(), productId:p.id, productName:p.name, emoji:p.emoji, type:movState.type, qty, balance:p.qty, obs, user:user.name };
   history.push(entry);
   renderAll();
   closeOverlay('movOverlay');
   toast(`✅ ${movState.type==='entrada'?'Entrada':'Saída'} de ${qty} ${p.unit} — ${p.name}`, 'success');
-  saveProduct(p);
+  saveQtyDelta(p.id, delta);
   saveHistoryEntry(entry);
 }
 
@@ -2829,7 +2880,8 @@ function confirmarLote() {
   const ts = Date.now();
   processaveis.forEach((item, idx) => {
     const p = item.produto;
-    isIn ? (p.qty += item.qty) : (p.qty -= item.qty);
+    const delta = isIn ? item.qty : -item.qty;
+    p.qty += delta;
     const entry = {
       id:          ts + idx,
       datetime:    new Date().toISOString(),
@@ -2843,13 +2895,83 @@ function confirmarLote() {
       user:        user.name
     };
     history.push(entry);
-    saveProduct(p);
+    saveQtyDelta(p.id, delta);
     saveHistoryEntry(entry);
   });
 
   renderAll();
   closeOverlay('loteOverlay');
   toast(`✅ ${processaveis.length} ${isIn ? 'entradas' : 'saídas'} registradas em lote!`, 'success');
+}
+
+/* ══════════════════════════════════════════
+   AJUSTE DE ESTOQUE
+══════════════════════════════════════════ */
+let ajusteProductId = null;
+
+function openAjuste(productId) {
+  if (!user || user.role !== 'admin') return;
+  const p = products.find(x => String(x.id) === String(productId));
+  if (!p) return;
+  ajusteProductId = productId;
+  document.getElementById('ajusteProdInfo').innerHTML =
+    `<span style="font-size:20px">${p.emoji || '📦'}</span> ${p.name}<br>
+     <span style="font-size:13px;font-weight:400;color:var(--text-2)">Estoque atual no sistema: <strong>${p.qty} ${p.unit}</strong></span>`;
+  document.getElementById('ajusteQty').value = '';
+  document.getElementById('ajusteDiff').style.display = 'none';
+  document.getElementById('ajusteErr').style.display = 'none';
+  document.getElementById('ajusteOverlay').classList.add('on');
+  setTimeout(() => document.getElementById('ajusteQty').focus(), 120);
+}
+
+document.getElementById('ajusteQty').addEventListener('input', function() {
+  const p = products.find(x => String(x.id) === String(ajusteProductId));
+  if (!p) return;
+  const novaQty = parseInt(this.value);
+  const diffEl  = document.getElementById('ajusteDiff');
+  if (this.value === '' || isNaN(novaQty)) { diffEl.style.display = 'none'; return; }
+  const delta = novaQty - p.qty;
+  const sinal = delta > 0 ? '+' : '';
+  diffEl.style.display = 'block';
+  diffEl.style.background = delta > 0 ? 'var(--success-light)' : delta < 0 ? 'var(--danger-light)' : 'var(--bg)';
+  diffEl.style.color      = delta > 0 ? 'var(--success)'       : delta < 0 ? 'var(--danger)'       : 'var(--text-2)';
+  diffEl.textContent = delta === 0
+    ? `✓ Sem diferença — estoque já está correto`
+    : `Diferença: ${sinal}${delta} ${p.unit}  (${p.qty} → ${novaQty})`;
+});
+
+function confirmAjuste() {
+  const p = products.find(x => String(x.id) === String(ajusteProductId));
+  if (!p) return;
+  const novaQtyStr = document.getElementById('ajusteQty').value;
+  const novaQty = parseInt(novaQtyStr);
+  if (novaQtyStr === '' || isNaN(novaQty) || novaQty < 0) {
+    document.getElementById('ajusteErr').style.display = 'block'; return;
+  }
+  document.getElementById('ajusteErr').style.display = 'none';
+  const delta  = novaQty - p.qty;
+  const oldQty = p.qty;
+  p.qty = novaQty;
+  const entry = {
+    id:          Date.now(),
+    datetime:    new Date().toISOString(),
+    productId:   p.id,
+    productName: p.name,
+    emoji:       p.emoji,
+    type:        'ajuste',
+    qty:         Math.abs(delta),
+    delta,
+    balance:     novaQty,
+    obs:         `Ajuste manual: ${oldQty} → ${novaQty} (${delta >= 0 ? '+' : ''}${delta})`,
+    user:        user.name
+  };
+  history.push(entry);
+  renderAll();
+  closeOverlay('ajusteOverlay');
+  const msg = delta === 0 ? 'Sem alteração' : `${p.name}: ${oldQty} → ${novaQty}`;
+  toast(`⚖️ Ajuste aplicado — ${msg}`, 'success');
+  if (delta !== 0) saveQtyDelta(p.id, delta);
+  saveHistoryEntry(entry);
 }
 
 /* ══════════════════════════════════════════
