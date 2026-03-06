@@ -585,6 +585,42 @@
       background: #dcfce7; border-radius: var(--radius-sm); border: 1px solid #bbf7d0;
     }
 
+    /* ─── IMPORTAR CSV ─── */
+    .import-drop-zone {
+      border: 2px dashed var(--border-2); border-radius: var(--radius);
+      padding: 36px 20px; text-align: center; cursor: pointer; transition: all .2s;
+      background: var(--bg);
+    }
+    .import-drop-zone:hover, .import-drop-zone.dragover { border-color: var(--primary); background: var(--primary-light); }
+    .import-drop-icon { font-size: 38px; margin-bottom: 8px; }
+    .import-drop-text { font-size: 14px; font-weight: 600; color: var(--text-2); }
+    .import-drop-sub  { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+    .import-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .import-sum-item {
+      padding: 7px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .import-sum-item.new    { background: var(--success-light); color: var(--success); }
+    .import-sum-item.update { background: var(--warning-light); color: var(--warning); }
+    .import-options { display: flex; gap: 8px; margin-bottom: 16px; }
+    .import-opt-btn {
+      flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border);
+      background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; text-align: center; line-height: 1.5;
+    }
+    .import-opt-btn:hover          { border-color: var(--primary); }
+    .import-opt-btn.selected       { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); }
+    .import-preview-wrap { max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+    .import-preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .import-preview-table th {
+      background: var(--primary-light); color: var(--primary-dark);
+      padding: 6px 10px; text-align: left; font-weight: 700;
+      position: sticky; top: 0;
+    }
+    .import-preview-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); }
+    .import-preview-table tr:last-child td { border-bottom: none; }
+    .import-badge-new    { background: var(--success-light); color: var(--success); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+    .import-badge-update { background: var(--warning-light); color: var(--warning); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+
     /* ─── RELATÓRIOS ─── */
     .btn-toggle-reports { padding: 9px 16px; background: var(--primary-light); color: var(--primary-dark); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s; }
     .btn-toggle-reports:hover { background: var(--primary); color: #fff; }
@@ -824,6 +860,7 @@
         <button class="btn-confirm in" id="btnEntradaLote" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openLote('entrada')">⚡ Entrada em Lote</button>
         <button class="btn-confirm out" id="btnSaidaLote" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openLote('saida')">⚡ Saída em Lote</button>
         <button class="btn-clr" id="btnCopiarProdutos" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openCopiarModal()" title="Copiar produtos de outra filial">📋 Copiar de outra filial</button>
+        <button class="btn-clr" id="btnImportCSV" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0ea5e9;color:#fff;border:none" onclick="openImportModal()" title="Importar lista de produtos via CSV">📥 Importar CSV</button>
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
       </div>
     </div>
@@ -1433,6 +1470,17 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — IMPORTAR CSV ══════════ -->
+<div class="overlay" id="importModal" onclick="overlayClick(event,'importModal')">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-hd">
+      <span class="modal-title edit" id="importModalTitle">📥 Importar CSV</span>
+      <button class="btn-x" onclick="closeOverlay('importModal')">✕</button>
+    </div>
+    <div class="modal-body" id="importModalBody" style="padding:20px"></div>
+  </div>
+</div>
+
 <!-- ══════════ MODAL — COPIAR PRODUTOS ══════════ -->
 <div class="overlay" id="copiarModal" onclick="overlayClick(event,'copiarModal')">
   <div class="modal">
@@ -1906,8 +1954,9 @@ function showEstoqueApp() {
   badge.className = 'role-badge ' + user.role;
   document.getElementById('headerUser').textContent = '👤 ' + user.name;
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
-  document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
-  document.getElementById('btnCopiarProdutos').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnNovoProduto').style.display    = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnCopiarProdutos').style.display  = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnImportCSV').style.display       = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnEntradaLote').style.display = '';
   document.getElementById('btnSaidaLote').style.display = '';
   const isAdmin = user.role === 'admin';
@@ -2578,6 +2627,7 @@ document.addEventListener('keydown', e => {
     closeOverlay('usersModal');
     closeOverlay('userFormModal');
     closeOverlay('changePassModal');
+    closeOverlay('importModal');
     closeFilialDropdown();
   }
 });
@@ -3364,6 +3414,212 @@ function saveEditProduct() {
   toast(`✅ Produto "${p.name}" atualizado!`, 'success');
   saveProduct(p);
   savePhoto(editId, editPhotoTemp || null);
+}
+
+/* ══════════════════════════════════════════
+   IMPORTAR CSV
+══════════════════════════════════════════ */
+let importData = [];
+let importMode = 'add'; // 'add' = soma qty | 'replace' = substitui
+
+function openImportModal() {
+  if (!user || user.role !== 'admin') return;
+  importData = [];
+  importMode = 'add';
+  document.getElementById('importModal').classList.add('on');
+  document.getElementById('importModalTitle').textContent = '📥 Importar CSV';
+  document.getElementById('importModalBody').innerHTML = _importStep1HTML();
+  _setupImportDrop();
+}
+
+function _importStep1HTML() {
+  return `
+    <div class="import-drop-zone" id="importDropZone" onclick="document.getElementById('csvFileInput').click()">
+      <div class="import-drop-icon">📄</div>
+      <div class="import-drop-text">Clique ou arraste o arquivo CSV aqui</div>
+      <div class="import-drop-sub">Separado por ponto-e-vírgula ( ; ) — produto;quantidade;preco;vencimento</div>
+    </div>
+    <input type="file" id="csvFileInput" accept=".csv,.txt" style="display:none" onchange="handleImportFile(event)">
+    <div style="margin-top:14px;padding:12px 14px;background:var(--bg);border-radius:var(--radius-sm);font-size:12px;color:var(--text-2);line-height:1.7">
+      <strong>Formato esperado:</strong><br>
+      <code style="font-size:11px">produto;quantidade;preco;vencimento</code><br>
+      <code style="font-size:11px">diclofen;3;6,70;09/26</code><br>
+      <code style="font-size:11px">omega3 GE 1000mg 200caps;1;32,00;07/28</code><br><br>
+      <strong>Dica:</strong> Use o arquivo <em>produtos_farmacia_completo.csv</em> gerado anteriormente.
+    </div>`;
+}
+
+function _setupImportDrop() {
+  setTimeout(() => {
+    const zone = document.getElementById('importDropZone');
+    if (!zone) return;
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) _processImportFile(file);
+    });
+  }, 60);
+}
+
+function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (file) _processImportFile(file);
+  e.target.value = '';
+}
+
+function _processImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      _parseImportCSV(e.target.result);
+      _renderImportPreview();
+    } catch(err) {
+      toast('❌ Erro ao ler o arquivo: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function _parseImportCSV(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
+  if (!lines.length) throw new Error('Arquivo vazio');
+
+  // Detectar separador: ; ou ,
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g,''));
+
+  const iP = headers.findIndex(h => h.includes('prod') || h.includes('nome'));
+  const iQ = headers.findIndex(h => h.includes('quan') || h.includes('qtd') || h === 'qt');
+  const iPr= headers.findIndex(h => h.includes('pre') || h.includes('valor') || h.includes('custo'));
+  const iV = headers.findIndex(h => h.includes('venc') || h.includes('valid') || h.includes('exp'));
+
+  if (iP < 0) throw new Error('Coluna "produto" não encontrada no cabeçalho');
+
+  importData = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(sep).map(c => c.trim().replace(/^["']|["']$/g,''));
+    const nome = cells[iP] || '';
+    if (!nome) continue;
+
+    const qty   = iQ  >= 0 ? (parseFloat((cells[iQ]  || '0').replace(',','.')) || 0) : 0;
+    const preco = iPr >= 0 ? (parseFloat((cells[iPr] || '0').replace(',','.')) || 0) : 0;
+    const venc  = iV  >= 0 ? (cells[iV] || '') : '';
+
+    const existing = products.find(p => p.name.toLowerCase().trim() === nome.toLowerCase().trim());
+    importData.push({ nome, qty, preco, vencimento: venc, existing: existing || null,
+      status: existing ? 'update' : 'new' });
+  }
+  if (!importData.length) throw new Error('Nenhum produto encontrado no arquivo');
+}
+
+function _renderImportPreview() {
+  const nNew = importData.filter(r => r.status==='new').length;
+  const nUpd = importData.filter(r => r.status==='update').length;
+
+  document.getElementById('importModalBody').innerHTML = `
+    <div class="import-summary">
+      <div class="import-sum-item new">✅ ${nNew} novos produtos</div>
+      <div class="import-sum-item update">🔄 ${nUpd} já existentes</div>
+      <div class="import-sum-item" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border)">📦 ${importData.length} total</div>
+    </div>
+
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Para produtos já existentes — como tratar a quantidade?</div>
+    <div class="import-options" id="importOptions">
+      <div class="import-opt-btn ${importMode==='add'?'selected':''}" onclick="setImportMode('add')">
+        ➕ Somar à quantidade atual<br>
+        <small style="font-weight:400;color:var(--text-2)">Ex: tinha 5, CSV tem 3 → fica 8</small>
+      </div>
+      <div class="import-opt-btn ${importMode==='replace'?'selected':''}" onclick="setImportMode('replace')">
+        🔄 Substituir quantidade<br>
+        <small style="font-weight:400;color:var(--text-2)">Ex: tinha 5, CSV tem 3 → fica 3</small>
+      </div>
+    </div>
+
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-2)">Prévia — ${importData.length} produtos</div>
+    <div class="import-preview-wrap">
+      <table class="import-preview-table">
+        <thead><tr>
+          <th>Status</th><th>Produto</th><th>Qtd</th><th>Preço</th><th>Vencimento</th>
+        </tr></thead>
+        <tbody>
+          ${importData.map(r => `<tr>
+            <td><span class="import-badge-${r.status}">${r.status==='new'?'✅ Novo':'🔄 Atualizar'}</span></td>
+            <td style="max-width:220px">${r.nome}</td>
+            <td>${r.qty}</td>
+            <td>${r.preco>0 ? r.preco.toFixed(2).replace('.',',') : '—'}</td>
+            <td>${r.vencimento||'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-cancel" style="flex:1" onclick="openImportModal()">⬅ Novo arquivo</button>
+      <button class="btn-confirm in" id="btnExecuteImport" style="flex:2;padding:12px;font-size:14px"
+        onclick="executeImport()">📥 Importar ${importData.length} produtos</button>
+    </div>`;
+}
+
+function setImportMode(mode) {
+  importMode = mode;
+  _renderImportPreview();
+}
+
+async function executeImport() {
+  if (!importData.length || !currentFilial) return;
+  const btn = document.getElementById('btnExecuteImport');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Importando...'; }
+
+  try {
+    const BATCH_SIZE = 400;
+    let batch = db.batch();
+    let count = 0;
+    let processed = 0;
+
+    for (let i = 0; i < importData.length; i++) {
+      const row = importData[i];
+
+      if (row.existing) {
+        const docRef = col('produtos').doc(String(row.existing.id));
+        const upd = {};
+        if (row.vencimento) upd.validade = row.vencimento;
+        if (row.preco > 0)  upd.custo    = row.preco;
+        upd.qty = importMode === 'replace'
+          ? row.qty
+          : firebase.firestore.FieldValue.increment(row.qty);
+        batch.update(docRef, upd);
+      } else {
+        const newId = Date.now() + i;
+        const docRef = col('produtos').doc(String(newId));
+        batch.set(docRef, {
+          id: newId, name: row.nome,
+          category: 'Importado', unit: 'un', emoji: '📦',
+          custo: row.preco || 0, venda: 0,
+          qty: row.qty, validade: row.vencimento || null,
+        });
+      }
+
+      count++;
+      processed++;
+      if (count >= BATCH_SIZE) {
+        await batch.commit();
+        batch = db.batch();
+        count = 0;
+      }
+    }
+
+    if (count > 0) await batch.commit();
+
+    closeOverlay('importModal');
+    toast(`✅ ${processed} produtos importados com sucesso!`, 'success');
+
+  } catch(err) {
+    console.error(err);
+    toast('❌ Erro na importação: ' + err.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Tentar novamente'; }
+  }
 }
 
 /* ══════════════════════════════════════════
