@@ -1591,9 +1591,11 @@ function setupRealtimeListeners() {
   if (unsubProducts) unsubProducts();
   if (unsubHistory)  unsubHistory();
   if (unsubPhotos)   unsubPhotos();
+  // Limpa dados da filial anterior antes de carregar a nova
+  products = []; history = []; photos = {};
 
   unsubProducts = col('produtos').onSnapshot(snap => {
-    if (snap.empty && products.length === 0) {
+    if (snap.empty) {
       const batch = db.batch();
       DEFAULT_PRODUCTS.forEach(p => batch.set(col('produtos').doc(String(p.id)), p));
       batch.commit();
