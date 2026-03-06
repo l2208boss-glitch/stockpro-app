@@ -785,7 +785,9 @@
         <div class="sec-title">Produtos em Estoque</div>
         <div class="sec-sub">Clique em Entrada ou Saída para registrar movimentação</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-confirm in" id="btnEntradaLote" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openLote('entrada')">⚡ Entrada em Lote</button>
+        <button class="btn-confirm out" id="btnSaidaLote" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openLote('saida')">⚡ Saída em Lote</button>
         <button class="btn-clr" id="btnCopiarProdutos" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openCopiarModal()" title="Copiar produtos de outra filial">📋 Copiar de outra filial</button>
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
       </div>
@@ -1142,6 +1144,42 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — LOTE ENTRADA/SAÍDA ══════════ -->
+<div class="overlay" id="loteOverlay" onclick="overlayClick(event,'loteOverlay')">
+  <div class="modal wide">
+    <div class="modal-hd">
+      <span class="modal-title" id="loteTitulo">⚡ Entrada em Lote</span>
+      <button class="btn-x" onclick="closeOverlay('loteOverlay')">✕</button>
+    </div>
+
+    <!-- STEP 1: colar texto -->
+    <div id="loteStep1">
+      <div class="modal-body">
+        <p style="margin:0 0 10px;font-size:13px;color:var(--text-2)">
+          Cole a lista de produtos abaixo. Formatos aceitos:<br>
+          <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px">20 Deca &nbsp;|&nbsp; Deca x20 &nbsp;|&nbsp; HGH 2x &nbsp;|&nbsp; Trembolona - 5</code>
+        </p>
+        <textarea id="loteTxt" rows="10" class="modal-ta" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;resize:vertical" placeholder="Ex:&#10;20 Deca&#10;10 Enantato de testo&#10;HGH 2x&#10;5 Trembolona&#10;Oxandrolona - 30"></textarea>
+      </div>
+      <div class="modal-ft">
+        <button class="btn-cancel" onclick="closeOverlay('loteOverlay')">Cancelar</button>
+        <button class="btn-confirm" onclick="interpretarLote()">🔍 Interpretar</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: preview dos itens interpretados -->
+    <div id="loteStep2" style="display:none">
+      <div class="modal-body" style="max-height:55vh;overflow-y:auto;padding-top:0">
+        <div id="lotePreviewWrap"></div>
+      </div>
+      <div class="modal-ft" style="justify-content:space-between">
+        <button class="btn-cancel" onclick="voltarLoteStep1()">← Voltar</button>
+        <button class="btn-confirm in" id="btnConfirmarLote" onclick="confirmarLote()">✅ Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ MODAL — EDITAR PRODUTO (admin) ══════════ -->
 <div class="overlay" id="editOverlay" onclick="overlayClick(event,'editOverlay')">
   <div class="modal wide">
@@ -1480,6 +1518,7 @@ let currentMode = null;  // 'estoque' | 'caixa'
 // Produção state
 let producoes      = [];
 let metaProducao   = 300;
+let loteState      = { type: null, itens: [] };
 let unsubProducao  = null;
 let producaoChart  = null;
 let producaoOpChart = null;
@@ -1685,6 +1724,8 @@ function showEstoqueApp() {
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnNovoProduto').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnCopiarProdutos').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnEntradaLote').style.display = '';
+  document.getElementById('btnSaidaLote').style.display = '';
   const isAdmin = user.role === 'admin';
   document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
   document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
@@ -2651,6 +2692,164 @@ function confirmMov() {
 
 document.getElementById('mQty').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('mObs').focus(); });
 document.getElementById('mObs').addEventListener('keydown', e => { if(e.key==='Enter'&&e.ctrlKey) confirmMov(); });
+
+/* ══════════════════════════════════════════
+   LOTE — ENTRADA / SAÍDA EM LOTE
+══════════════════════════════════════════ */
+function openLote(type) {
+  loteState = { type, itens: [] };
+  const isIn = type === 'entrada';
+  const titulo = document.getElementById('loteTitulo');
+  titulo.textContent = isIn ? '⚡ Entrada em Lote' : '⚡ Saída em Lote';
+  titulo.className   = 'modal-title ' + (isIn ? 'in' : 'out');
+  document.getElementById('loteTxt').value = '';
+  document.getElementById('loteStep1').style.display = '';
+  document.getElementById('loteStep2').style.display = 'none';
+  document.getElementById('loteOverlay').classList.add('on');
+  setTimeout(() => document.getElementById('loteTxt').focus(), 120);
+}
+
+function parsearListaLote(texto) {
+  const linhas = texto.split('\n').map(l => l.trim()).filter(l => l);
+  return linhas.map(linha => {
+    let nome = linha, qty = 1, m;
+    if ((m = linha.match(/^(\d+)\s+(.+)$/))) {
+      qty = parseInt(m[1]); nome = m[2].trim();
+    } else if ((m = linha.match(/^(.+?)\s+[xX](\d+)$/)) || (m = linha.match(/^(.+?)\s+(\d+)[xX]$/))) {
+      nome = m[1].trim(); qty = parseInt(m[2]);
+    } else if ((m = linha.match(/^(.+?)\s*[-–]\s*(\d+)$/))) {
+      nome = m[1].trim(); qty = parseInt(m[2]);
+    }
+    if (!qty || qty < 1) qty = 1;
+    return { linha, nome, qty };
+  });
+}
+
+function encontrarProduto(nome) {
+  const lower = nome.toLowerCase();
+  let p = products.find(x => x.name.toLowerCase() === lower);
+  if (p) return p;
+  p = products.find(x => x.name.toLowerCase().includes(lower) || lower.includes(x.name.toLowerCase()));
+  return p || null;
+}
+
+function interpretarLote() {
+  const texto = document.getElementById('loteTxt').value.trim();
+  if (!texto) { toast('Cole a lista antes de interpretar.', 'error'); return; }
+  const parsed = parsearListaLote(texto);
+  if (!parsed.length) { toast('Não encontrei nenhum item na lista.', 'error'); return; }
+  loteState.itens = parsed.map(({ linha, nome, qty }) => ({
+    linha, nome, qty,
+    produto: encontrarProduto(nome),
+    ativo: true
+  }));
+  renderLotePreview();
+  document.getElementById('loteStep1').style.display = 'none';
+  document.getElementById('loteStep2').style.display = '';
+}
+
+function renderLotePreview() {
+  const { type, itens } = loteState;
+  const isIn = type === 'entrada';
+  let html = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:4px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);color:var(--text-2)">
+          <th style="padding:6px 4px;text-align:center;width:28px"></th>
+          <th style="padding:6px 4px;text-align:left">Linha colada</th>
+          <th style="padding:6px 4px;text-align:left">Produto encontrado</th>
+          <th style="padding:6px 4px;text-align:center;width:68px">Qtd</th>
+          ${!isIn ? '<th style="padding:6px 4px;text-align:center">Estoque</th>' : ''}
+        </tr>
+      </thead><tbody>`;
+
+  itens.forEach((item, i) => {
+    const encontrou  = !!item.produto;
+    const semEstoque = !isIn && item.produto && item.qty > item.produto.qty;
+    const cor = !encontrou ? '#ef4444' : semEstoque ? '#f59e0b' : 'var(--text-1)';
+    const nomeProd = item.produto ? `${item.produto.emoji} ${item.produto.name}` : '⚠️ Não encontrado';
+    html += `
+      <tr style="border-bottom:1px solid var(--border);color:${cor};opacity:${item.ativo ? 1 : 0.4}">
+        <td style="padding:5px 4px;text-align:center">
+          <input type="checkbox" ${item.ativo ? 'checked' : ''} onchange="toggleLoteItem(${i},this.checked)" ${!encontrou ? 'disabled' : ''}>
+        </td>
+        <td style="padding:5px 4px">${item.linha}</td>
+        <td style="padding:5px 4px">${nomeProd}</td>
+        <td style="padding:5px 4px;text-align:center">
+          <input type="number" min="1" value="${item.qty}"
+            style="width:56px;text-align:center;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px"
+            onchange="atualizarQtdLote(${i},this.value)"
+            ${!encontrou || !item.ativo ? 'disabled' : ''}>
+        </td>
+        ${!isIn ? `<td style="padding:5px 4px;text-align:center">${item.produto ? item.produto.qty + ' ' + item.produto.unit : '—'}</td>` : ''}
+      </tr>`;
+  });
+
+  html += '</tbody></table>';
+  const ativos = itens.filter(x => x.ativo && x.produto).length;
+  html += `<p style="margin:10px 0 0;font-size:12px;color:var(--text-2)">${ativos} de ${itens.length} ${ativos === 1 ? 'item será processado' : 'itens serão processados'}. Desmarque os que quiser ignorar.</p>`;
+  document.getElementById('lotePreviewWrap').innerHTML = html;
+
+  const btn = document.getElementById('btnConfirmarLote');
+  btn.textContent = `✅ Confirmar ${ativos} ${isIn ? (ativos === 1 ? 'Entrada' : 'Entradas') : (ativos === 1 ? 'Saída' : 'Saídas')}`;
+  btn.className   = 'btn-confirm ' + (isIn ? 'in' : 'out');
+}
+
+function toggleLoteItem(i, checked) {
+  loteState.itens[i].ativo = checked;
+  renderLotePreview();
+}
+
+function atualizarQtdLote(i, val) {
+  const qty = parseInt(val);
+  loteState.itens[i].qty = qty >= 1 ? qty : 1;
+  renderLotePreview();
+}
+
+function voltarLoteStep1() {
+  document.getElementById('loteStep1').style.display = '';
+  document.getElementById('loteStep2').style.display = 'none';
+}
+
+function confirmarLote() {
+  const { type, itens } = loteState;
+  const isIn = type === 'entrada';
+  const processaveis = itens.filter(x => x.ativo && x.produto);
+  if (!processaveis.length) { toast('Nenhum item válido para processar.', 'error'); return; }
+
+  if (!isIn) {
+    const semEstoque = processaveis.filter(x => x.qty > x.produto.qty);
+    if (semEstoque.length) {
+      toast(`⚠️ ${semEstoque.length} item(s) com estoque insuficiente. Ajuste a quantidade ou desmarque-os.`, 'error');
+      return;
+    }
+  }
+
+  const ts = Date.now();
+  processaveis.forEach((item, idx) => {
+    const p = item.produto;
+    isIn ? (p.qty += item.qty) : (p.qty -= item.qty);
+    const entry = {
+      id:          ts + idx,
+      datetime:    new Date().toISOString(),
+      productId:   p.id,
+      productName: p.name,
+      emoji:       p.emoji,
+      type,
+      qty:         item.qty,
+      balance:     p.qty,
+      obs:         `Lote: ${item.linha}`,
+      user:        user.name
+    };
+    history.push(entry);
+    saveProduct(p);
+    saveHistoryEntry(entry);
+  });
+
+  renderAll();
+  closeOverlay('loteOverlay');
+  toast(`✅ ${processaveis.length} ${isIn ? 'entradas' : 'saídas'} registradas em lote!`, 'success');
+}
 
 /* ══════════════════════════════════════════
    EDIT PRODUCT MODAL
