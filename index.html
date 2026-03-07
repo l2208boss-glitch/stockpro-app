@@ -2451,6 +2451,27 @@ function toUSD(moeda, valor) {
   return null;
 }
 
+// Converte USD para a moeda desejada e retorna string formatada
+function fromUSD(moeda, valorUSD) {
+  if (valorUSD < 0) valorUSD = 0;
+  const today = new Date().toISOString().slice(0,10);
+  const ok = cotacao.date === today;
+  if (moeda === 'USD') return `$${valorUSD.toFixed(2)}`;
+  if (moeda === 'BRL') {
+    const v = ok && cotacao.brl > 0 ? valorUSD * cotacao.brl : null;
+    return v !== null ? `R$ ${v.toFixed(2)}` : `$${valorUSD.toFixed(2)}`;
+  }
+  if (moeda === 'PIX') {
+    const v = ok && cotacao.pix > 0 ? valorUSD * cotacao.pix : null;
+    return v !== null ? `R$ ${v.toFixed(2)}` : `$${valorUSD.toFixed(2)}`;
+  }
+  if (moeda === 'PYG') {
+    const v = ok && cotacao.pyg > 0 ? valorUSD * cotacao.pyg : null;
+    return v !== null ? `₲ ${Math.round(v).toLocaleString('pt-BR')}` : `$${valorUSD.toFixed(2)}`;
+  }
+  return `$${valorUSD.toFixed(2)}`;
+}
+
 function addPaymentRow(moeda) {
   const today = new Date().toISOString().slice(0,10);
   const ok = cotacao.date === today;
@@ -2564,17 +2585,21 @@ function updateSplitCalc() {
 
   const { marginPct, effectiveMax, hasAllCosts } = calculateCartMargin();
 
+  // Moeda de exibição: se todas as linhas usam a mesma moeda, exibe nela; senão, USD
+  const moedasUsadas = [...new Set(splitPayRows.map(r => r.moeda))];
+  const displayMoeda = moedasUsadas.length === 1 ? moedasUsadas[0] : 'USD';
+
   if (trocoUSD >= -0.001) {
     trocoBox.className = 'pay-troco-box';
     trocoLabel.textContent = 'Troco';
     trocoSub.style.display = 'none';
-    trocoVal.textContent = `$${Math.max(0, trocoUSD).toFixed(2)}`;
+    trocoVal.textContent = fromUSD(displayMoeda, Math.max(0, trocoUSD));
     pssResta.textContent = '';
     btnConf.disabled = false;
   } else {
     const descontoPct = ((-trocoUSD) / total) * 100;
     const dentroLimite = descontoPct <= effectiveMax + 0.01;
-    const faltaStr = `$${(-trocoUSD).toFixed(2)}`;
+    const faltaStr = fromUSD(displayMoeda, -trocoUSD);
     trocoBox.className = 'pay-troco-box ' + (dentroLimite ? 'discount' : 'negative');
     trocoLabel.textContent = dentroLimite ? '🏷️ Desconto' : '🚫 Limite excedido';
     trocoVal.textContent = `${descontoPct.toFixed(1)}%`;
