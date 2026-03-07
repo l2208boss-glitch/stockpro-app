@@ -735,6 +735,20 @@
     .pay-troco-box.discount .pay-troco-sub { color:#d97706; }
     .pay-troco-box.negative .pay-troco-sub { color:var(--danger); }
 
+    /* ─── SPLIT PAYMENT ─── */
+    .split-pay-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+    .spr-sel { flex:0 0 auto; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--text-1); font-size:13px; cursor:pointer; }
+    .spr-inp { flex:1; }
+    .spr-usd { flex:0 0 auto; font-size:11px; color:var(--text-3); min-width:56px; text-align:right; }
+    .spr-rm  { flex:0 0 auto; background:none; border:none; color:var(--danger); cursor:pointer; font-size:17px; padding:2px 6px; border-radius:4px; line-height:1; }
+    .spr-rm:hover { background:rgba(239,68,68,.1); }
+    .btn-add-pay { width:100%; padding:9px; border:1.5px dashed var(--border); border-radius:var(--radius-sm); background:none; color:var(--primary); cursor:pointer; font-size:13px; font-weight:600; margin:4px 0 14px; transition:background .15s; }
+    .btn-add-pay:hover { background:rgba(99,102,241,.06); border-color:var(--primary); }
+    .pay-split-summary { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; font-size:13px; color:var(--text-2); margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; }
+    .pay-split-summary strong { color:var(--text-1); font-size:15px; }
+    .pay-split-summary .pss-resta { font-size:12px; color:var(--danger); font-weight:700; }
+    .pag-tag { display:inline-block; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:11px; font-weight:700; margin:1px 2px; }
+
     /* ─── VENDAS HISTORY ─── */
     .vendas-block { margin-top:28px; padding:0 24px 24px; }
     .venda-row td { padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); }
@@ -1180,24 +1194,13 @@
         <div class="pay-total-label">Total a cobrar</div>
         <div class="pay-total-val" id="payTotalUSD">$0.00</div>
       </div>
-      <div class="field">
-        <label class="modal-label" for="payMoeda">Moeda de pagamento</label>
-        <select class="modal-input" id="payMoeda" onchange="updatePaymentCalc()">
-          <option value="USD">Dólar americano (USD $)</option>
-          <option value="BRL">Real brasileiro (BRL R$)</option>
-          <option value="PIX">PIX (R$ — Brasil)</option>
-          <option value="PYG">Guarani paraguaio (PYG ₲)</option>
-        </select>
-      </div>
-      <div class="pay-cobrar-box" id="payTotalMoeda" style="display:none">
-        <div class="pay-cobrar-label">💰 Cobrar do cliente</div>
-        <div class="pay-cobrar-val" id="payTotalMoedaVal">--</div>
-        <div class="pay-margin-info" id="payMarginInfo" style="display:none"></div>
-      </div>
-      <div class="pay-equiv" id="payEquiv" style="display:none"></div>
-      <div class="field" style="margin-bottom:0">
-        <label class="modal-label" for="payRecebido">Valor recebido</label>
-        <input class="modal-input" type="number" id="payRecebido" min="0" step="0.01" placeholder="0.00" oninput="updatePaymentCalc()">
+      <!-- Linhas de pagamento (geradas por JS) -->
+      <div id="splitPaymentRows"></div>
+      <button class="btn-add-pay" type="button" onclick="addPaymentRow()">+ Adicionar forma de pagamento</button>
+      <!-- Resumo do total pago -->
+      <div class="pay-split-summary" id="paySplitSummary" style="display:none">
+        <span>Pago: <strong id="pssTotal">$0.00</strong></span>
+        <span class="pss-resta" id="pssResta"></span>
       </div>
       <div class="pay-troco-box" id="payTrocoBox" style="display:none">
         <div>
@@ -2428,8 +2431,157 @@ function renderCart() {
 }
 
 /* ══════════════════════════════════════════
-   CAIXA — PAGAMENTO
+   CAIXA — PAGAMENTO (split / misto)
 ══════════════════════════════════════════ */
+
+let splitPayRows = []; // [{ moeda:'USD'|'BRL'|'PIX'|'PYG', valor:number }]
+
+const SPR_LABELS = { USD:'$ Dólar', BRL:'R$ Dinheiro', PIX:'📱 PIX', PYG:'₲ Guarani' };
+const SPR_SYMB   = { USD:'$', BRL:'R$ ', PIX:'R$ ', PYG:'₲ ' };
+
+// Converte valor de qualquer moeda para USD equivalente
+function toUSD(moeda, valor) {
+  if (!valor || valor <= 0) return 0;
+  const today = new Date().toISOString().slice(0,10);
+  const ok = cotacao.date === today;
+  if (moeda === 'USD') return valor;
+  if (moeda === 'BRL') return ok && cotacao.brl > 0 ? valor / cotacao.brl : null;
+  if (moeda === 'PIX') return ok && cotacao.pix > 0 ? valor / cotacao.pix : null;
+  if (moeda === 'PYG') return ok && cotacao.pyg > 0 ? valor / cotacao.pyg : null;
+  return null;
+}
+
+function addPaymentRow(moeda) {
+  const today = new Date().toISOString().slice(0,10);
+  const ok = cotacao.date === today;
+  // Sugere a moeda ainda não usada, ou USD
+  const used = new Set(splitPayRows.map(r => r.moeda));
+  const sugest = moeda || (['USD','BRL','PIX','PYG'].find(m => !used.has(m)) || 'USD');
+  splitPayRows.push({ moeda: sugest, valor: 0 });
+  renderSplitRows();
+  // Foca no input da nova linha
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.spr-inp');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+}
+
+function removePaymentRow(idx) {
+  if (splitPayRows.length <= 1) return;
+  splitPayRows.splice(idx, 1);
+  renderSplitRows();
+  updateSplitCalc();
+}
+
+function setSprMoeda(idx, val) {
+  splitPayRows[idx].moeda = val;
+  renderSplitRows();
+  updateSplitCalc();
+}
+
+function setSprValor(idx, val) {
+  splitPayRows[idx].valor = parseFloat(val) || 0;
+  updateSplitCalc();
+}
+
+function renderSplitRows() {
+  const today = new Date().toISOString().slice(0,10);
+  const ok = cotacao.date === today;
+  const hasBRL = ok && cotacao.brl > 0;
+  const hasPIX = ok && cotacao.pix > 0;
+  const hasPYG = ok && cotacao.pyg > 0;
+
+  const opts = (sel) => ['USD','BRL','PIX','PYG'].map(m => {
+    const disabled = (m==='BRL'&&!hasBRL)||(m==='PIX'&&!hasPIX)||(m==='PYG'&&!hasPYG);
+    return `<option value="${m}" ${m===sel?'selected':''} ${disabled?'disabled':''}>${SPR_LABELS[m]}</option>`;
+  }).join('');
+
+  document.getElementById('splitPaymentRows').innerHTML = splitPayRows.map((row, i) => {
+    const step = row.moeda === 'PYG' ? '1' : '0.01';
+    const ph   = row.moeda === 'USD' ? '$0.00' : row.moeda === 'PYG' ? '0' : 'R$ 0,00';
+    const usd  = toUSD(row.moeda, row.valor);
+    const usdTag = (usd !== null && usd > 0) ? `≈$${usd.toFixed(2)}` : '';
+    return `<div class="split-pay-row">
+      <select class="spr-sel" onchange="setSprMoeda(${i},this.value)">${opts(row.moeda)}</select>
+      <input class="modal-input spr-inp" type="number" min="0" step="${step}" placeholder="${ph}"
+        value="${row.valor || ''}" oninput="setSprValor(${i},this.value)">
+      <span class="spr-usd">${usdTag}</span>
+      ${splitPayRows.length > 1 ? `<button class="spr-rm" onclick="removePaymentRow(${i})" title="Remover">✕</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function updateSplitCalc() {
+  const total = cart.reduce((s,x) => s + x.qty * x.precoUSD, 0);
+  let totalPagoUSD = 0, hasInvalid = false;
+
+  for (const row of splitPayRows) {
+    if (row.valor > 0) {
+      const usd = toUSD(row.moeda, row.valor);
+      if (usd === null) { hasInvalid = true; break; }
+      totalPagoUSD += usd;
+    }
+  }
+
+  // Atualiza tags USD ao lado dos inputs
+  renderSplitRows();
+
+  const summaryEl = document.getElementById('paySplitSummary');
+  const pssTotal  = document.getElementById('pssTotal');
+  const pssResta  = document.getElementById('pssResta');
+  const trocoBox  = document.getElementById('payTrocoBox');
+  const trocoVal  = document.getElementById('payTrocoVal');
+  const trocoLabel= document.getElementById('payTrocoLabel');
+  const trocoSub  = document.getElementById('payTrocoSub');
+  const btnConf   = document.getElementById('btnConfirmPayment');
+
+  if (hasInvalid) {
+    summaryEl.style.display = 'flex';
+    pssTotal.textContent = '—';
+    pssResta.textContent = '⚠️ Cotação não definida';
+    trocoBox.style.display = 'none';
+    btnConf.disabled = true;
+    return;
+  }
+
+  if (totalPagoUSD <= 0) {
+    summaryEl.style.display = 'none';
+    trocoBox.style.display = 'none';
+    btnConf.disabled = true;
+    return;
+  }
+
+  summaryEl.style.display = 'flex';
+  pssTotal.textContent = `$${totalPagoUSD.toFixed(2)}`;
+
+  const trocoUSD = totalPagoUSD - total;
+  trocoBox.style.display = 'flex';
+
+  const { marginPct, effectiveMax, hasAllCosts } = calculateCartMargin();
+
+  if (trocoUSD >= -0.001) {
+    trocoBox.className = 'pay-troco-box';
+    trocoLabel.textContent = 'Troco';
+    trocoSub.style.display = 'none';
+    trocoVal.textContent = `$${Math.max(0, trocoUSD).toFixed(2)}`;
+    pssResta.textContent = '';
+    btnConf.disabled = false;
+  } else {
+    const descontoPct = ((-trocoUSD) / total) * 100;
+    const dentroLimite = descontoPct <= effectiveMax + 0.01;
+    const faltaStr = `$${(-trocoUSD).toFixed(2)}`;
+    trocoBox.className = 'pay-troco-box ' + (dentroLimite ? 'discount' : 'negative');
+    trocoLabel.textContent = dentroLimite ? '🏷️ Desconto' : '🚫 Limite excedido';
+    trocoVal.textContent = `${descontoPct.toFixed(1)}%`;
+    pssResta.textContent = `Falta ${faltaStr}`;
+    const limiteStr = hasAllCosts
+      ? `máx ${effectiveMax.toFixed(1)}% (margem ${marginPct.toFixed(1)}%)`
+      : `máx ${effectiveMax.toFixed(1)}%`;
+    trocoSub.textContent = `Falta ${faltaStr} — ${limiteStr}`;
+    trocoSub.style.display = 'block';
+    btnConf.disabled = !dentroLimite;
+  }
+}
 
 // Calcula a margem bruta ponderada do carrinho atual.
 // Retorna { marginPct, effectiveMax, hasAllCosts }
@@ -2459,166 +2611,42 @@ function openPaymentModal() {
   if (!cart.length) return;
   const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
   document.getElementById('payTotalUSD').textContent = `$${total.toFixed(2)}`;
-  document.getElementById('payMoeda').value = 'USD';
-  document.getElementById('payRecebido').value = '';
   document.getElementById('payTrocoBox').style.display = 'none';
-  document.getElementById('payEquiv').style.display = 'none';
-  document.getElementById('payTotalMoeda').style.display = 'none';
+  document.getElementById('paySplitSummary').style.display = 'none';
   document.getElementById('btnConfirmPayment').disabled = true;
+  // Inicializa com 1 linha USD
+  splitPayRows = [{ moeda: 'USD', valor: 0 }];
+  renderSplitRows();
   document.getElementById('paymentModal').classList.add('on');
-  updatePaymentCalc();
-  setTimeout(() => document.getElementById('payRecebido').focus(), 120);
+  setTimeout(() => { const inp = document.querySelector('.spr-inp'); if (inp) inp.focus(); }, 120);
 }
 
-function updatePaymentCalc() {
-  const total    = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
-  const moeda    = document.getElementById('payMoeda').value;
-  const recebido = parseFloat(document.getElementById('payRecebido').value) || 0;
-  const today    = new Date().toISOString().slice(0,10);
-  const hasBRL   = cotacao.date === today && cotacao.brl > 0;
-  const hasPIX   = cotacao.date === today && cotacao.pix > 0;
-  const hasPYG   = cotacao.date === today && cotacao.pyg > 0;
-
-  const equivEl    = document.getElementById('payEquiv');
-  const cobrarBox  = document.getElementById('payTotalMoeda');
-  const cobrarVal  = document.getElementById('payTotalMoedaVal');
-  const recInput   = document.getElementById('payRecebido');
-
-  let totalNaMoeda, prefix;
-
-  if (moeda === 'USD') {
-    totalNaMoeda = total;
-    prefix = '$';
-    cobrarBox.style.display = 'none';
-    equivEl.style.display = 'none';
-    recInput.step = '0.01';
-    recInput.placeholder = `$${total.toFixed(2)}`;
-  } else if (moeda === 'BRL') {
-    totalNaMoeda = hasBRL ? total * cotacao.brl : null;
-    prefix = 'R$ ';
-    recInput.step = '0.01';
-    if (hasBRL) {
-      cobrarVal.textContent = `R$ ${(total * cotacao.brl).toFixed(2)}`;
-      cobrarBox.style.display = 'block';
-      equivEl.style.display = 'none';
-      recInput.placeholder = `R$ ${(total * cotacao.brl).toFixed(2)}`;
-    } else {
-      cobrarBox.style.display = 'none';
-      equivEl.textContent = '⚠️ Cotação BRL não definida hoje';
-      equivEl.style.display = 'block';
-      recInput.placeholder = '0.00';
-    }
-  } else if (moeda === 'PIX') {
-    totalNaMoeda = hasPIX ? total * cotacao.pix : null;
-    prefix = 'R$ ';
-    recInput.step = '0.01';
-    if (hasPIX) {
-      cobrarVal.textContent = `R$ ${(total * cotacao.pix).toFixed(2)}`;
-      cobrarBox.style.display = 'block';
-      equivEl.style.display = 'none';
-      recInput.placeholder = `R$ ${(total * cotacao.pix).toFixed(2)}`;
-    } else {
-      cobrarBox.style.display = 'none';
-      equivEl.textContent = '⚠️ Cotação PIX não definida hoje';
-      equivEl.style.display = 'block';
-      recInput.placeholder = '0.00';
-    }
-  } else { // PYG
-    totalNaMoeda = hasPYG ? total * cotacao.pyg : null;
-    prefix = '₲ ';
-    recInput.step = '1';
-    if (hasPYG) {
-      cobrarVal.textContent = `₲ ${Math.round(total * cotacao.pyg).toLocaleString('pt-BR')}`;
-      cobrarBox.style.display = 'block';
-      equivEl.style.display = 'none';
-      recInput.placeholder = `${Math.round(total * cotacao.pyg).toLocaleString('pt-BR')}`;
-    } else {
-      cobrarBox.style.display = 'none';
-      equivEl.textContent = '⚠️ Cotação PYG não definida hoje';
-      equivEl.style.display = 'block';
-      recInput.placeholder = '0';
-    }
-  }
-
-  // Margem inteligente do carrinho
-  const { marginPct, effectiveMax, hasAllCosts } = calculateCartMargin();
-  const marginInfoEl = document.getElementById('payMarginInfo');
-  if (hasAllCosts && moeda !== 'USD' && cobrarBox.style.display === 'block') {
-    marginInfoEl.textContent = `📊 Margem do carrinho: ${marginPct.toFixed(1)}% · Desc. máx saudável: ${effectiveMax.toFixed(1)}%`;
-    marginInfoEl.style.display = 'block';
-  } else {
-    marginInfoEl.style.display = 'none';
-  }
-
-  if (totalNaMoeda === null) {
-    document.getElementById('payTrocoBox').style.display = 'none';
-    document.getElementById('btnConfirmPayment').disabled = true;
-    return;
-  }
-
-  if (recebido > 0) {
-    const troco      = recebido - totalNaMoeda;
-    const trocoBox   = document.getElementById('payTrocoBox');
-    const trocoVal   = document.getElementById('payTrocoVal');
-    const trocoLabel = document.getElementById('payTrocoLabel');
-    const trocoSub   = document.getElementById('payTrocoSub');
-    trocoBox.style.display = 'flex';
-
-    if (troco >= 0) {
-      // Pagamento completo — mostrar troco normal
-      trocoBox.className = 'pay-troco-box';
-      trocoLabel.textContent = 'Troco';
-      trocoSub.style.display = 'none';
-      trocoVal.textContent = moeda === 'PYG'
-        ? `${prefix}${Math.round(troco).toLocaleString('pt-BR')}`
-        : `${prefix}${troco.toFixed(2)}`;
-      document.getElementById('btnConfirmPayment').disabled = false;
-    } else {
-      // Pagamento parcial — calcular % de desconto com limite inteligente
-      const descontoPct = ((totalNaMoeda - recebido) / totalNaMoeda) * 100;
-      const dentroLimite = descontoPct <= effectiveMax + 0.01;
-      const faltaStr = moeda === 'PYG'
-        ? `${prefix}${Math.round(totalNaMoeda - recebido).toLocaleString('pt-BR')}`
-        : `${prefix}${(totalNaMoeda - recebido).toFixed(2)}`;
-
-      trocoBox.className = 'pay-troco-box ' + (dentroLimite ? 'discount' : 'negative');
-      trocoLabel.textContent = dentroLimite ? '🏷️ Desconto' : '🚫 Limite excedido';
-      trocoVal.textContent = `${descontoPct.toFixed(1)}%`;
-
-      if (dentroLimite) {
-        const marginRestante = hasAllCosts ? marginPct - descontoPct : null;
-        trocoSub.textContent = marginRestante !== null
-          ? `Falta ${faltaStr} · Margem preservada: ${marginRestante.toFixed(1)}%`
-          : `Falta ${faltaStr}`;
-      } else {
-        const limiteStr = hasAllCosts
-          ? `máx ${effectiveMax.toFixed(1)}% (margem ${marginPct.toFixed(1)}%)`
-          : `máx ${effectiveMax.toFixed(1)}%`;
-        trocoSub.textContent = `Falta ${faltaStr} — ${limiteStr}`;
-      }
-      trocoSub.style.display = 'block';
-      document.getElementById('btnConfirmPayment').disabled = !dentroLimite;
-    }
-  } else {
-    document.getElementById('payTrocoBox').style.display = 'none';
-    document.getElementById('btnConfirmPayment').disabled = true;
-  }
-}
+// updatePaymentCalc é mantido como alias para updateSplitCalc (compatibilidade)
+function updatePaymentCalc() { updateSplitCalc(); }
 
 async function confirmPayment() {
-  const total    = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
-  const moeda    = document.getElementById('payMoeda').value;
-  const recebido = parseFloat(document.getElementById('payRecebido').value) || 0;
-  const today    = new Date().toISOString().slice(0,10);
-  const hasCot   = cotacao.date === today;
+  const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
 
-  let totalNaMoeda;
-  if (moeda === 'USD')                      totalNaMoeda = total;
-  else if (moeda === 'BRL') totalNaMoeda = total * cotacao.brl;
-  else if (moeda === 'PIX') totalNaMoeda = total * cotacao.pix;
-  else                      totalNaMoeda = total * cotacao.pyg;
+  // Montar array de pagamentos
+  let totalPagoUSD = 0;
+  const pagamentos = [];
+  for (const row of splitPayRows) {
+    if (row.valor > 0) {
+      const usd = toUSD(row.moeda, row.valor);
+      if (usd === null) { toast('⚠️ Cotação não definida para uma das moedas', 'error'); return; }
+      totalPagoUSD += usd;
+      pagamentos.push({
+        moeda: row.moeda,
+        valor: row.moeda === 'PYG' ? Math.round(row.valor) : +Number(row.valor).toFixed(2),
+        valorUSD: +usd.toFixed(4)
+      });
+    }
+  }
+  if (!pagamentos.length) return;
 
-  const troco = recebido - totalNaMoeda;
+  const trocoUSD   = totalPagoUSD - total;
+  const modoMoeda  = pagamentos.length === 1 ? pagamentos[0].moeda : 'MISTO';
+  const descontoPct = trocoUSD < -0.001 ? +(((-trocoUSD) / total) * 100).toFixed(2) : 0;
 
   // Salvar venda
   const vendaId = Date.now();
@@ -2627,13 +2655,14 @@ async function confirmPayment() {
     ts: new Date().toISOString(),
     items: cart.map(x => ({ productId: x.productId, name: x.name, emoji: x.emoji, unit: x.unit, qty: x.qty, precoUSD: x.precoUSD, subtotalUSD: +(x.qty * x.precoUSD).toFixed(2) })),
     totalUSD: +total.toFixed(2),
-    moedaPagamento: moeda,
+    pagamentos,                         // array completo (novo formato)
+    moedaPagamento: modoMoeda,          // 'MISTO' ou moeda única (retrocompatibilidade)
     cotacaoBRL: cotacao.brl,
     cotacaoPIX: cotacao.pix,
     cotacaoPYG: cotacao.pyg,
-    valorPago: +recebido.toFixed(moeda === 'PYG' ? 0 : 2),
-    troco: +(moeda === 'PYG' ? Math.round(troco) : +troco.toFixed(2)),
-    descontoPct: troco < 0 ? +((totalNaMoeda - recebido) / totalNaMoeda * 100).toFixed(2) : 0,
+    valorPago: +totalPagoUSD.toFixed(2),
+    troco: +trocoUSD.toFixed(2),
+    descontoPct,
     user: user.name
   };
   col('vendas').doc(String(vendaId)).set(venda).catch(console.error);
@@ -2675,12 +2704,24 @@ function renderVendas() {
     return true;
   });
 
-  // Calcular resumo
+  // Calcular resumo — suporta formato antigo e novo (pagamentos[])
   const totalUSD  = filtradas.reduce((s,v) => s + v.totalUSD, 0);
-  const recBRL    = filtradas.filter(v => v.moedaPagamento==='BRL').reduce((s,v) => s + v.valorPago, 0);
-  const recPIX    = filtradas.filter(v => v.moedaPagamento==='PIX').reduce((s,v) => s + v.valorPago, 0);
-  const recPYG    = filtradas.filter(v => v.moedaPagamento==='PYG').reduce((s,v) => s + v.valorPago, 0);
-  const recUSD    = filtradas.filter(v => v.moedaPagamento==='USD').reduce((s,v) => s + v.valorPago, 0);
+  const recBRL = filtradas.reduce((s,v) => {
+    if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='BRL').reduce((a,p)=>a+p.valor,0);
+    return s + (v.moedaPagamento==='BRL' ? v.valorPago : 0);
+  }, 0);
+  const recPIX = filtradas.reduce((s,v) => {
+    if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='PIX').reduce((a,p)=>a+p.valor,0);
+    return s + (v.moedaPagamento==='PIX' ? v.valorPago : 0);
+  }, 0);
+  const recPYG = filtradas.reduce((s,v) => {
+    if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='PYG').reduce((a,p)=>a+p.valor,0);
+    return s + (v.moedaPagamento==='PYG' ? v.valorPago : 0);
+  }, 0);
+  const recUSD = filtradas.reduce((s,v) => {
+    if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='USD').reduce((a,p)=>a+p.valor,0);
+    return s + (v.moedaPagamento==='USD' ? v.valorPago : 0);
+  }, 0);
   const trocoTotal = filtradas.reduce((s,v) => s + Math.max(0, v.troco||0), 0);
 
   const statCard = (icon, label, val, color) =>
@@ -2704,23 +2745,43 @@ function renderVendas() {
   }
 
   tbody.innerHTML = filtradas.map(v => {
-    const dt  = new Date(v.ts).toLocaleString('pt-BR');
+    const dt    = new Date(v.ts).toLocaleString('pt-BR');
     const itens = v.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ');
-    const moeda = v.moedaPagamento;
-    const s = symb[moeda] || '';
-    const pago  = moeda === 'PYG' ? `${s}${Math.round(v.valorPago).toLocaleString('pt-BR')}` : `${s}${Number(v.valorPago).toFixed(2)}`;
-    const trocoNum = Number(v.troco);
-    const trocoStr = moeda === 'PYG' ? `${s}${Math.round(trocoNum).toLocaleString('pt-BR')}` : `${s}${trocoNum.toFixed(2)}`;
     const descontoPct = v.descontoPct > 0 ? v.descontoPct : 0;
+    const trocoUSD = Number(v.troco);
+
+    // Coluna "Forma de Pagamento" — suporta múltiplos
+    let pagStr, pagoStr;
+    if (v.pagamentos && v.pagamentos.length > 1) {
+      pagStr  = v.pagamentos.map(p =>
+        `<span class="pag-tag">${SPR_LABELS[p.moeda]||p.moeda}</span>`
+      ).join(' ');
+      pagoStr = v.pagamentos.map(p => {
+        const s2 = symb[p.moeda] || '';
+        return p.moeda === 'PYG'
+          ? `${s2}${Math.round(p.valor).toLocaleString('pt-BR')}`
+          : `${s2}${Number(p.valor).toFixed(2)}`;
+      }).join('<br>');
+    } else {
+      const moeda = v.moedaPagamento || (v.pagamentos?.[0]?.moeda ?? 'USD');
+      const s2 = symb[moeda] || '';
+      pagStr  = `<span class="pag-tag">${SPR_LABELS[moeda]||moeda}</span>`;
+      const vp = v.pagamentos?.[0]?.valor ?? v.valorPago;
+      pagoStr = moeda === 'PYG'
+        ? `${s2}${Math.round(vp).toLocaleString('pt-BR')}`
+        : `${s2}${Number(vp).toFixed(2)}`;
+    }
+
     const trocoCell = descontoPct > 0
-      ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:var(--text-3)">${trocoStr}</small>`
-      : `<span style="color:var(--success);font-weight:700">${trocoStr}</span>`;
+      ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:var(--text-3)">$${trocoUSD.toFixed(2)}</small>`
+      : `<span style="color:var(--success);font-weight:700">$${Math.max(0,trocoUSD).toFixed(2)}</span>`;
+
     return `<tr class="venda-row">
       <td>${dt}</td>
       <td class="venda-items">${itens}</td>
       <td style="text-align:right;font-weight:700">$${Number(v.totalUSD).toFixed(2)}</td>
-      <td style="text-align:center">${moeda}</td>
-      <td style="text-align:right">${pago}</td>
+      <td style="font-size:12px">${pagStr}</td>
+      <td style="text-align:right;font-size:12px">${pagoStr}</td>
       <td style="text-align:right">${trocoCell}</td>
       <td>${v.user}</td>
     </tr>`;
