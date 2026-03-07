@@ -1701,7 +1701,8 @@ function setupRealtimeListeners() {
     });
     products.sort((a, b) => a.id - b.id);
     renderStats(); renderProducts(); populateFilter();
-    sanitizeProductData(); // corrige unit numérico em background (1x por sessão)
+    sanitizeProductData();  // corrige unit numérico em background (1x por sessão)
+    fixPricesToVenda();     // move custo→venda em produtos importados (1x por sessão)
   }, console.error);
 
   unsubHistory = col('historico').onSnapshot(snap => {
@@ -2732,6 +2733,39 @@ async function sanitizeProductData() {
     if (count > 0) await batch.commit();
     console.log(`[StockPro] Sanitize: corrigiu unit de ${dirty.length} produto(s)`);
   } catch(e) { console.warn('[StockPro] Sanitize falhou:', e); }
+}
+
+/* ══════════════════════════════════════════
+   FIX PRICES — move custo → venda (1x por sessão)
+   Corrige produtos importados onde preco foi salvo em custo
+   mas deveria estar em venda
+══════════════════════════════════════════ */
+let _priceFixedThisSession = false;
+async function fixPricesToVenda() {
+  if (_priceFixedThisSession || !user || user.role !== 'admin') return;
+  _priceFixedThisSession = true;
+  try {
+    // Produtos onde custo > 0 e venda = 0 → mover custo para venda
+    const toFix = products.filter(p => {
+      const custo = parseFloat(String(p.custo).replace(',', '.')) || 0;
+      const venda = parseFloat(String(p.venda).replace(',', '.')) || 0;
+      return custo > 0 && venda === 0;
+    });
+    if (!toFix.length) {
+      console.log('[StockPro] fixPricesToVenda: nenhum produto a corrigir.');
+      return;
+    }
+    const BATCH_SIZE = 400;
+    let batch = db.batch(), count = 0;
+    for (const p of toFix) {
+      const custo = parseFloat(String(p.custo).replace(',', '.')) || 0;
+      batch.update(col('produtos').doc(String(p.id)), { venda: custo, custo: 0 });
+      if (++count >= BATCH_SIZE) { await batch.commit(); batch = db.batch(); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+    console.log(`[StockPro] fixPricesToVenda: corrigiu ${toFix.length} produto(s)`);
+    toast(`✅ Preços corrigidos: ${toFix.length} produto(s) movidos de Custo → Venda`, 'success');
+  } catch(e) { console.warn('[StockPro] fixPricesToVenda falhou:', e); }
 }
 
 /* ══════════════════════════════════════════
