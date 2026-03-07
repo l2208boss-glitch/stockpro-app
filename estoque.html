@@ -2856,6 +2856,182 @@ function deleteFilial(filialId) {
 }
 
 /* ══════════════════════════════════════════
+   MIGRAÇÃO DE VALIDADES — Farmácia (roda 1x via console: migrarValidades())
+   Atualiza SOMENTE o campo 'validade'. Não mexe em qty, venda, custo ou outros.
+══════════════════════════════════════════ */
+window.migrarValidades = async function() {
+  if (!user || user.role !== 'admin') { alert('Somente admin pode executar esta migração.'); return; }
+  if (!currentFilial) { alert('Selecione a filial Farmácia antes de executar.'); return; }
+
+  const CSV = [
+    { n:'diclofen',                          v:'09/26' },
+    { n:'rheuma forte',                       v:'06/27' },
+    { n:'z-mol 750mg',                        v:'02/27' },
+    { n:'z-mol 1g',                           v:'04/26' },
+    { n:'arglem gesic',                       v:'10/26' },
+    { n:'fungalisina creme',                  v:'11/26' },
+    { n:'dolo reumin',                        v:'08/27' },
+    { n:'kitadol 400mg',                      v:'04/28' },
+    { n:'gastricaim 20mg',                    v:'02/27' },
+    { n:'cigram tadala 20mg',                 v:'04/27' },
+    { n:'kitadol grip',                       v:'06/27' },
+    { n:'solax',                              v:'09/27' },
+    { n:'dipirona 50mg',                      v:'04/27' },
+    { n:'ferrocuprin b12',                    v:'05/27' },
+    { n:'galentas',                           v:'05/26' },
+    { n:'cha',                                v:'07/02/28' },
+    { n:'erectalis 20mg',                     v:'06/27' },
+    { n:'36h tadala 20mg',                    v:'05/27' },
+    { n:'brontei',                            v:'06/26' },
+    { n:'pramil 50mg',                        v:'12/27' },
+    { n:'omega3 lander 1000mg',               v:'07/28' },
+    { n:'omega3 ge 1000mg 200caps',           v:'07/28' },
+    { n:'omega3 ge 1500mg 60caps',            v:'07/28' },
+    { n:'omega 3.69 3000 ge 200caps',         v:'07/27' },
+    { n:'super omega3 life 240caps',          v:'04/27' },
+    { n:'fish oil sundo 144caps',             v:'05/26' },
+    { n:'vitam d3 30000iu 360caps',           v:'05/28' },
+    { n:'vitamin d 500iu ge 150caps',         v:'11/27' },
+    { n:'vitam c 1000 lane 120caps',          v:'05/28' },
+    { n:'propi',                              v:'05/27' },
+    { n:'enan gold',                          v:'11/27' },
+    { n:'enan 4ml',                           v:'11/26' },
+    { n:'bold',                               v:'09/27' },
+    { n:'androlic',                           v:'08/27' },
+    { n:'drostanolona most oral',             v:'03/27' },
+    { n:'deca gold',                          v:'11/27' },
+    { n:'trembo ace',                         v:'09/27' },
+    { n:'oxan 5mg',                           v:'07/27' },
+    { n:'oxan 10mg',                          v:'07/27' },
+    { n:'clenbuterol',                        v:'11/26' },
+    { n:'hcg',                                v:'12/27' },
+    { n:'hemoroxitoland',                     v:'12/27' },
+    { n:'npp',                                v:'10/27' },
+    { n:'diana',                              v:'02/28' },
+    { n:'primo inse',                         v:'03/27' },
+    { n:'stano 15ml',                         v:'03/27' },
+    { n:'dura 1ml',                           v:'03/27' },
+    { n:'dura 10ml',                          v:'04/28' },
+    { n:'stano oral',                         v:'08/27' },
+    { n:'cipio',                              v:'06/27' },
+    { n:'stano 30ml',                         v:'05/27' },
+    { n:'trem ena',                           v:'08/27' },
+    { n:'lipo6 diuretic ozui nutrex',         v:'10/27' },
+    { n:'lipo6 hers dorad nutrex',            v:'09/27' },
+    { n:'lipo6 carnitine nutrex',             v:'12/26' },
+    { n:'hydroxcut muscletech',               v:'10/03/28' },
+    { n:'collageno dragon elite',             v:'13/05/26' }, // original 05/13/26 (MM/DD) → corrigido DD/MM
+    { n:'collagen vitamc ge 240caps',         v:'06/26' },
+    { n:'collagen vitamc ge 120caps',         v:'04/28' },
+    { n:'collagen vita c sundown 120caps',    v:'12/27' },
+    { n:'collagen nutrex 120cap',             v:'12/26' },
+    { n:'hydrofon collagen 180caps lander',   v:'02/27' },
+    { n:'5-thp 200mg nutricos',               v:'05/26' },
+    { n:'resveratrol life',                   v:'05/27' },
+    { n:'zinc 50mg gnc',                      v:'12/28' },
+    { n:'hair skin ge',                       v:'12/27' },
+    { n:'biotin healthy or',                  v:'04/28' },
+    { n:'probiotic 30billion',                v:'07/27' },
+    { n:'7-keto now',                         v:'04/28' },
+    { n:'folic acid',                         v:'08/28' },
+    { n:'coq30 life',                         v:'06/27' },
+    { n:'biotin 600mcg life',                 v:'06/27' },
+    { n:'hyaluronic acid 50mg',               v:'04/27' },
+    { n:'super digestive',                    v:'05/27' },
+    { n:'choline e inosi now',                v:'04/26' },
+    { n:'whey synthac 2lb',                   v:'07/05/27' },
+    { n:'whey shake pequeno lander',          v:'25/06/28' },
+    { n:'gold stand 5lb',                     v:'16/03/26' },
+    { n:'shake grande lander',                v:'17/12/28' },
+    { n:'whey premium lander',                v:'04/29' },
+    { n:'collage vitamc ge 60caps',           v:'06/26' },
+    { n:'c4',                                 v:'09/27' },
+    { n:'whey vegan dragon elite',            v:'09/28' },
+    { n:'multi hydroly colage lander',        v:'04/28' },
+    { n:'hydrolyzed colage lander',           v:'02/27' },
+    { n:'ultra glutami lander',               v:'04/27' },
+    { n:'whey vegan lander',                  v:'02/27' },
+    { n:'whey womens prote lander',           v:'02/27' },
+    { n:'creatina us lander',                 v:'02/27' },
+    { n:'creatina 300g nutrex',               v:'05/27' },
+    { n:'creatina animal 300g',               v:'06/28' },
+    { n:'creatina wos nutri 1kilo',           v:'10/05/27' },
+    { n:'psychotic rojo',                     v:'03/02/27' },
+    { n:'psychotic dourado',                  v:'03/05/27' },
+    { n:'advanced cuts',                      v:'06/28' },
+    { n:'no-xplode 555g',                     v:'17/03/26' },
+    { n:'no-xplode 1kilo',                    v:'20/08/26' },
+    { n:'opti-women 60cap on-nutri',          v:'06/26' },
+    { n:'opti-women 120cap on-nutri',         v:'06/27' },
+    { n:'lipo-revolution 60cap lander',       v:'02/27' },
+    { n:'eaa+ hydration nutrex',              v:'08/27' },
+    { n:'lipo6 black nutrex',                 v:'12/27' },
+    { n:'lipo6 intense lamare nutrex',        v:'12/27' },
+    { n:'lipo6 bcaa intense nutrex',          v:'08/27' },
+    { n:'vitam d3 sundo 500iu',               v:'10/27' },
+    { n:'b12 1000 sundo',                     v:'04/28' },
+    { n:'b complex ge',                       v:'07/28' },
+    { n:'vitam c ge 1000mg 100tablet',        v:'12/27' },
+    { n:'vitamin e 400 ge 100cap',            v:'03/27' },
+    { n:'calciu+vitam-d ge 100cap',           v:'03/27' },
+    { n:'vitami k2 life 90cap',               v:'04/27' },
+    { n:'beta-carotene vita a life 3000mg',   v:'08/26' },
+    { n:'vitami b12 life',                    v:'05/27' },
+    { n:'vita c 1000mg lander',               v:'05/28' },
+    { n:'magnesium 500mg sundow',             v:'10/27' },
+    { n:'magnesi 250mg gnc 90caps',           v:'12/28' },
+    { n:'calciu magne zinc sundown',          v:'08/27' },
+    { n:'magnesi 500mg life',                 v:'05/27' },
+    { n:'neuro-mag life',                     v:'06/27' },
+    { n:'magnesi 500mg gnc 120caps',          v:'05/28' },
+    { n:'melaton 10mg life',                  v:'07/27' },
+    { n:'melaton 3mg sundown',                v:'07/27' },
+    // melatoni liquid 3mg life → vencimento "27" inválido, ignorado
+    { n:'melatoni 3mg b6 ge',                 v:'03/27' },
+    { n:'good men 100table ge',               v:'04/28' },
+    { n:'dhea 25mg ge',                       v:'10/27' },
+    { n:'dhea 50mg ge',                       v:'07/28' },
+    { n:'dhea 50mg',                          v:'07/27' },
+    { n:'cranberry 50mg',                     v:'09/26' },
+    { n:'dhea 25mg gnc',                      v:'04/28' },
+    { n:'anabolhardcore nutrex',              v:'08/27' },
+    { n:'muscletech',                         v:'10/26' },
+    { n:'whey goldstand 2lb',                 v:'15/04/27' },
+  ];
+
+  const norm = s => s.toLowerCase().trim().replace(/\s+/g,' ');
+  let matched = 0, skipped = 0, naoEncontrados = [];
+  const BATCH = 400;
+  let batch = db.batch(), cnt = 0;
+
+  for (const row of CSV) {
+    const nRow = norm(row.n);
+    // 1. Match exato
+    let prod = products.find(p => norm(p.name) === nRow);
+    // 2. Match parcial (um contém o outro)
+    if (!prod) prod = products.find(p => {
+      const nP = norm(p.name);
+      return nP.includes(nRow) || nRow.includes(nP);
+    });
+    if (prod) {
+      batch.update(col('produtos').doc(String(prod.id)), { validade: row.v });
+      matched++;
+      if (++cnt >= BATCH) { await batch.commit(); batch = db.batch(); cnt = 0; }
+    } else {
+      naoEncontrados.push(row.n);
+      skipped++;
+    }
+  }
+  if (cnt > 0) await batch.commit();
+
+  console.log(`%c✅ migrarValidades concluído`, 'color:green;font-weight:bold');
+  console.log(`  Atualizados : ${matched}`);
+  console.log(`  Não achados : ${skipped}`);
+  if (naoEncontrados.length) console.warn('  Sem match:', naoEncontrados);
+  toast(`✅ ${matched} validades atualizadas! ${skipped ? '⚠️ '+skipped+' sem match (ver console)' : ''}`, 'success');
+};
+
+/* ══════════════════════════════════════════
    SANITIZE — corrige dados ruins no Firestore (roda 1x por sessão)
 ══════════════════════════════════════════ */
 let _sanitizedThisSession = false;
