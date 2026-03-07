@@ -2523,8 +2523,13 @@ function updateSplitCalc() {
     }
   }
 
-  // Atualiza tags USD ao lado dos inputs
-  renderSplitRows();
+  // Atualiza SOMENTE as tags USD (sem re-renderizar o HTML — preserva foco do input)
+  document.querySelectorAll('.spr-usd').forEach((el, i) => {
+    const row = splitPayRows[i];
+    if (!row) return;
+    const usd = toUSD(row.moeda, row.valor);
+    el.textContent = (usd !== null && usd > 0) ? `≈$${usd.toFixed(2)}` : '';
+  });
 
   const summaryEl = document.getElementById('paySplitSummary');
   const pssTotal  = document.getElementById('pssTotal');
