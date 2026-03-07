@@ -712,6 +712,9 @@
     .pay-total-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--primary-dark); margin-bottom:4px; }
     .pay-total-val { font-size:28px; font-weight:900; color:var(--primary); }
     .pay-equiv { font-size:13px; color:var(--text-2); background:var(--bg); border-radius:6px; padding:8px 12px; margin:-8px 0 16px; text-align:center; }
+    .pay-cobrar-box { background:#f0fdf4; border:2px solid #86efac; border-radius:var(--radius-sm); padding:14px 16px; text-align:center; margin:0 0 16px; }
+    .pay-cobrar-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#166534; margin-bottom:4px; }
+    .pay-cobrar-val { font-size:26px; font-weight:900; color:#16a34a; }
     .pay-troco-box { background:var(--success-light); border:1px solid #bbf7d0; border-radius:var(--radius-sm); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; margin-top:16px; }
     .pay-troco-label { font-size:13px; font-weight:700; color:var(--success); }
     .pay-troco-val { font-size:20px; font-weight:900; color:var(--success); }
@@ -1167,6 +1170,10 @@
           <option value="PIX">PIX (R$ — Brasil)</option>
           <option value="PYG">Guarani paraguaio (PYG ₲)</option>
         </select>
+      </div>
+      <div class="pay-cobrar-box" id="payTotalMoeda" style="display:none">
+        <div class="pay-cobrar-label">💰 Cobrar do cliente</div>
+        <div class="pay-cobrar-val" id="payTotalMoedaVal">--</div>
       </div>
       <div class="pay-equiv" id="payEquiv" style="display:none"></div>
       <div class="field" style="margin-bottom:0">
@@ -2405,6 +2412,7 @@ function openPaymentModal() {
   document.getElementById('payRecebido').value = '';
   document.getElementById('payTrocoBox').style.display = 'none';
   document.getElementById('payEquiv').style.display = 'none';
+  document.getElementById('payTotalMoeda').style.display = 'none';
   document.getElementById('btnConfirmPayment').disabled = true;
   document.getElementById('paymentModal').classList.add('on');
   updatePaymentCalc();
@@ -2416,30 +2424,69 @@ function updatePaymentCalc() {
   const moeda    = document.getElementById('payMoeda').value;
   const recebido = parseFloat(document.getElementById('payRecebido').value) || 0;
   const today    = new Date().toISOString().slice(0,10);
-  const hasCot   = cotacao.date === today && cotacao.brl > 0 && cotacao.pyg > 0;
+  const hasBRL   = cotacao.date === today && cotacao.brl > 0;
+  const hasPIX   = cotacao.date === today && cotacao.pix > 0;
+  const hasPYG   = cotacao.date === today && cotacao.pyg > 0;
 
-  let totalNaMoeda, prefix, equiv;
+  const equivEl    = document.getElementById('payEquiv');
+  const cobrarBox  = document.getElementById('payTotalMoeda');
+  const cobrarVal  = document.getElementById('payTotalMoedaVal');
+  const recInput   = document.getElementById('payRecebido');
+
+  let totalNaMoeda, prefix;
+
   if (moeda === 'USD') {
     totalNaMoeda = total;
     prefix = '$';
-    document.getElementById('payEquiv').style.display = 'none';
+    cobrarBox.style.display = 'none';
+    equivEl.style.display = 'none';
+    recInput.step = '0.01';
+    recInput.placeholder = `$${total.toFixed(2)}`;
   } else if (moeda === 'BRL') {
-    totalNaMoeda = hasCot ? total * cotacao.brl : null;
+    totalNaMoeda = hasBRL ? total * cotacao.brl : null;
     prefix = 'R$ ';
-    equiv = hasCot ? `Equivale a R$ ${(total * cotacao.brl).toFixed(2)}` : '⚠️ Cotação BRL não definida hoje';
+    recInput.step = '0.01';
+    if (hasBRL) {
+      cobrarVal.textContent = `R$ ${(total * cotacao.brl).toFixed(2)}`;
+      cobrarBox.style.display = 'block';
+      equivEl.style.display = 'none';
+      recInput.placeholder = `R$ ${(total * cotacao.brl).toFixed(2)}`;
+    } else {
+      cobrarBox.style.display = 'none';
+      equivEl.textContent = '⚠️ Cotação BRL não definida hoje';
+      equivEl.style.display = 'block';
+      recInput.placeholder = '0.00';
+    }
   } else if (moeda === 'PIX') {
-    const hasPix = hasCot && cotacao.pix > 0;
-    totalNaMoeda = hasPix ? total * cotacao.pix : null;
+    totalNaMoeda = hasPIX ? total * cotacao.pix : null;
     prefix = 'R$ ';
-    equiv = hasPix ? `Equivale a R$ ${(total * cotacao.pix).toFixed(2)} (cotação PIX)` : '⚠️ Cotação PIX não definida hoje';
-    document.getElementById('payEquiv').textContent = equiv;
-    document.getElementById('payEquiv').style.display = 'block';
-  } else {
-    totalNaMoeda = hasCot ? total * cotacao.pyg : null;
+    recInput.step = '0.01';
+    if (hasPIX) {
+      cobrarVal.textContent = `R$ ${(total * cotacao.pix).toFixed(2)}`;
+      cobrarBox.style.display = 'block';
+      equivEl.style.display = 'none';
+      recInput.placeholder = `R$ ${(total * cotacao.pix).toFixed(2)}`;
+    } else {
+      cobrarBox.style.display = 'none';
+      equivEl.textContent = '⚠️ Cotação PIX não definida hoje';
+      equivEl.style.display = 'block';
+      recInput.placeholder = '0.00';
+    }
+  } else { // PYG
+    totalNaMoeda = hasPYG ? total * cotacao.pyg : null;
     prefix = '₲ ';
-    equiv = hasCot ? `Equivale a ₲ ${Math.round(total * cotacao.pyg).toLocaleString('pt-BR')}` : '⚠️ Cotação PYG não definida hoje';
-    document.getElementById('payEquiv').textContent = equiv;
-    document.getElementById('payEquiv').style.display = 'block';
+    recInput.step = '1';
+    if (hasPYG) {
+      cobrarVal.textContent = `₲ ${Math.round(total * cotacao.pyg).toLocaleString('pt-BR')}`;
+      cobrarBox.style.display = 'block';
+      equivEl.style.display = 'none';
+      recInput.placeholder = `${Math.round(total * cotacao.pyg).toLocaleString('pt-BR')}`;
+    } else {
+      cobrarBox.style.display = 'none';
+      equivEl.textContent = '⚠️ Cotação PYG não definida hoje';
+      equivEl.style.display = 'block';
+      recInput.placeholder = '0';
+    }
   }
 
   if (totalNaMoeda === null) {
@@ -2454,13 +2501,12 @@ function updatePaymentCalc() {
     const trocoVal = document.getElementById('payTrocoVal');
     trocoBox.style.display = 'flex';
     trocoBox.className = 'pay-troco-box' + (troco < 0 ? ' negative' : '');
-
     if (moeda === 'PYG') {
       trocoVal.textContent = `${prefix}${Math.round(troco).toLocaleString('pt-BR')}`;
     } else {
       trocoVal.textContent = `${prefix}${troco.toFixed(2)}`;
     }
-    document.getElementById('payTrocoBox').querySelector('.pay-troco-label').textContent = troco < 0 ? 'Falta' : 'Troco';
+    trocoBox.querySelector('.pay-troco-label').textContent = troco < 0 ? 'Falta' : 'Troco';
     document.getElementById('btnConfirmPayment').disabled = troco < 0;
   } else {
     document.getElementById('payTrocoBox').style.display = 'none';
