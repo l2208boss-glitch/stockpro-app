@@ -443,7 +443,8 @@
     .btn-confirm.in   { background: var(--success); }
     .btn-confirm.out  { background: var(--danger); }
     .btn-confirm.save { background: var(--primary); }
-    .btn-confirm:hover { opacity: .88; }
+    .btn-confirm:hover:not(:disabled) { opacity: .88; }
+    .btn-confirm:disabled { opacity: .4; cursor: not-allowed; }
 
     /* ─── EDIT PRODUCT MODAL ─── */
     .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
