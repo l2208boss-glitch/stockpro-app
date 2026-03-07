@@ -1701,6 +1701,7 @@ function setupRealtimeListeners() {
     });
     products.sort((a, b) => a.id - b.id);
     renderStats(); renderProducts(); populateFilter();
+    sanitizeProductData(); // corrige unit numérico em background (1x por sessão)
   }, console.error);
 
   unsubHistory = col('historico').onSnapshot(snap => {
@@ -2711,6 +2712,70 @@ function deleteFilial(filialId) {
 }
 
 /* ══════════════════════════════════════════
+   SANITIZE — corrige dados ruins no Firestore (roda 1x por sessão)
+══════════════════════════════════════════ */
+let _sanitizedThisSession = false;
+async function sanitizeProductData() {
+  if (_sanitizedThisSession || !user || user.role !== 'admin') return;
+  _sanitizedThisSession = true;
+  try {
+    const dirty = products.filter(p =>
+      (!p.unit || !isNaN(String(p.unit).trim()))  // unit numérico ou vazio
+    );
+    if (!dirty.length) return;
+    const BATCH_SIZE = 400;
+    let batch = db.batch(), count = 0;
+    for (const p of dirty) {
+      batch.update(col('produtos').doc(String(p.id)), { unit: 'un' });
+      if (++count >= BATCH_SIZE) { await batch.commit(); batch = db.batch(); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+    console.log(`[StockPro] Sanitize: corrigiu unit de ${dirty.length} produto(s)`);
+  } catch(e) { console.warn('[StockPro] Sanitize falhou:', e); }
+}
+
+/* ══════════════════════════════════════════
+   HELPERS — unit & validade
+══════════════════════════════════════════ */
+// Retorna "un" se unit for numérico, nulo ou vazio
+function safeUnit(unit) {
+  if (!unit) return 'un';
+  const s = String(unit).trim();
+  if (!s || !isNaN(s)) return 'un';
+  return s;
+}
+
+// Parseia validade em vários formatos: MM/YY, MM/YYYY, DD/MM/YY, DD/MM/YYYY, YYYY-MM-DD
+function parseValidadeDate(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  if (!s || s === 'null' || s === 'undefined') return null;
+
+  // ISO: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+
+  const parts = s.replace(/\./g, '/').split('/');
+
+  if (parts.length === 2) {
+    // MM/YY ou MM/YYYY
+    let m = parseInt(parts[0]), y = parseInt(parts[1]);
+    if (isNaN(m) || isNaN(y) || m < 1 || m > 12) return null;
+    if (y < 100) y += 2000;
+    return new Date(y, m - 1, 1);
+  }
+
+  if (parts.length === 3) {
+    // DD/MM/YY ou DD/MM/YYYY
+    let d = parseInt(parts[0]), m = parseInt(parts[1]), y = parseInt(parts[2]);
+    if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
+    if (y < 100) y += 2000;
+    return new Date(y, m - 1, d);
+  }
+
+  return null;
+}
+
+/* ══════════════════════════════════════════
    RENDER (estoque)
 ══════════════════════════════════════════ */
 function renderAll() {
@@ -2767,20 +2832,24 @@ function renderProducts() {
     // Validade
     let expiryHTML = '', expiryCls = '';
     if (p.validade) {
-      const today = new Date(); today.setHours(0,0,0,0);
-      const expDate = new Date(p.validade + 'T00:00:00');
-      const days = Math.ceil((expDate - today) / (1000*60*60*24));
-      if (days < 0) {
-        expiryHTML = `<div class="card-expiry exp-critical">🔴 VENCIDO</div>`;
-        expiryCls = 'expired';
-      } else if (days <= 7) {
-        expiryHTML = `<div class="card-expiry exp-critical">🔴 Vence em ${days}d</div>`;
-        expiryCls = 'expired';
-      } else if (days <= 30) {
-        expiryHTML = `<div class="card-expiry exp-warn">🟡 Vence em ${days}d</div>`;
-        expiryCls = 'expiring';
+      const expDate = parseValidadeDate(p.validade);
+      if (!expDate || isNaN(expDate.getTime())) {
+        expiryHTML = `<div class="card-expiry exp-ok">📅 Val: ${p.validade}</div>`;
       } else {
-        expiryHTML = `<div class="card-expiry exp-ok">📅 Val: ${expDate.toLocaleDateString('pt-BR')}</div>`;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const days = Math.ceil((expDate - today) / (1000*60*60*24));
+        if (days < 0) {
+          expiryHTML = `<div class="card-expiry exp-critical">🔴 VENCIDO</div>`;
+          expiryCls = 'expired';
+        } else if (days <= 7) {
+          expiryHTML = `<div class="card-expiry exp-critical">🔴 Vence em ${days}d</div>`;
+          expiryCls = 'expired';
+        } else if (days <= 30) {
+          expiryHTML = `<div class="card-expiry exp-warn">🟡 Vence em ${days}d</div>`;
+          expiryCls = 'expiring';
+        } else {
+          expiryHTML = `<div class="card-expiry exp-ok">📅 Val: ${expDate.toLocaleDateString('pt-BR')}</div>`;
+        }
       }
     }
     const qtyCls = p.qty===0 ? 'zero' : p.qty<=5 ? 'low' : '';
@@ -2826,8 +2895,8 @@ function renderProducts() {
         <div class="card-photo">${photoArea}${overlay}</div>
         <div class="card-body">
           <div class="card-name">${p.name}</div>
-          <div class="card-meta">${p.category} &middot; ${p.unit}</div>
-          ${isAdmin ? `<div class="card-qty"><span class="qty-num">${p.qty}</span><span class="qty-unit">${p.unit}</span></div>` : ''}
+          <div class="card-meta">${p.category} &middot; ${safeUnit(p.unit)}</div>
+          ${isAdmin ? `<div class="card-qty"><span class="qty-num">${p.qty}</span><span class="qty-unit">${safeUnit(p.unit)}</span></div>` : ''}
           ${alert}
           ${expiryHTML}
           <div class="card-actions">
