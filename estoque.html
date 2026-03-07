@@ -721,6 +721,12 @@
     .pay-troco-box.negative { background:var(--danger-light); border-color:#fecaca; }
     .pay-troco-box.negative .pay-troco-label,
     .pay-troco-box.negative .pay-troco-val { color:var(--danger); }
+    .pay-troco-box.discount { background:#fffbeb; border:1px solid #fbbf24; }
+    .pay-troco-box.discount .pay-troco-label,
+    .pay-troco-box.discount .pay-troco-val { color:#d97706; }
+    .pay-troco-sub { font-size:11px; font-weight:600; margin-top:3px; }
+    .pay-troco-box.discount .pay-troco-sub { color:#d97706; }
+    .pay-troco-box.negative .pay-troco-sub { color:var(--danger); }
 
     /* ─── VENDAS HISTORY ─── */
     .vendas-block { margin-top:28px; padding:0 24px 24px; }
@@ -1138,9 +1144,13 @@
         <label class="modal-label" for="cotPIX">1 USD = R$ (PIX) *</label>
         <input class="modal-input" type="number" id="cotPIX" min="0" step="0.01" placeholder="Ex: 5.95">
       </div>
-      <div class="field" style="margin-bottom:0">
+      <div class="field">
         <label class="modal-label" for="cotPYG">1 USD = ₲ (Guaranis Paraguaios) *</label>
         <input class="modal-input" type="number" id="cotPYG" min="0" step="1" placeholder="Ex: 7500">
+      </div>
+      <div class="field" style="margin-bottom:0;padding-top:12px;border-top:1px solid var(--border)">
+        <label class="modal-label" for="cotDescontoMax">🏷️ Desconto máximo permitido (%) — padrão 10%</label>
+        <input class="modal-input" type="number" id="cotDescontoMax" min="0" max="50" step="0.5" placeholder="Ex: 10">
       </div>
     </div>
     <div class="modal-ft">
@@ -1181,7 +1191,10 @@
         <input class="modal-input" type="number" id="payRecebido" min="0" step="0.01" placeholder="0.00" oninput="updatePaymentCalc()">
       </div>
       <div class="pay-troco-box" id="payTrocoBox" style="display:none">
-        <span class="pay-troco-label">Troco</span>
+        <div>
+          <div class="pay-troco-label" id="payTrocoLabel">Troco</div>
+          <div class="pay-troco-sub" id="payTrocoSub" style="display:none"></div>
+        </div>
         <span class="pay-troco-val" id="payTrocoVal">--</span>
       </div>
     </div>
@@ -2292,6 +2305,7 @@ function openCotacaoModal() {
   document.getElementById('cotBRL').value = cotacao.brl > 0 ? cotacao.brl : '';
   document.getElementById('cotPIX').value = cotacao.pix > 0 ? cotacao.pix : '';
   document.getElementById('cotPYG').value = cotacao.pyg > 0 ? cotacao.pyg : '';
+  document.getElementById('cotDescontoMax').value = cotacao.descontoMax != null ? cotacao.descontoMax : 10;
   document.getElementById('cotacaoModal').classList.add('on');
   setTimeout(() => document.getElementById('cotBRL').focus(), 120);
 }
@@ -2300,9 +2314,10 @@ function saveCotacao() {
   const brl = parseFloat(document.getElementById('cotBRL').value);
   const pix = parseFloat(document.getElementById('cotPIX').value);
   const pyg = parseFloat(document.getElementById('cotPYG').value);
+  const descontoMax = parseFloat(document.getElementById('cotDescontoMax').value);
   if (!brl || brl <= 0 || !pix || pix <= 0 || !pyg || pyg <= 0) { toast('Informe todas as cotações', 'error'); return; }
   const today = new Date().toISOString().slice(0,10);
-  col('cotacao').doc('atual').set({ brl, pix, pyg, date: today, user: user.name, ts: new Date().toISOString() })
+  col('cotacao').doc('atual').set({ brl, pix, pyg, descontoMax: isNaN(descontoMax) ? 10 : descontoMax, date: today, user: user.name, ts: new Date().toISOString() })
     .then(() => { toast('✅ Cotação salva!', 'success'); closeOverlay('cotacaoModal'); })
     .catch(console.error);
 }
@@ -2496,18 +2511,40 @@ function updatePaymentCalc() {
   }
 
   if (recebido > 0) {
-    const troco = recebido - totalNaMoeda;
-    const trocoBox = document.getElementById('payTrocoBox');
-    const trocoVal = document.getElementById('payTrocoVal');
+    const troco      = recebido - totalNaMoeda;
+    const trocoBox   = document.getElementById('payTrocoBox');
+    const trocoVal   = document.getElementById('payTrocoVal');
+    const trocoLabel = document.getElementById('payTrocoLabel');
+    const trocoSub   = document.getElementById('payTrocoSub');
     trocoBox.style.display = 'flex';
-    trocoBox.className = 'pay-troco-box' + (troco < 0 ? ' negative' : '');
-    if (moeda === 'PYG') {
-      trocoVal.textContent = `${prefix}${Math.round(troco).toLocaleString('pt-BR')}`;
+
+    if (troco >= 0) {
+      // Pagamento completo — mostrar troco normal
+      trocoBox.className = 'pay-troco-box';
+      trocoLabel.textContent = 'Troco';
+      trocoSub.style.display = 'none';
+      trocoVal.textContent = moeda === 'PYG'
+        ? `${prefix}${Math.round(troco).toLocaleString('pt-BR')}`
+        : `${prefix}${troco.toFixed(2)}`;
+      document.getElementById('btnConfirmPayment').disabled = false;
     } else {
-      trocoVal.textContent = `${prefix}${troco.toFixed(2)}`;
+      // Pagamento parcial — calcular % de desconto
+      const descontoMax = cotacao.descontoMax != null ? Number(cotacao.descontoMax) : 10;
+      const descontoPct = ((totalNaMoeda - recebido) / totalNaMoeda) * 100;
+      const dentroLimite = descontoPct <= descontoMax + 0.01;
+      const faltaStr = moeda === 'PYG'
+        ? `${prefix}${Math.round(totalNaMoeda - recebido).toLocaleString('pt-BR')}`
+        : `${prefix}${(totalNaMoeda - recebido).toFixed(2)}`;
+
+      trocoBox.className = 'pay-troco-box ' + (dentroLimite ? 'discount' : 'negative');
+      trocoLabel.textContent = dentroLimite ? '🏷️ Desconto' : '🚫 Limite excedido';
+      trocoVal.textContent = `${descontoPct.toFixed(1)}%`;
+      trocoSub.textContent = dentroLimite
+        ? `Falta ${faltaStr}`
+        : `Falta ${faltaStr} — máx ${descontoMax}%`;
+      trocoSub.style.display = 'block';
+      document.getElementById('btnConfirmPayment').disabled = !dentroLimite;
     }
-    trocoBox.querySelector('.pay-troco-label').textContent = troco < 0 ? 'Falta' : 'Troco';
-    document.getElementById('btnConfirmPayment').disabled = troco < 0;
   } else {
     document.getElementById('payTrocoBox').style.display = 'none';
     document.getElementById('btnConfirmPayment').disabled = true;
@@ -2542,6 +2579,7 @@ async function confirmPayment() {
     cotacaoPYG: cotacao.pyg,
     valorPago: +recebido.toFixed(moeda === 'PYG' ? 0 : 2),
     troco: +(moeda === 'PYG' ? Math.round(troco) : +troco.toFixed(2)),
+    descontoPct: troco < 0 ? +((totalNaMoeda - recebido) / totalNaMoeda * 100).toFixed(2) : 0,
     user: user.name
   };
   col('vendas').doc(String(vendaId)).set(venda).catch(console.error);
@@ -2617,14 +2655,19 @@ function renderVendas() {
     const moeda = v.moedaPagamento;
     const s = symb[moeda] || '';
     const pago  = moeda === 'PYG' ? `${s}${Math.round(v.valorPago).toLocaleString('pt-BR')}` : `${s}${Number(v.valorPago).toFixed(2)}`;
-    const troco = moeda === 'PYG' ? `${s}${Math.round(v.troco).toLocaleString('pt-BR')}` : `${s}${Number(v.troco).toFixed(2)}`;
+    const trocoNum = Number(v.troco);
+    const trocoStr = moeda === 'PYG' ? `${s}${Math.round(trocoNum).toLocaleString('pt-BR')}` : `${s}${trocoNum.toFixed(2)}`;
+    const descontoPct = v.descontoPct > 0 ? v.descontoPct : 0;
+    const trocoCell = descontoPct > 0
+      ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:var(--text-3)">${trocoStr}</small>`
+      : `<span style="color:var(--success);font-weight:700">${trocoStr}</span>`;
     return `<tr class="venda-row">
       <td>${dt}</td>
       <td class="venda-items">${itens}</td>
       <td style="text-align:right;font-weight:700">$${Number(v.totalUSD).toFixed(2)}</td>
       <td style="text-align:center">${moeda}</td>
       <td style="text-align:right">${pago}</td>
-      <td style="text-align:right;color:var(--success);font-weight:700">${troco}</td>
+      <td style="text-align:right">${trocoCell}</td>
       <td>${v.user}</td>
     </tr>`;
   }).join('');
