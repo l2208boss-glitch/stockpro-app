@@ -2871,7 +2871,7 @@ async function sanitizeProductData() {
 }
 
 /* ══════════════════════════════════════════
-   FIX PRICES — move custo → venda (1x por sessão)
+   FIX PRICES — move custo → venda e limpa custo residual
    Corrige produtos importados onde preco foi salvo em custo
    mas deveria estar em venda
 ══════════════════════════════════════════ */
@@ -2880,26 +2880,32 @@ async function fixPricesToVenda() {
   if (_priceFixedThisSession || !user || user.role !== 'admin') return;
   _priceFixedThisSession = true;
   try {
-    // Produtos onde custo > 0 e venda = 0 → mover custo para venda
-    const toFix = products.filter(p => {
+    const BATCH_SIZE = 400;
+    let batch = db.batch(), count = 0, total = 0;
+
+    for (const p of products) {
       const custo = parseFloat(String(p.custo).replace(',', '.')) || 0;
       const venda = parseFloat(String(p.venda).replace(',', '.')) || 0;
-      return custo > 0 && venda === 0;
-    });
-    if (!toFix.length) {
-      console.log('[StockPro] fixPricesToVenda: nenhum produto a corrigir.');
-      return;
-    }
-    const BATCH_SIZE = 400;
-    let batch = db.batch(), count = 0;
-    for (const p of toFix) {
-      const custo = parseFloat(String(p.custo).replace(',', '.')) || 0;
-      batch.update(col('produtos').doc(String(p.id)), { venda: custo, custo: 0 });
+      if (custo <= 0) continue;
+
+      if (venda === 0) {
+        // custo > 0 e venda = 0 → mover custo para venda
+        batch.update(col('produtos').doc(String(p.id)), { venda: custo, custo: 0 });
+      } else {
+        // custo > 0 e venda > 0 → custo residual do import antigo, limpar
+        batch.update(col('produtos').doc(String(p.id)), { custo: 0 });
+      }
+      total++;
       if (++count >= BATCH_SIZE) { await batch.commit(); batch = db.batch(); count = 0; }
     }
+
     if (count > 0) await batch.commit();
-    console.log(`[StockPro] fixPricesToVenda: corrigiu ${toFix.length} produto(s)`);
-    toast(`✅ Preços corrigidos: ${toFix.length} produto(s) movidos de Custo → Venda`, 'success');
+    if (total > 0) {
+      console.log(`[StockPro] fixPricesToVenda: corrigiu ${total} produto(s)`);
+      toast(`✅ Preços corrigidos: ${total} produto(s) atualizados`, 'success');
+    } else {
+      console.log('[StockPro] fixPricesToVenda: nenhum produto a corrigir.');
+    }
   } catch(e) { console.warn('[StockPro] fixPricesToVenda falhou:', e); }
 }
 
@@ -3823,7 +3829,7 @@ async function executeImport() {
         const docRef = col('produtos').doc(String(row.existing.id));
         const upd = {};
         if (row.vencimento) upd.validade = row.vencimento;
-        if (row.preco > 0)  upd.custo    = row.preco;
+        if (row.preco > 0)  upd.venda    = row.preco;
         upd.qty = importMode === 'replace'
           ? row.qty
           : firebase.firestore.FieldValue.increment(row.qty);
@@ -3834,7 +3840,7 @@ async function executeImport() {
         batch.set(docRef, {
           id: newId, name: row.nome,
           category: 'Importado', unit: 'un', emoji: '📦',
-          custo: row.preco || 0, venda: 0,
+          custo: 0, venda: row.preco || 0,
           qty: row.qty, validade: row.vencimento || null,
         });
       }
