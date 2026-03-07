@@ -716,6 +716,7 @@
     .pay-cobrar-box { background:#f0fdf4; border:2px solid #86efac; border-radius:var(--radius-sm); padding:14px 16px; text-align:center; margin:0 0 16px; }
     .pay-cobrar-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#166534; margin-bottom:4px; }
     .pay-cobrar-val { font-size:26px; font-weight:900; color:#16a34a; }
+    .pay-margin-info { font-size:11px; color:#166534; margin-top:6px; font-weight:600; opacity:.85; }
     .pay-troco-box { background:var(--success-light); border:1px solid #bbf7d0; border-radius:var(--radius-sm); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; margin-top:16px; }
     .pay-troco-label { font-size:13px; font-weight:700; color:var(--success); }
     .pay-troco-val { font-size:20px; font-weight:900; color:var(--success); }
@@ -1185,6 +1186,7 @@
       <div class="pay-cobrar-box" id="payTotalMoeda" style="display:none">
         <div class="pay-cobrar-label">💰 Cobrar do cliente</div>
         <div class="pay-cobrar-val" id="payTotalMoedaVal">--</div>
+        <div class="pay-margin-info" id="payMarginInfo" style="display:none"></div>
       </div>
       <div class="pay-equiv" id="payEquiv" style="display:none"></div>
       <div class="field" style="margin-bottom:0">
@@ -2420,6 +2422,31 @@ function renderCart() {
 /* ══════════════════════════════════════════
    CAIXA — PAGAMENTO
 ══════════════════════════════════════════ */
+
+// Calcula a margem bruta ponderada do carrinho atual.
+// Retorna { marginPct, effectiveMax, hasAllCosts }
+// Se algum produto não tem custo → hasAllCosts = false → usa admin cap.
+function calculateCartMargin() {
+  const adminMax = cotacao.descontoMax != null ? Number(cotacao.descontoMax) : 10;
+  if (!cart.length) return { marginPct: null, effectiveMax: adminMax, hasAllCosts: false };
+
+  let totalVenda = 0, totalCusto = 0, missingCost = false;
+  for (const item of cart) {
+    const prod = products.find(p => String(p.id) === String(item.productId));
+    const custo = prod?.custo;
+    if (!custo || custo <= 0) { missingCost = true; break; }
+    totalVenda += item.qty * item.precoUSD;
+    totalCusto += item.qty * custo;
+  }
+  if (missingCost || totalVenda === 0) {
+    return { marginPct: null, effectiveMax: adminMax, hasAllCosts: false };
+  }
+  const marginPct = ((totalVenda - totalCusto) / totalVenda) * 100;
+  // Limite saudável = 50% da margem, mas nunca acima do teto do admin
+  const effectiveMax = Math.min(adminMax, marginPct * 0.5);
+  return { marginPct, effectiveMax, hasAllCosts: true };
+}
+
 function openPaymentModal() {
   if (!cart.length) return;
   const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
@@ -2505,6 +2532,16 @@ function updatePaymentCalc() {
     }
   }
 
+  // Margem inteligente do carrinho
+  const { marginPct, effectiveMax, hasAllCosts } = calculateCartMargin();
+  const marginInfoEl = document.getElementById('payMarginInfo');
+  if (hasAllCosts && moeda !== 'USD' && cobrarBox.style.display === 'block') {
+    marginInfoEl.textContent = `📊 Margem do carrinho: ${marginPct.toFixed(1)}% · Desc. máx saudável: ${effectiveMax.toFixed(1)}%`;
+    marginInfoEl.style.display = 'block';
+  } else {
+    marginInfoEl.style.display = 'none';
+  }
+
   if (totalNaMoeda === null) {
     document.getElementById('payTrocoBox').style.display = 'none';
     document.getElementById('btnConfirmPayment').disabled = true;
@@ -2529,10 +2566,9 @@ function updatePaymentCalc() {
         : `${prefix}${troco.toFixed(2)}`;
       document.getElementById('btnConfirmPayment').disabled = false;
     } else {
-      // Pagamento parcial — calcular % de desconto
-      const descontoMax = cotacao.descontoMax != null ? Number(cotacao.descontoMax) : 10;
+      // Pagamento parcial — calcular % de desconto com limite inteligente
       const descontoPct = ((totalNaMoeda - recebido) / totalNaMoeda) * 100;
-      const dentroLimite = descontoPct <= descontoMax + 0.01;
+      const dentroLimite = descontoPct <= effectiveMax + 0.01;
       const faltaStr = moeda === 'PYG'
         ? `${prefix}${Math.round(totalNaMoeda - recebido).toLocaleString('pt-BR')}`
         : `${prefix}${(totalNaMoeda - recebido).toFixed(2)}`;
@@ -2540,9 +2576,18 @@ function updatePaymentCalc() {
       trocoBox.className = 'pay-troco-box ' + (dentroLimite ? 'discount' : 'negative');
       trocoLabel.textContent = dentroLimite ? '🏷️ Desconto' : '🚫 Limite excedido';
       trocoVal.textContent = `${descontoPct.toFixed(1)}%`;
-      trocoSub.textContent = dentroLimite
-        ? `Falta ${faltaStr}`
-        : `Falta ${faltaStr} — máx ${descontoMax}%`;
+
+      if (dentroLimite) {
+        const marginRestante = hasAllCosts ? marginPct - descontoPct : null;
+        trocoSub.textContent = marginRestante !== null
+          ? `Falta ${faltaStr} · Margem preservada: ${marginRestante.toFixed(1)}%`
+          : `Falta ${faltaStr}`;
+      } else {
+        const limiteStr = hasAllCosts
+          ? `máx ${effectiveMax.toFixed(1)}% (margem ${marginPct.toFixed(1)}%)`
+          : `máx ${effectiveMax.toFixed(1)}%`;
+        trocoSub.textContent = `Falta ${faltaStr} — ${limiteStr}`;
+      }
       trocoSub.style.display = 'block';
       document.getElementById('btnConfirmPayment').disabled = !dentroLimite;
     }
