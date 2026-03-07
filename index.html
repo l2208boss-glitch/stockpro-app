@@ -225,6 +225,11 @@
       transition: transform .2s, box-shadow .2s;
     }
     .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .stat.clickable { cursor: pointer; }
+    .stat.clickable:hover { transform: translateY(-3px); }
+    .stat.stat-active { border-color: var(--primary,#6366f1) !important; box-shadow: 0 0 0 3px rgba(99,102,241,.18) !important; background: rgba(99,102,241,.04); }
+    .stat-filter-banner { display:flex;align-items:center;gap:10px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:13px;color:var(--text-1); }
+    .stat-filter-banner button { border:none;background:transparent;cursor:pointer;font-size:15px;padding:0 4px;color:var(--text-2); }
     .stat-icon {
       width: 44px; height: 44px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center; font-size: 20px;
@@ -881,6 +886,7 @@
         oninput="renderProducts()"
         style="width:100%;box-sizing:border-box;padding:10px 14px 10px 42px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text-1);outline:none">
     </div>
+    <div id="statFilterBanner"></div>
     <div class="grid" id="prodGrid"></div>
 
     <div class="history-box" id="historyBlock" style="display:none">
@@ -1626,6 +1632,7 @@ let filiais       = [];     // lista de filiais do Firestore
 let products      = [];
 let history       = [];
 let photos        = {};
+let activeStatFilter = null; // 'baixo' | 'zero' | 'vencer' | null
 let movState      = { productId: null, type: null };
 let editId        = null;
 let editPhotoTemp = null;
@@ -1926,6 +1933,7 @@ function enterFilial(filialId) {
   const f = filiais.find(x => x.id === filialId);
   if (!f) return;
   currentFilial = f;
+  activeStatFilter = null; // limpa filtro ao trocar filial
   document.getElementById('filialPage').style.display = 'none';
   photos = {};
   setupRealtimeListeners();
@@ -2967,16 +2975,39 @@ function fmtMoney(v) {
   return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 }
 
+function isExpiringSoon(p) {
+  if (!p.validade) return false;
+  const expDate = parseValidadeDate(p.validade);
+  if (!expDate || isNaN(expDate.getTime())) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = Math.ceil((expDate - today) / (1000*60*60*24));
+  return days <= 30;
+}
+
+function filterByStat(type) {
+  activeStatFilter = activeStatFilter === type ? null : type;
+  renderStats();
+  renderProducts();
+  if (activeStatFilter) {
+    setTimeout(() => document.getElementById('prodGrid')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }
+}
+
 function renderStats() {
   const total   = products.length;
   const totQty  = products.reduce((s,p) => s+p.qty, 0);
   const low     = products.filter(p => p.qty>0 && p.qty<=5).length;
   const zero    = products.filter(p => p.qty===0).length;
+  const vencer  = products.filter(isExpiringSoon).length;
   const isAdmin = user && user.role==='admin';
 
   const valorEstoque = products.reduce((s,p) => s + (p.custo||0)*p.qty, 0);
   const valorVenda   = products.reduce((s,p) => s + (p.venda||0)*p.qty, 0);
   const lucroTotal   = valorVenda - valorEstoque;
+
+  const aLow    = activeStatFilter === 'baixo';
+  const aZero   = activeStatFilter === 'zero';
+  const aVencer = activeStatFilter === 'vencer';
 
   const adminStats = isAdmin ? `
     <div class="stat"><div class="stat-icon" style="background:#ede9fe">💰</div><div><div class="stat-label">Custo Total</div><div class="stat-value" style="font-size:18px">${fmtMoney(valorEstoque)}</div></div></div>
@@ -2986,8 +3017,9 @@ function renderStats() {
   document.getElementById('statsBar').innerHTML = `
     <div class="stat"><div class="stat-icon blue">📦</div><div><div class="stat-label">Produtos</div><div class="stat-value">${total}</div></div></div>
     ${isAdmin ? `<div class="stat"><div class="stat-icon green">📊</div><div><div class="stat-label">Total em Estoque</div><div class="stat-value">${totQty.toLocaleString('pt-BR')}</div></div></div>` : ''}
-    ${isAdmin ? `<div class="stat"><div class="stat-icon red">⚠️</div><div><div class="stat-label">Estoque Baixo</div><div class="stat-value">${low}</div></div></div>` : ''}
-    <div class="stat"><div class="stat-icon yellow">🚫</div><div><div class="stat-label">Sem Estoque</div><div class="stat-value">${zero}</div></div></div>
+    ${isAdmin ? `<div class="stat clickable${aLow?' stat-active':''}" onclick="filterByStat('baixo')" title="Clique para filtrar"><div class="stat-icon red">⚠️</div><div><div class="stat-label">Estoque Baixo${aLow?' 🔍':''}</div><div class="stat-value">${low}</div></div></div>` : ''}
+    <div class="stat clickable${aZero?' stat-active':''}" onclick="filterByStat('zero')" title="Clique para filtrar"><div class="stat-icon yellow">🚫</div><div><div class="stat-label">Sem Estoque${aZero?' 🔍':''}</div><div class="stat-value">${zero}</div></div></div>
+    <div class="stat clickable${aVencer?' stat-active':''}" onclick="filterByStat('vencer')" title="Clique para filtrar"><div class="stat-icon" style="background:#fee2e2">📅</div><div><div class="stat-label">A Vencer${aVencer?' 🔍':''}</div><div class="stat-value" style="color:${vencer>0?'var(--danger)':'inherit'}">${vencer}</div></div></div>
     ${adminStats}`;
 }
 
@@ -3000,9 +3032,25 @@ function photoHTML(p, size) {
 function renderProducts() {
   const isAdmin = user && user.role === 'admin';
   const q = (document.getElementById('prodSearch')?.value || '').toLowerCase().trim();
-  const list = q ? products.filter(p =>
+  let list = q ? products.filter(p =>
     p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)
-  ) : products;
+  ) : products.slice();
+
+  // Aplicar filtro do stat clicado
+  const filterLabels = { baixo: '⚠️ Estoque Baixo', zero: '🚫 Sem Estoque', vencer: '📅 A Vencer' };
+  if (activeStatFilter === 'baixo')  list = list.filter(p => p.qty > 0 && p.qty <= 5);
+  if (activeStatFilter === 'zero')   list = list.filter(p => p.qty === 0);
+  if (activeStatFilter === 'vencer') list = list.filter(isExpiringSoon);
+
+  // Banner indicador de filtro ativo
+  const banner = activeStatFilter ? `
+    <div class="stat-filter-banner">
+      <span>🔍 Filtrando por: <strong>${filterLabels[activeStatFilter]}</strong> — ${list.length} produto(s)</span>
+      <button onclick="filterByStat('${activeStatFilter}')" title="Remover filtro">✕</button>
+    </div>` : '';
+  const bannerEl = document.getElementById('statFilterBanner');
+  if (bannerEl) bannerEl.innerHTML = banner;
+
   document.getElementById('prodGrid').innerHTML = list.map(p => {
     // Validade
     let expiryHTML = '', expiryCls = '';
