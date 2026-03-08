@@ -2564,9 +2564,8 @@ function updateSplitCalc() {
   const trocoSub  = document.getElementById('payTrocoSub');
   const btnConf   = document.getElementById('btnConfirmPayment');
 
-  // Moeda de exibição: se todas as linhas usam a mesma moeda, exibe nela; senão, USD
-  const moedasUsadas = [...new Set(splitPayRows.map(r => r.moeda))];
-  const displayMoeda = moedasUsadas.length === 1 ? moedasUsadas[0] : 'USD';
+  // Moeda de exibição: sempre a da primeira linha (moeda principal do pagamento)
+  const displayMoeda = splitPayRows.length > 0 ? splitPayRows[0].moeda : 'USD';
 
   if (hasInvalid) {
     summaryEl.style.display = 'flex';
