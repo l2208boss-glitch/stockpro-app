@@ -5195,19 +5195,20 @@ function printFacturaDupla(data, preWin) {
     </tr>
   </tfoot>
 </table>
-<div style="font-size:7.5px;margin-top:6px;color:#555;line-height:1.4">
-  ARTES GRÁFICAS NIÑO JESÚS S.R.L. - Matriz: Calle Boquerón entre Adrián Jara y Pa'i Pérez. entre Banco Visión y Banco Atlas N° 133 -
-  Suc: Santa Ana Calle Heriberto Matiauda E/ 28 de Julio y Primer Presidente a 30mts. de la "Iglesia el más Vencedor" -
-  RUC 80052469-1 - Telefax: 061-512551 - 03 Tal 50x3 del 0000401 al 0000550- 09/2025 - Cédula de Habilitación de Imprenta N° 1663
-</div>
 ${buildViaFooter(via)}`;
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Factura ${numFmt}</title>
 <style>
   @page { size: A4 portrait; margin: 10mm; }
+  @page :first { margin-top: 0; }
   * { box-sizing: border-box; margin:0; padding:0; }
-  body { font-family: Arial, sans-serif; font-size: 10.5px; color:#000; background:#fff; }
+  html { -webkit-print-color-adjust: exact; }
+  body { font-family: Arial, sans-serif; font-size: 10.5px; color:#000; background:#fff; padding: 10mm; }
+  @media print {
+    @page { margin: 0; }
+    body { padding: 10mm; }
+  }
   table { border-collapse: collapse; width:100%; }
   .red { color:#aa0000; }
   u { text-decoration: underline; }
@@ -5266,9 +5267,10 @@ function printFactura(data, via = 'ORIGINAL') {
   const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Factura ${numFmt}</title>
 <style>
-  @page { size: A4 portrait; margin: 10mm; }
+  @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; margin:0; padding:0; }
-  body { font-family: Arial, sans-serif; font-size: 10.5px; color:#000; background:#fff; }
+  html { -webkit-print-color-adjust: exact; }
+  body { font-family: Arial, sans-serif; font-size: 10.5px; color:#000; background:#fff; padding: 10mm; }
   table { border-collapse: collapse; width:100%; }
   .red { color:#aa0000; }
   u { text-decoration: underline; }
@@ -5366,12 +5368,6 @@ function printFactura(data, via = 'ORIGINAL') {
   </tfoot>
 </table>
 
-<!-- RODAPÉ IMPRENTA -->
-<div style="font-size:7.5px;margin-top:6px;color:#555;line-height:1.4">
-  ARTES GRÁFICAS NIÑO JESÚS S.R.L. - Matriz: Calle Boquerón entre Adrián Jara y Pa'i Pérez. entre Banco Visión y Banco Atlas N° 133 -
-  Suc: Santa Ana Calle Heriberto Matiauda E/ 28 de Julio y Primer Presidente a 30mts. de la "Iglesia el más Vencedor" -
-  RUC 80052469-1 - Telefax: 061-512551 - 03 Tal 50x3 del 0000401 al 0000550- 09/2025 - Cédula de Habilitación de Imprenta N° 1663
-</div>
 ${(()=>{
   const v = {
     ORIGINAL:   ['<strong style="border:1.5px solid #000;padding:1px 5px">ORIGINAL: Cliente</strong>', 'DUPLICADO: Arch. Tributario', 'TRIPLICADO: No válido C. Fiscal'],
