@@ -4825,7 +4825,7 @@ async function gerarFactura() {
     ? Math.round(totalMoneda * 5 / 105)
     : +(totalMoneda * 5 / 105).toFixed(2);
 
-  printFactura({
+  const factData = {
     numFactura: numEmitido,
     serie:  facturaConfig.serie || '001-001',
     fecha:  { dia: now.getDate(), mes: MESES[now.getMonth()], anio: String(now.getFullYear()).slice(2) },
@@ -4833,7 +4833,9 @@ async function gerarFactura() {
     cliente: { nombre, rucCi, direccion: dir, telefono: tel, notaRemision: notaRem },
     items, total: totalMoneda, iva5,
     totalEnLetras: numALetras(totalMoneda, moneda)
-  });
+  };
+  printFactura(factData, 'ORIGINAL');
+  printFactura(factData, 'DUPLICADO');
 
   // Registrar fatura emitida para controle mensal
   const fId  = Date.now();
@@ -4879,7 +4881,7 @@ function numALetras(n, moneda) {
   return _n2w(ent) + ' dólar' + (ent === 1 ? '' : 'es') + (cts ? ' con ' + cts + '/100 centavos' : '');
 }
 
-function printFactura(data) {
+function printFactura(data, via = 'ORIGINAL') {
   const numFmt = String(data.numFactura).padStart(7, '0');
   const isPyg  = data.moneda === 'PYG';
   const fmtN   = n => isPyg
@@ -5016,9 +5018,14 @@ function printFactura(data) {
   Suc: Santa Ana Calle Heriberto Matiauda E/ 28 de Julio y Primer Presidente a 30mts. de la "Iglesia el más Vencedor" -
   RUC 80052469-1 - Telefax: 061-512551 - 03 Tal 50x3 del 0000401 al 0000550- 09/2025 - Cédula de Habilitación de Imprenta N° 1663
 </div>
-<div style="font-size:8px;text-align:right;margin-top:5px">
-  ORIGINAL: Cliente &nbsp;&nbsp;&nbsp; DUPLICADO: Arch. Tributario &nbsp;&nbsp;&nbsp; TRIPLICADO: No válido C. Fiscal
-</div>
+${(()=>{
+  const v = {
+    ORIGINAL:   ['<strong style="border:1.5px solid #000;padding:1px 5px">ORIGINAL: Cliente</strong>', 'DUPLICADO: Arch. Tributario', 'TRIPLICADO: No válido C. Fiscal'],
+    DUPLICADO:  ['ORIGINAL: Cliente', '<strong style="border:1.5px solid #000;padding:1px 5px">DUPLICADO: Arch. Tributario</strong>', 'TRIPLICADO: No válido C. Fiscal'],
+    TRIPLICADO: ['ORIGINAL: Cliente', 'DUPLICADO: Arch. Tributario', '<strong style="border:1.5px solid #000;padding:1px 5px">TRIPLICADO: No válido C. Fiscal</strong>'],
+  }[via] || ['ORIGINAL: Cliente','DUPLICADO: Arch. Tributario','TRIPLICADO: No válido C. Fiscal'];
+  return `<div style="font-size:8px;text-align:right;margin-top:5px">${v.join(' &nbsp;&nbsp;&nbsp; ')}</div>`;
+})()}
 
 </body></html>`;
 
