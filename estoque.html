@@ -3923,6 +3923,7 @@ function confirmMov() {
   renderAll();
   closeOverlay('movOverlay');
   toast(`✅ ${movState.type==='entrada'?'Entrada':'Saída'} de ${qty} ${p.unit} — ${p.name}`, 'success');
+  flashConfirm(movState.type);
   saveQtyDelta(p.id, delta);
   saveHistoryEntry(entry);
 }
@@ -4213,6 +4214,7 @@ function confirmarLote() {
   renderAll();
   closeOverlay('loteOverlay');
   toast(`✅ ${Object.keys(consolidado).length} produto${Object.keys(consolidado).length > 1 ? 's' : ''} processado${Object.keys(consolidado).length > 1 ? 's' : ''}:\n${resumoItens.join('\n')}`, 'success');
+  flashConfirm(type);
 }
 
 /* ══════════════════════════════════════════
@@ -6242,6 +6244,18 @@ function toast(msg, type='') {
   el.className = `toast ${type}`; el.textContent = msg;
   wrap.appendChild(el);
   setTimeout(() => { el.style.transition='opacity .35s'; el.style.opacity='0'; setTimeout(()=>el.remove(),350); }, 3500);
+}
+function flashConfirm(tipo) {
+  if (user && user.role === 'admin') return; // admin já vê o histórico
+  const isIn = tipo === 'entrada';
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(22,163,74,.93);pointer-events:none;transition:opacity .4s';
+  el.innerHTML = `
+    <div style="font-size:clamp(56px,15vw,96px);line-height:1">${isIn ? '📦' : '📤'}</div>
+    <div style="color:#fff;font-size:clamp(22px,5vw,38px);font-weight:900;margin-top:16px;letter-spacing:.5px">${isIn ? 'ENTRADA CONFIRMADA' : 'SAÍDA CONFIRMADA'}</div>
+    <div style="color:rgba(255,255,255,.8);font-size:16px;margin-top:8px">✅ Salvo com sucesso</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 1600);
 }
 </script>
 </body>
