@@ -2561,6 +2561,10 @@ function updateSplitCalc() {
   const trocoSub  = document.getElementById('payTrocoSub');
   const btnConf   = document.getElementById('btnConfirmPayment');
 
+  // Moeda de exibição: se todas as linhas usam a mesma moeda, exibe nela; senão, USD
+  const moedasUsadas = [...new Set(splitPayRows.map(r => r.moeda))];
+  const displayMoeda = moedasUsadas.length === 1 ? moedasUsadas[0] : 'USD';
+
   if (hasInvalid) {
     summaryEl.style.display = 'flex';
     pssTotal.textContent = '—';
@@ -2570,9 +2574,15 @@ function updateSplitCalc() {
     return;
   }
 
+  // Antes de digitar qualquer valor: mostra o total a cobrar na moeda selecionada
   if (totalPagoUSD <= 0) {
     summaryEl.style.display = 'none';
-    trocoBox.style.display = 'none';
+    trocoBox.style.display = 'flex';
+    trocoBox.className = 'pay-troco-box negative';
+    trocoLabel.textContent = 'Total a cobrar';
+    trocoSub.style.display = 'none';
+    trocoVal.textContent = fromUSD(displayMoeda, total);
+    pssResta.textContent = '';
     btnConf.disabled = true;
     return;
   }
@@ -2584,10 +2594,6 @@ function updateSplitCalc() {
   trocoBox.style.display = 'flex';
 
   const { marginPct, effectiveMax, hasAllCosts } = calculateCartMargin();
-
-  // Moeda de exibição: se todas as linhas usam a mesma moeda, exibe nela; senão, USD
-  const moedasUsadas = [...new Set(splitPayRows.map(r => r.moeda))];
-  const displayMoeda = moedasUsadas.length === 1 ? moedasUsadas[0] : 'USD';
 
   if (trocoUSD >= -0.001) {
     trocoBox.className = 'pay-troco-box';
@@ -2647,6 +2653,7 @@ function openPaymentModal() {
   // Inicializa com 1 linha USD
   splitPayRows = [{ moeda: 'USD', valor: 0 }];
   renderSplitRows();
+  updateSplitCalc(); // mostra total na moeda selecionada desde o início
   document.getElementById('paymentModal').classList.add('on');
   setTimeout(() => { const inp = document.querySelector('.spr-inp'); if (inp) inp.focus(); }, 120);
 }
@@ -3163,14 +3170,12 @@ async function fixPricesToVenda() {
       const venda = parseFloat(String(p.venda).replace(',', '.')) || 0;
       if (custo <= 0) continue;
 
+      // Só migra o caso custo>0 && venda=0 (import antigo colocou preco em campo errado)
+      // Se custo>0 && venda>0 → produto legítimo com custo cadastrado, NÃO mexer
       if (venda === 0) {
-        // custo > 0 e venda = 0 → mover custo para venda
         batch.update(col('produtos').doc(String(p.id)), { venda: custo, custo: 0 });
-      } else {
-        // custo > 0 e venda > 0 → custo residual do import antigo, limpar
-        batch.update(col('produtos').doc(String(p.id)), { custo: 0 });
+        total++;
       }
-      total++;
       if (++count >= BATCH_SIZE) { await batch.commit(); batch = db.batch(); count = 0; }
     }
 
