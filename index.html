@@ -1048,6 +1048,17 @@
     </div>
   </div>
 
+  <!-- Controle mensal de faturas (Farmácia + admin only) -->
+  <div id="facturasBlock" style="display:none;margin-bottom:24px">
+    <div class="sec-hd" style="padding:0 0 12px">
+      <div>
+        <div class="sec-title">🧾 Faturas Emitidas — <span id="facturasMesLabel"></span></div>
+        <div class="sec-sub">Somente faturas concluídas e impressas neste mês</div>
+      </div>
+    </div>
+    <div id="facturasResumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px"></div>
+  </div>
+
   <!-- Histórico de vendas (admin only) -->
   <div class="vendas-block" id="vendasBlock" style="display:none">
     <div class="sec-hd" style="padding:0 0 16px">
@@ -1846,9 +1857,10 @@ function stopListeners() {
   if (unsubProducts) { unsubProducts(); unsubProducts = null; }
   if (unsubHistory)  { unsubHistory();  unsubHistory  = null; }
   if (unsubPhotos)   { unsubPhotos();   unsubPhotos   = null; }
-  if (unsubCotacao)  { unsubCotacao();  unsubCotacao  = null; }
-  if (unsubVendas)   { unsubVendas();   unsubVendas   = null; }
-  if (unsubProducao) { unsubProducao(); unsubProducao = null; }
+  if (unsubCotacao)   { unsubCotacao();   unsubCotacao   = null; }
+  if (unsubVendas)    { unsubVendas();    unsubVendas    = null; }
+  if (unsubFacturas)  { unsubFacturas();  unsubFacturas  = null; }
+  if (unsubProducao)  { unsubProducao();  unsubProducao  = null; }
   producoes = [];
   if (producaoChart)   { producaoChart.destroy();   producaoChart   = null; }
   if (producaoOpChart) { producaoOpChart.destroy(); producaoOpChart = null; }
@@ -2117,8 +2129,9 @@ function enterMode(mode) {
 }
 
 function backToModeSelect() {
-  if (unsubCotacao) { unsubCotacao(); unsubCotacao = null; }
-  if (unsubVendas)  { unsubVendas();  unsubVendas  = null; }
+  if (unsubCotacao)  { unsubCotacao();  unsubCotacao  = null; }
+  if (unsubVendas)   { unsubVendas();   unsubVendas   = null; }
+  if (unsubFacturas) { unsubFacturas(); unsubFacturas = null; }
   cart = []; vendas = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('app').style.display = 'none';
@@ -2380,8 +2393,9 @@ async function seedUsers() {
    CAIXA — COTAÇÃO
 ══════════════════════════════════════════ */
 function setupCaixaListeners() {
-  if (unsubCotacao) { unsubCotacao(); unsubCotacao = null; }
-  if (unsubVendas)  { unsubVendas();  unsubVendas  = null; }
+  if (unsubCotacao)  { unsubCotacao();  unsubCotacao  = null; }
+  if (unsubVendas)   { unsubVendas();   unsubVendas   = null; }
+  if (unsubFacturas) { unsubFacturas(); unsubFacturas = null; }
 
   const today = new Date().toISOString().slice(0,10);
   unsubCotacao = col('cotacao').doc('atual').onSnapshot(snap => {
@@ -2397,6 +2411,17 @@ function setupCaixaListeners() {
     vendas = snap.docs.map(d => d.data());
     renderVendas();
   }, console.error);
+
+  if (currentFilial && currentFilial.id === FARMACIA_ID) {
+    if (unsubFacturas) { unsubFacturas(); unsubFacturas = null; }
+    const mes = new Date().toISOString().slice(0,7);
+    unsubFacturas = db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`)
+      .where('mes','==',mes)
+      .onSnapshot(snap => {
+        facturasEmitidas = snap.docs.map(d => d.data());
+        renderFacturasResumo();
+      }, console.error);
+  }
 }
 
 function renderCotacaoBar() {
@@ -2546,8 +2571,10 @@ const GPP_EMPRESA = {
     'Comercio al Por Menor de Productos Farmacéuticos de Uso Humano'
   ]
 };
-let facturaConfig = { nextNum: 532, serie: '001-001' };
-let facturaVenda  = null;
+let facturaConfig   = { nextNum: 532, serie: '001-001' };
+let facturaVenda    = null;
+let facturasEmitidas = [];
+let unsubFacturas   = null;
 
 const SPR_LABELS = { USD:'$ Dólar', BRL:'R$ Dinheiro', PIX:'📱 PIX', PYG:'₲ Guarani' };
 const SPR_SYMB   = { USD:'$', BRL:'R$ ', PIX:'R$ ', PYG:'₲ ' };
@@ -4485,6 +4512,34 @@ function clearVendas() {
   }).catch(console.error);
 }
 
+function renderFacturasResumo() {
+  const block  = document.getElementById('facturasBlock');
+  const resumo = document.getElementById('facturasResumo');
+  const label  = document.getElementById('facturasMesLabel');
+  if (!block || !resumo) return;
+
+  const isFarmacia = currentFilial && currentFilial.id === FARMACIA_ID;
+  const isAdmin    = user && user.role === 'admin';
+  block.style.display = (isFarmacia && isAdmin) ? '' : 'none';
+  if (!isFarmacia || !isAdmin) return;
+
+  const mes = new Date().toISOString().slice(0,7);
+  if (label) label.textContent = mes;
+
+  const totalUSD = facturasEmitidas.reduce((s, f) => s + (f.totalUSD || 0), 0);
+  const count    = facturasEmitidas.length;
+
+  const card = (icon, lbl, val, color) =>
+    `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm)">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${icon} ${lbl}</div>
+      <div style="font-size:20px;font-weight:900;color:${color||'var(--text)'}">${val}</div>
+    </div>`;
+
+  resumo.innerHTML =
+    card('🧾', 'Faturas emitidas', count, 'var(--primary)') +
+    card('💵', 'Total USD faturado', `$${totalUSD.toFixed(2)}`, 'var(--success)');
+}
+
 /* ══════════════════════════════════════════
    FACTURA PARAGUAYA — exclusivo Farmácia
 ══════════════════════════════════════════ */
@@ -4595,6 +4650,18 @@ async function gerarFactura() {
     items, total: totalMoneda, iva5,
     totalEnLetras: numALetras(totalMoneda, moneda)
   });
+
+  // Registrar fatura emitida para controle mensal
+  const fId  = Date.now();
+  const fMes = new Date().toISOString().slice(0,7);
+  db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
+    id: fId,
+    ts: new Date().toISOString(),
+    mes: fMes,
+    totalUSD: facturaVenda.totalUSD,
+    numFactura: numEmitido,
+    clienteNombre: nombre
+  }).catch(console.error);
 
   closeOverlay('facturaModal');
 }
