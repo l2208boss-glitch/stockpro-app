@@ -6199,7 +6199,7 @@ async function savePagamentoFornecedor() {
     batch.update(
       db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(c.id)),
       { totalPago: novoTotal,
-        pagamentos: [...(c.pagamentos||[]), { id: Date.now()+Math.random(), valor: pagar, data, obs }],
+        pagamentos: firebase.firestore.FieldValue.arrayUnion({ id: Date.now() + Math.random(), valor: pagar, data, obs }),
         status: quitado ? 'pago' : 'aberto',
         updatedAt: new Date().toISOString() }
     );
