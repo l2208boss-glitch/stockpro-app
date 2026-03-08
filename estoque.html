@@ -2535,6 +2535,48 @@ function renderSplitRows() {
   }).join('');
 }
 
+// Formata um valor na moeda de exibição (sem converter — valor já está na moeda)
+function fmtDisplayAmt(moeda, val) {
+  const abs = Math.abs(val);
+  if (moeda === 'BRL' || moeda === 'PIX') return `R$ ${abs.toFixed(2)}`;
+  if (moeda === 'PYG') return `₲ ${Math.round(abs).toLocaleString('pt-BR')}`;
+  return `$${abs.toFixed(2)}`;
+}
+
+// Calcula quanto foi pago e a diferença DIRETAMENTE na moeda de exibição.
+// BRL e PIX são tratados como o mesmo "R$" — somam valores nominais sem
+// passar por USD, evitando distorção de taxas diferentes.
+// Retorna { totalDisplay, paidDisplay, diff } ou null se cotação inválida.
+function calcDisplayAmounts(displayMoeda, totalUSD) {
+  const today = new Date().toISOString().slice(0,10);
+  const ok = cotacao.date === today;
+  let rate;
+  if      (displayMoeda === 'USD') rate = 1;
+  else if (displayMoeda === 'BRL' || displayMoeda === 'PIX') rate = ok && cotacao.brl > 0 ? cotacao.brl : null;
+  else if (displayMoeda === 'PYG') rate = ok && cotacao.pyg > 0 ? cotacao.pyg : null;
+  else rate = null;
+  if (rate === null) return null;
+
+  const isReal = m => m === 'BRL' || m === 'PIX';
+  const totalDisplay = totalUSD * rate;
+  let paidDisplay = 0;
+  for (const row of splitPayRows) {
+    if (!row.valor || row.valor <= 0) continue;
+    if (isReal(displayMoeda) && isReal(row.moeda)) {
+      // BRL e PIX são ambos "R$": soma nominal direto
+      paidDisplay += row.valor;
+    } else if (row.moeda === displayMoeda) {
+      paidDisplay += row.valor;
+    } else {
+      // Moeda diferente: converte via USD
+      const rowUSD = toUSD(row.moeda, row.valor);
+      if (rowUSD === null) return null;
+      paidDisplay += rowUSD * rate;
+    }
+  }
+  return { totalDisplay, paidDisplay, diff: totalDisplay - paidDisplay };
+}
+
 function updateSplitCalc() {
   const total = cart.reduce((s,x) => s + x.qty * x.precoUSD, 0);
   let totalPagoUSD = 0, hasInvalid = false;
@@ -2567,6 +2609,9 @@ function updateSplitCalc() {
   // Moeda de exibição: sempre a da primeira linha (moeda principal do pagamento)
   const displayMoeda = splitPayRows.length > 0 ? splitPayRows[0].moeda : 'USD';
 
+  // Cálculo direto na moeda de exibição (BRL+PIX = mesmo R$, sem distorção de taxa)
+  const da = calcDisplayAmounts(displayMoeda, total);
+
   if (hasInvalid) {
     summaryEl.style.display = 'flex';
     pssTotal.textContent = '—';
@@ -2583,14 +2628,15 @@ function updateSplitCalc() {
     trocoBox.className = 'pay-troco-box negative';
     trocoLabel.textContent = 'Total a cobrar';
     trocoSub.style.display = 'none';
-    trocoVal.textContent = fromUSD(displayMoeda, total);
+    trocoVal.textContent = da ? fmtDisplayAmt(displayMoeda, da.totalDisplay) : fromUSD(displayMoeda, total);
     pssResta.textContent = '';
     btnConf.disabled = true;
     return;
   }
 
+  // "Pago:" — mostrar na mesma moeda que o "Falta", para consistência visual
   summaryEl.style.display = 'flex';
-  pssTotal.textContent = `$${totalPagoUSD.toFixed(2)}`;
+  pssTotal.textContent = da ? fmtDisplayAmt(displayMoeda, da.paidDisplay) : `$${totalPagoUSD.toFixed(2)}`;
 
   const trocoUSD = totalPagoUSD - total;
   trocoBox.style.display = 'flex';
@@ -2601,13 +2647,15 @@ function updateSplitCalc() {
     trocoBox.className = 'pay-troco-box';
     trocoLabel.textContent = 'Troco';
     trocoSub.style.display = 'none';
-    trocoVal.textContent = fromUSD(displayMoeda, Math.max(0, trocoUSD));
+    // Troco: da.diff é negativo quando paidDisplay > totalDisplay
+    trocoVal.textContent = da ? fmtDisplayAmt(displayMoeda, Math.max(0, -(da.diff))) : fromUSD(displayMoeda, Math.max(0, trocoUSD));
     pssResta.textContent = '';
     btnConf.disabled = false;
   } else {
     const descontoPct = ((-trocoUSD) / total) * 100;
     const dentroLimite = descontoPct <= effectiveMax + 0.01;
-    const faltaStr = fromUSD(displayMoeda, -trocoUSD);
+    // Falta: da.diff é positivo quando paidDisplay < totalDisplay
+    const faltaStr = da ? fmtDisplayAmt(displayMoeda, Math.max(0, da.diff)) : fromUSD(displayMoeda, -trocoUSD);
     trocoBox.className = 'pay-troco-box ' + (dentroLimite ? 'discount' : 'negative');
     trocoLabel.textContent = dentroLimite ? '🏷️ Desconto' : '🚫 Limite excedido';
     trocoVal.textContent = `${descontoPct.toFixed(1)}%`;
