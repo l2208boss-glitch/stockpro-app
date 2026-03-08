@@ -4978,6 +4978,10 @@ async function gerarFactura() {
     toast('⚠️ Cotação PYG não definida. Use US$.', 'error'); return;
   }
 
+  // Abre a janela ANTES do await (gesto do usuário ainda ativo — evita popup bloqueado)
+  const printWin = window.open('', '_blank', 'width=820,height=900,scrollbars=yes');
+  if (!printWin) { toast('⚠️ Popup bloqueado. Permita popups para imprimir.', 'error'); return; }
+
   // Reservar número e incrementar
   const numEmitido = facturaConfig.nextNum || 532;
   const proximo    = numEmitido + 1;
@@ -5038,7 +5042,7 @@ async function gerarFactura() {
     }).catch(console.error);
   };
 
-  printFacturaDupla(factData);
+  printFacturaDupla(factData, printWin);
   closeOverlay('facturaModal');
 }
 
@@ -5071,7 +5075,7 @@ function numALetras(n, moneda) {
   return _n2w(ent) + ' dólar' + (ent === 1 ? '' : 'es') + (cts ? ' con ' + cts + '/100 centavos' : '');
 }
 
-function printFacturaDupla(data) {
+function printFacturaDupla(data, preWin) {
   const numFmt = String(data.numFactura).padStart(7, '0');
   const isPyg  = data.moneda === 'PYG';
   const fmtN   = n => isPyg
@@ -5224,7 +5228,7 @@ window.onafterprint = function() {
 <\/script>
 </body></html>`;
 
-  const w = window.open('', '_blank', 'width=820,height=900,scrollbars=yes');
+  const w = preWin || window.open('', '_blank', 'width=820,height=900,scrollbars=yes');
   if (!w) { toast('⚠️ Popup bloqueado. Permita popups para imprimir.', 'error'); return; }
   w.document.write(html);
   w.document.close();
