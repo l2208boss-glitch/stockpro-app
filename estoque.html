@@ -6003,7 +6003,7 @@ function renderComprasList() {
         const fatura = c.temFatura ? ' 🧾' : '';
         const pagsList = (c.pagamentos||[]).length
           ? `<div style="margin-top:6px;border-top:1px dashed var(--border);padding-top:4px">
-              ${(c.pagamentos||[]).sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(p=>`
+              ${(c.pagamentos||[]).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(p=>`
                 <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);padding:1px 0">
                   <span>💵 ${p.data||'—'}${p.obs ? ' · '+p.obs : ''}</span>
                   <span style="font-weight:600;color:var(--success);margin-left:8px">-${fmtMoeda(p.valor,c.moeda||'USD')}</span>
@@ -6176,44 +6176,64 @@ function abrirPagamentoFornecedor(fornecedor, moeda) {
 async function savePagamentoFornecedor() {
   const fornecedor = pagamentoFornId;
   const valor = parseMoedaInput(document.getElementById('pagamentoFornValor').value);
-  const data  = document.getElementById('pagamentoFornData').value;
+  const dataPag = document.getElementById('pagamentoFornData').value;
   const obs   = document.getElementById('pagamentoFornObs').value.trim();
-  if (isNaN(valor) || valor <= 0) return toast('Informe o valor pago', 'error');
-  if (!data) return toast('Informe a data', 'error');
+  if (!valor || valor <= 0) return toast('Informe o valor pago', 'error');
+  if (!dataPag) return toast('Informe a data', 'error');
 
-  // FIFO: quita as compras mais antigas primeiro
+  // IDs das compras em aberto deste fornecedor (ordem FIFO por data)
   const abertas = compras
     .filter(c => c.fornecedor === fornecedor && c.status === 'aberto')
     .sort((a,b) => (a.data||a.ts||'').localeCompare(b.data||b.ts||''));
+  if (!abertas.length) return toast('Nenhuma compra em aberto', 'error');
 
-  let restante = valor;
+  const col = db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`);
+  const refs = abertas.map(c => col.doc(String(c.id)));
+
   let quitadas = 0;
-  const batch  = db.batch();
-  for (const c of abertas) {
-    if (restante <= 0) break;
-    const saldo     = (c.total||0) - (c.totalPago||0);
-    const pagar     = Math.min(restante, saldo);
-    const novoTotal = (c.totalPago||0) + pagar;
-    const quitado   = novoTotal >= (c.total||0);
-    if (quitado) quitadas++;
-    batch.update(
-      db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(c.id)),
-      { totalPago: novoTotal,
-        pagamentos: firebase.firestore.FieldValue.arrayUnion({ id: Date.now() + Math.random(), valor: pagar, data, obs }),
-        status: quitado ? 'pago' : 'aberto',
-        updatedAt: new Date().toISOString() }
-    );
-    restante -= pagar;
+  let restante = valor;
+  let mo = abertas[0]?.moeda || 'USD';
+
+  try {
+    await db.runTransaction(async t => {
+      // Lê estado atual do servidor para cada compra
+      const snaps = await Promise.all(refs.map(r => t.get(r)));
+      restante = valor;
+      quitadas = 0;
+      for (let i = 0; i < snaps.length; i++) {
+        if (restante <= 0) break;
+        const snap = snaps[i];
+        if (!snap.exists) continue;
+        const d = snap.data();
+        if (d.status !== 'aberto') continue;
+        const saldo    = (d.total||0) - (d.totalPago||0);
+        if (saldo <= 0) continue;
+        const pagar    = Math.min(restante, saldo);
+        const novoTotal = (d.totalPago||0) + pagar;
+        const quitado  = novoTotal >= (d.total||0);
+        if (quitado) quitadas++;
+        const novoPag  = { id: Date.now() + i + Math.random(), valor: pagar, data: dataPag, obs };
+        t.update(refs[i], {
+          totalPago: novoTotal,
+          pagamentos: [...(d.pagamentos||[]), novoPag],
+          status: quitado ? 'pago' : 'aberto',
+          updatedAt: new Date().toISOString()
+        });
+        restante -= pagar;
+        mo = d.moeda || mo;
+      }
+    });
+    closeOverlay('pagamentoFornModal');
+    const msg = quitadas === abertas.length
+      ? `✅ Fornecedor quitado!`
+      : quitadas > 0
+        ? `✅ ${quitadas} quitada(s). Restante: ${fmtMoeda(Math.max(restante,0), mo)}`
+        : `💵 Pagamento de ${fmtMoeda(valor, mo)} registrado!`;
+    toast(msg, 'success');
+  } catch(e) {
+    console.error(e);
+    toast('Erro ao registrar pagamento: ' + e.message, 'error');
   }
-  await batch.commit().catch(console.error);
-  closeOverlay('pagamentoFornModal');
-  const mo  = abertas[0]?.moeda || 'USD';
-  const msg = quitadas === abertas.length
-    ? `✅ Fornecedor quitado!`
-    : quitadas > 0
-      ? `✅ ${quitadas} compra(s) quitada(s). Saldo restante: ${fmtMoeda(restante > 0 ? restante : 0, mo)}`
-      : `💵 Abono registrado!`;
-  toast(msg, 'success');
 }
 
 function toast(msg, type='') {
