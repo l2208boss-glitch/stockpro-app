@@ -1082,6 +1082,7 @@
       </div>
     </div>
     <div id="facturasResumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px"></div>
+    <div id="facturasLista" style="margin-top:16px"></div>
   </div>
 
   <!-- Histórico de vendas (admin only) -->
@@ -4722,6 +4723,34 @@ function renderFacturasResumo() {
   resumo.innerHTML =
     card('🧾', 'Faturas emitidas', count, 'var(--primary)') +
     card('💵', 'Total USD faturado', `$${totalUSD.toFixed(2)}`, 'var(--success)');
+
+  const lista = document.getElementById('facturasLista');
+  if (!lista) return;
+  if (!facturasEmitidas.length) { lista.innerHTML = ''; return; }
+  const sorted = [...facturasEmitidas].sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
+  lista.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:2px solid var(--border)">
+      <th style="padding:8px 10px;text-align:left;color:var(--text-3);font-size:11px">N° FATURA</th>
+      <th style="padding:8px 10px;text-align:left;color:var(--text-3);font-size:11px">CLIENTE</th>
+      <th style="padding:8px 10px;text-align:right;color:var(--text-3);font-size:11px">TOTAL USD</th>
+      <th style="padding:8px 10px;text-align:left;color:var(--text-3);font-size:11px">DATA/HORA</th>
+      <th style="padding:8px 10px"></th>
+    </tr></thead>
+    <tbody>${sorted.map(f => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 10px;font-weight:700">${String(f.numFactura||'—').padStart(7,'0')}</td>
+      <td style="padding:8px 10px">${f.clienteNombre||'—'}</td>
+      <td style="padding:8px 10px;text-align:right">$${Number(f.totalUSD||0).toFixed(2)}</td>
+      <td style="padding:8px 10px;color:var(--text-3);font-size:12px">${f.ts ? new Date(f.ts).toLocaleString('pt-BR') : '—'}</td>
+      <td style="padding:8px 10px;text-align:center">
+        <button onclick="deleteFactura('${f.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Excluir registro">🗑</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function deleteFactura(id) {
+  if (!confirm('Excluir este registro de fatura?')) return;
+  await db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(id)).delete().catch(console.error);
 }
 
 /* ══════════════════════════════════════════
@@ -4834,20 +4863,22 @@ async function gerarFactura() {
     items, total: totalMoneda, iva5,
     totalEnLetras: numALetras(totalMoneda, moneda)
   };
+  // Registrar fatura somente após confirmar impressão (onafterprint no popup)
+  const _totalUSD = facturaVenda.totalUSD;
+  window.__facturaCallback__ = function() {
+    const fId  = Date.now();
+    const fMes = new Date().toISOString().slice(0,7);
+    db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
+      id: fId,
+      ts: new Date().toISOString(),
+      mes: fMes,
+      totalUSD: _totalUSD,
+      numFactura: numEmitido,
+      clienteNombre: nombre
+    }).catch(console.error);
+  };
+
   printFacturaDupla(factData);
-
-  // Registrar fatura emitida para controle mensal
-  const fId  = Date.now();
-  const fMes = new Date().toISOString().slice(0,7);
-  db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
-    id: fId,
-    ts: new Date().toISOString(),
-    mes: fMes,
-    totalUSD: facturaVenda.totalUSD,
-    numFactura: numEmitido,
-    clienteNombre: nombre
-  }).catch(console.error);
-
   closeOverlay('facturaModal');
 }
 
@@ -5021,6 +5052,16 @@ ${buildViaFooter(via)}`;
 </style></head><body>
 <div class="page-break">${buildCopy('ORIGINAL')}</div>
 ${buildCopy('DUPLICADO')}
+<script>
+window.onafterprint = function() {
+  try {
+    if (window.opener && !window.opener.closed && typeof window.opener.__facturaCallback__ === 'function') {
+      window.opener.__facturaCallback__();
+      window.opener.__facturaCallback__ = null;
+    }
+  } catch(e) {}
+};
+</script>
 </body></html>`;
 
   const w = window.open('', '_blank', 'width=820,height=900,scrollbars=yes');
