@@ -5082,17 +5082,17 @@ function printFacturaDupla(data, preWin) {
     ? new Intl.NumberFormat('es-PY', {maximumFractionDigits:0}).format(n)
     : new Intl.NumberFormat('es-PY', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n);
 
-  const blankRows = Array(Math.max(0, 8 - data.items.length))
-    .fill('<tr><td style="padding:5px">&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>')
+  const blankRows = Array(Math.max(0, 16 - data.items.length))
+    .fill('<tr style="height:27px"><td style="border-right:0.8px solid #555">&nbsp;</td><td style="border-right:0.8px solid #555"></td><td style="border-right:0.8px solid #555"></td><td style="border-right:0.8px solid #555"></td><td style="border-right:0.8px solid #555"></td><td></td></tr>')
     .join('');
   const itemsHtml = data.items.map(i => `
     <tr>
-      <td style="text-align:center;border-right:0.8px solid #555;padding:5px 3px">${i.qty}</td>
-      <td style="border-right:0.8px solid #555;padding:5px">${i.name}</td>
-      <td style="text-align:right;border-right:0.8px solid #555;padding:5px">${fmtN(i.precioUnit)}</td>
-      <td style="border-right:0.8px solid #555;padding:5px"></td>
-      <td style="text-align:right;border-right:0.8px solid #555;padding:5px">${fmtN(i.subtotal)}</td>
-      <td style="padding:5px"></td>
+      <td style="text-align:center;border-right:0.8px solid #555;padding:10px 3px">${i.qty}</td>
+      <td style="border-right:0.8px solid #555;padding:10px 6px">${i.name}</td>
+      <td style="text-align:right;border-right:0.8px solid #555;padding:10px 6px">${fmtN(i.precioUnit)}</td>
+      <td style="border-right:0.8px solid #555;padding:10px 6px"></td>
+      <td style="text-align:right;border-right:0.8px solid #555;padding:10px 6px">${fmtN(i.subtotal)}</td>
+      <td style="padding:10px 6px"></td>
     </tr>`).join('') + blankRows;
   const condHtml = data.condicion === 'contado'
     ? '<strong>☑ Contado</strong> &nbsp;□ Crédito'
@@ -5112,27 +5112,27 @@ function printFacturaDupla(data, preWin) {
   const buildCopy = via => `
 <table style="border:1.5px solid #000">
   <tr>
-    <td style="width:175px;padding:8px 10px;vertical-align:middle">
-      <div style="font-size:32px;font-weight:900;font-style:italic;font-family:Georgia,serif;line-height:1">
+    <td style="width:195px;padding:10px 12px;vertical-align:middle">
+      <div style="font-size:40px;font-weight:900;font-style:italic;font-family:Georgia,serif;line-height:1">
         <span class="red">†</span>GPP
       </div>
     </td>
-    <td style="padding:6px 10px;text-align:center;font-size:9px;vertical-align:top;line-height:1.5">
+    <td style="padding:8px 12px;text-align:center;font-size:11px;vertical-align:top;line-height:1.7">
       <div><strong>De: ${GPP_EMPRESA.nombre}</strong></div>
       ${GPP_EMPRESA.actividades.map(a=>`<div>${a}</div>`).join('')}
-      <div style="margin-top:5px">${GPP_EMPRESA.direccion} - ${GPP_EMPRESA.ciudad}</div>
+      <div style="margin-top:6px">${GPP_EMPRESA.direccion} - ${GPP_EMPRESA.ciudad}</div>
       <div>Cel.: ${GPP_EMPRESA.telefono}</div>
     </td>
-    <td style="width:175px;border-left:1.5px solid #000;padding:6px 8px;text-align:center;vertical-align:top;line-height:1.6">
-      <div style="font-size:9px">TIMBRADO N°</div>
-      <div style="font-size:13px;font-weight:bold">${GPP_EMPRESA.timbrado}</div>
-      <div style="font-size:9px">R.U.C. N°</div>
-      <div style="font-size:13px;font-weight:bold">${GPP_EMPRESA.ruc}</div>
-      <div style="font-size:8.5px">Fecha Inicio Vigencia ${GPP_EMPRESA.vigenciaInicio}</div>
-      <div style="font-size:8.5px">Fecha Fin Vigencia ${GPP_EMPRESA.vigenciaFin}</div>
-      <div class="red" style="font-size:19px;font-weight:900;margin-top:3px">FACTURA</div>
-      <div style="font-size:10px">${data.serie}</div>
-      <div class="red" style="font-size:22px;font-weight:900;letter-spacing:2px">${numFmt}</div>
+    <td style="width:195px;border-left:1.5px solid #000;padding:8px 10px;text-align:center;vertical-align:top;line-height:1.7">
+      <div style="font-size:11px">TIMBRADO N°</div>
+      <div style="font-size:16px;font-weight:bold">${GPP_EMPRESA.timbrado}</div>
+      <div style="font-size:11px">R.U.C. N°</div>
+      <div style="font-size:16px;font-weight:bold">${GPP_EMPRESA.ruc}</div>
+      <div style="font-size:10.5px">Fecha Inicio Vigencia ${GPP_EMPRESA.vigenciaInicio}</div>
+      <div style="font-size:10.5px">Fecha Fin Vigencia ${GPP_EMPRESA.vigenciaFin}</div>
+      <div class="red" style="font-size:23px;font-weight:900;margin-top:4px">FACTURA</div>
+      <div style="font-size:12px">${data.serie}</div>
+      <div class="red" style="font-size:27px;font-weight:900;letter-spacing:2px">${numFmt}</div>
     </td>
   </tr>
 </table>
@@ -5204,7 +5204,7 @@ ${buildViaFooter(via)}`;
   @page :first { margin-top: 0; }
   * { box-sizing: border-box; margin:0; padding:0; }
   html { -webkit-print-color-adjust: exact; }
-  body { font-family: Arial, sans-serif; font-size: 10.5px; color:#000; background:#fff; padding: 10mm; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color:#000; background:#fff; padding: 10mm; }
   @media print {
     @page { margin: 0; }
     body { padding: 10mm; }
@@ -5243,18 +5243,18 @@ function printFactura(data, via = 'ORIGINAL') {
     ? new Intl.NumberFormat('es-PY', {maximumFractionDigits:0}).format(n)
     : new Intl.NumberFormat('es-PY', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n);
 
-  const blankRows = Array(Math.max(0, 8 - data.items.length))
-    .fill('<tr><td style="padding:5px">&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>')
+  const blankRows = Array(Math.max(0, 16 - data.items.length))
+    .fill('<tr style="height:27px"><td style="border-right:0.8px solid #555">&nbsp;</td><td style="border-right:0.8px solid #555"></td><td style="border-right:0.8px solid #555"></td><td style="border-right:0.8px solid #555"></td><td style="border-right:0.8px solid #555"></td><td></td></tr>')
     .join('');
 
   const itemsHtml = data.items.map(i => `
     <tr>
-      <td style="text-align:center;border-right:0.8px solid #555;padding:5px 3px">${i.qty}</td>
-      <td style="border-right:0.8px solid #555;padding:5px">${i.name}</td>
-      <td style="text-align:right;border-right:0.8px solid #555;padding:5px">${fmtN(i.precioUnit)}</td>
-      <td style="border-right:0.8px solid #555;padding:5px"></td>
-      <td style="text-align:right;border-right:0.8px solid #555;padding:5px">${fmtN(i.subtotal)}</td>
-      <td style="padding:5px"></td>
+      <td style="text-align:center;border-right:0.8px solid #555;padding:10px 3px">${i.qty}</td>
+      <td style="border-right:0.8px solid #555;padding:10px 6px">${i.name}</td>
+      <td style="text-align:right;border-right:0.8px solid #555;padding:10px 6px">${fmtN(i.precioUnit)}</td>
+      <td style="border-right:0.8px solid #555;padding:10px 6px"></td>
+      <td style="text-align:right;border-right:0.8px solid #555;padding:10px 6px">${fmtN(i.subtotal)}</td>
+      <td style="padding:10px 6px"></td>
     </tr>`).join('') + blankRows;
 
   const condHtml = data.condicion === 'contado'
@@ -5270,7 +5270,7 @@ function printFactura(data, via = 'ORIGINAL') {
   @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; margin:0; padding:0; }
   html { -webkit-print-color-adjust: exact; }
-  body { font-family: Arial, sans-serif; font-size: 10.5px; color:#000; background:#fff; padding: 10mm; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color:#000; background:#fff; padding: 10mm; }
   table { border-collapse: collapse; width:100%; }
   .red { color:#aa0000; }
   u { text-decoration: underline; }
@@ -5280,27 +5280,27 @@ function printFactura(data, via = 'ORIGINAL') {
 <!-- CABEÇALHO -->
 <table style="border:1.5px solid #000">
   <tr>
-    <td style="width:175px;padding:8px 10px;vertical-align:middle">
-      <div style="font-size:32px;font-weight:900;font-style:italic;font-family:Georgia,serif;line-height:1">
+    <td style="width:195px;padding:10px 12px;vertical-align:middle">
+      <div style="font-size:40px;font-weight:900;font-style:italic;font-family:Georgia,serif;line-height:1">
         <span class="red">†</span>GPP
       </div>
     </td>
-    <td style="padding:6px 10px;text-align:center;font-size:9px;vertical-align:top;line-height:1.5">
+    <td style="padding:8px 12px;text-align:center;font-size:11px;vertical-align:top;line-height:1.7">
       <div><strong>De: ${GPP_EMPRESA.nombre}</strong></div>
       ${GPP_EMPRESA.actividades.map(a=>`<div>${a}</div>`).join('')}
-      <div style="margin-top:5px">${GPP_EMPRESA.direccion} - ${GPP_EMPRESA.ciudad}</div>
+      <div style="margin-top:6px">${GPP_EMPRESA.direccion} - ${GPP_EMPRESA.ciudad}</div>
       <div>Cel.: ${GPP_EMPRESA.telefono}</div>
     </td>
-    <td style="width:175px;border-left:1.5px solid #000;padding:6px 8px;text-align:center;vertical-align:top;line-height:1.6">
-      <div style="font-size:9px">TIMBRADO N°</div>
-      <div style="font-size:13px;font-weight:bold">${GPP_EMPRESA.timbrado}</div>
-      <div style="font-size:9px">R.U.C. N°</div>
-      <div style="font-size:13px;font-weight:bold">${GPP_EMPRESA.ruc}</div>
-      <div style="font-size:8.5px">Fecha Inicio Vigencia ${GPP_EMPRESA.vigenciaInicio}</div>
-      <div style="font-size:8.5px">Fecha Fin Vigencia ${GPP_EMPRESA.vigenciaFin}</div>
-      <div class="red" style="font-size:19px;font-weight:900;margin-top:3px">FACTURA</div>
-      <div style="font-size:10px">${data.serie}</div>
-      <div class="red" style="font-size:22px;font-weight:900;letter-spacing:2px">${numFmt}</div>
+    <td style="width:195px;border-left:1.5px solid #000;padding:8px 10px;text-align:center;vertical-align:top;line-height:1.7">
+      <div style="font-size:11px">TIMBRADO N°</div>
+      <div style="font-size:16px;font-weight:bold">${GPP_EMPRESA.timbrado}</div>
+      <div style="font-size:11px">R.U.C. N°</div>
+      <div style="font-size:16px;font-weight:bold">${GPP_EMPRESA.ruc}</div>
+      <div style="font-size:10.5px">Fecha Inicio Vigencia ${GPP_EMPRESA.vigenciaInicio}</div>
+      <div style="font-size:10.5px">Fecha Fin Vigencia ${GPP_EMPRESA.vigenciaFin}</div>
+      <div class="red" style="font-size:23px;font-weight:900;margin-top:4px">FACTURA</div>
+      <div style="font-size:12px">${data.serie}</div>
+      <div class="red" style="font-size:27px;font-weight:900;letter-spacing:2px">${numFmt}</div>
     </td>
   </tr>
 </table>
