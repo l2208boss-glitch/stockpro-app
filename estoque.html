@@ -1080,6 +1080,7 @@
             <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Recebido</th>
             <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Troco</th>
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Operador</th>
+            <th id="thFactura" style="padding:12px;text-align:center;font-size:12px;color:var(--text-2);display:none">Fatura</th>
           </tr>
         </thead>
         <tbody id="vendasBody"></tbody>
@@ -2880,10 +2881,6 @@ async function confirmPayment() {
   renderCart();
   renderCaixaProducts();
   toast(`✅ Venda registrada! Total: $${total.toFixed(2)}`, 'success');
-  if (currentFilial && currentFilial.id === FARMACIA_ID) {
-    facturaVenda = venda;
-    setTimeout(() => openFacturaModal(), 400);
-  }
 }
 
 /* ══════════════════════════════════════════
@@ -2941,8 +2938,12 @@ function renderVendas() {
     + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', `₲ ${Math.round(recPYG).toLocaleString('pt-BR')}`, 'var(--text)') : '')
     + (recUSD  > 0 ? statCard('🇺🇸','Recebido USD', `$${recUSD.toFixed(2)}`,  'var(--text)') : '');
 
+  const isFarmaciaCol = !!(currentFilial && currentFilial.id === FARMACIA_ID);
+  const thFact = document.getElementById('thFactura');
+  if (thFact) thFact.style.display = isFarmaciaCol ? '' : 'none';
+
   if (!filtradas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${isFarmaciaCol ? 8 : 7}" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>`;
     return;
   }
 
@@ -2978,6 +2979,9 @@ function renderVendas() {
       ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:var(--text-3)">$${trocoUSD.toFixed(2)}</small>`
       : `<span style="color:var(--success);font-weight:700">$${Math.max(0,trocoUSD).toFixed(2)}</span>`;
 
+    const facturaBtn = isFarmaciaCol
+      ? `<td style="text-align:center"><button onclick="abrirFacturaVenda('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Gerar fatura">🧾</button></td>`
+      : '';
     return `<tr class="venda-row">
       <td>${dt}</td>
       <td class="venda-items">${itens}</td>
@@ -2986,6 +2990,7 @@ function renderVendas() {
       <td style="text-align:right;font-size:12px">${pagoStr}</td>
       <td style="text-align:right">${trocoCell}</td>
       <td>${v.user}</td>
+      ${facturaBtn}
     </tr>`;
   }).join('');
 }
@@ -4492,6 +4497,13 @@ async function loadFacturaConfig() {
     const snap = await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').get();
     if (snap.exists) facturaConfig = { nextNum: 532, serie: '001-001', ...snap.data() };
   } catch(e) { console.error('loadFacturaConfig:', e); }
+}
+
+function abrirFacturaVenda(vendaId) {
+  const v = vendas.find(x => String(x.id) === String(vendaId));
+  if (!v) return toast('Venda não encontrada', 'error');
+  facturaVenda = v;
+  openFacturaModal();
 }
 
 function openFacturaModal() {
