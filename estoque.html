@@ -1076,8 +1076,7 @@
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Data/Hora</th>
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Itens</th>
             <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Total USD</th>
-            <th style="padding:12px;text-align:center;font-size:12px;color:var(--text-2)">Moeda</th>
-            <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Recebido</th>
+            <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Pagamento</th>
             <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Troco</th>
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Operador</th>
             <th id="thFactura" style="padding:12px;text-align:center;font-size:12px;color:var(--text-2);display:none">Fatura</th>
@@ -2943,7 +2942,7 @@ function renderVendas() {
   if (thFact) thFact.style.display = isFarmaciaCol ? '' : 'none';
 
   if (!filtradas.length) {
-    tbody.innerHTML = `<tr><td colspan="${isFarmaciaCol ? 8 : 7}" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${isFarmaciaCol ? 7 : 6}" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>`;
     return;
   }
 
@@ -2953,27 +2952,25 @@ function renderVendas() {
     const descontoPct = v.descontoPct > 0 ? v.descontoPct : 0;
     const trocoUSD = Number(v.troco);
 
-    // Coluna "Forma de Pagamento" — suporta múltiplos
-    let pagStr, pagoStr;
-    if (v.pagamentos && v.pagamentos.length > 1) {
-      pagStr  = v.pagamentos.map(p =>
-        `<span class="pag-tag">${SPR_LABELS[p.moeda]||p.moeda}</span>`
-      ).join(' ');
-      pagoStr = v.pagamentos.map(p => {
-        const s2 = symb[p.moeda] || '';
-        return p.moeda === 'PYG'
-          ? `${s2}${Math.round(p.valor).toLocaleString('pt-BR')}`
-          : `${s2}${Number(p.valor).toFixed(2)}`;
-      }).join('<br>');
-    } else {
-      const moeda = v.moedaPagamento || (v.pagamentos?.[0]?.moeda ?? 'USD');
-      const s2 = symb[moeda] || '';
-      pagStr  = `<span class="pag-tag">${SPR_LABELS[moeda]||moeda}</span>`;
-      const vp = v.pagamentos?.[0]?.valor ?? v.valorPago;
-      pagoStr = moeda === 'PYG'
-        ? `${s2}${Math.round(vp).toLocaleString('pt-BR')}`
-        : `${s2}${Number(vp).toFixed(2)}`;
-    }
+    // Coluna "Pagamento" — tag + valor na mesma linha para cada forma
+    const pagRows = (v.pagamentos && v.pagamentos.length)
+      ? v.pagamentos.filter(p => p.valor > 0).map(p => {
+          const s2 = symb[p.moeda] || '';
+          const val = p.moeda === 'PYG'
+            ? `${s2}${Math.round(p.valor).toLocaleString('pt-BR')}`
+            : `${s2}${Number(p.valor).toFixed(2)}`;
+          return `<span class="pag-tag">${SPR_LABELS[p.moeda]||p.moeda}</span> <b>${val}</b>`;
+        })
+      : (() => {
+          const moeda = v.moedaPagamento || 'USD';
+          const s2 = symb[moeda] || '';
+          const vp = v.valorPago;
+          const val = moeda === 'PYG'
+            ? `${s2}${Math.round(vp).toLocaleString('pt-BR')}`
+            : `${s2}${Number(vp).toFixed(2)}`;
+          return [`<span class="pag-tag">${SPR_LABELS[moeda]||moeda}</span> <b>${val}</b>`];
+        })();
+    const pagCell = pagRows.join('<br>');
 
     const trocoCell = descontoPct > 0
       ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:var(--text-3)">$${trocoUSD.toFixed(2)}</small>`
@@ -2986,8 +2983,7 @@ function renderVendas() {
       <td>${dt}</td>
       <td class="venda-items">${itens}</td>
       <td style="text-align:right;font-weight:700">$${Number(v.totalUSD).toFixed(2)}</td>
-      <td style="font-size:12px">${pagStr}</td>
-      <td style="text-align:right;font-size:12px">${pagoStr}</td>
+      <td style="font-size:12px;line-height:1.8">${pagCell}</td>
       <td style="text-align:right">${trocoCell}</td>
       <td>${v.user}</td>
       ${facturaBtn}
