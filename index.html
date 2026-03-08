@@ -2593,6 +2593,7 @@ function addPaymentRow(moeda) {
   const sugest = moeda || (['USD','BRL','PIX','PYG'].find(m => !used.has(m)) || 'USD');
   splitPayRows.push({ moeda: sugest, valor: 0 });
   renderSplitRows();
+  updateSplitCalc();
   // Foca no input da nova linha
   setTimeout(() => {
     const inputs = document.querySelectorAll('.spr-inp');
