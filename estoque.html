@@ -1244,7 +1244,8 @@
     <div class="modal-bd">
       <div class="field-group">
         <label class="field-label">Fornecedor *</label>
-        <input id="compraFornecedor" class="field-input" placeholder="Nome do fornecedor">
+        <input id="compraFornecedor" class="field-input" placeholder="Nome do fornecedor" list="fornecedoresList" autocomplete="off">
+        <datalist id="fornecedoresList"></datalist>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field-group">
@@ -5939,63 +5940,112 @@ function renderComprasList() {
   if (filtro === 'aberto') lista = lista.filter(c => c.status === 'aberto');
   else if (filtro === 'pago') lista = lista.filter(c => c.status === 'pago');
 
+  // Atualiza datalist de fornecedores
+  const dl = document.getElementById('fornecedoresList');
+  if (dl) {
+    const nomes = [...new Set(compras.map(c => c.fornecedor).filter(Boolean))];
+    dl.innerHTML = nomes.map(n => `<option value="${n}">`).join('');
+  }
+
   if (!lista.length) {
     el.innerHTML = `<div style="text-align:center;padding:48px 0;color:var(--text-3);font-size:14px">Nenhuma compra encontrada para este período.</div>`;
     return;
   }
 
-  el.innerHTML = lista.map(c => {
-    const saldo = (c.total||0) - (c.totalPago||0);
-    const isAberto = c.status === 'aberto';
-    const tipoBadge = {
-      avista:    `<span class="tipo-badge tipo-avista">À vista</span>`,
-      prazo:     `<span class="tipo-badge tipo-prazo">Prazo${c.prazoData ? ' · '+c.prazoData : ''}</span>`,
-      parcelado: `<span class="tipo-badge tipo-parcelado">Confiança</span>`,
-    }[c.tipo||'parcelado'] || '';
+  // Agrupar por fornecedor
+  const grupos = {};
+  lista.forEach(c => {
+    const f = c.fornecedor || '—';
+    if (!grupos[f]) grupos[f] = [];
+    grupos[f].push(c);
+  });
 
-    const vencido = c.tipo==='prazo' && isAberto && c.prazoData && c.prazoData < hoje;
-    const cardBorder = vencido ? 'border-color:#ef4444' : '';
+  const tipoBadgeFn = c => ({
+    avista:    `<span class="tipo-badge tipo-avista">À vista</span>`,
+    prazo:     `<span class="tipo-badge tipo-prazo">Prazo${c.prazoData ? ' · '+c.prazoData : ''}</span>`,
+    parcelado: `<span class="tipo-badge tipo-parcelado">Confiança</span>`,
+  }[c.tipo||'parcelado'] || '');
 
-    let statusHtml = '';
-    if (!isAberto) {
-      statusHtml = `<span style="color:var(--success);font-weight:700;font-size:13px">✅ Quitado</span>`;
-    } else if (c.tipo === 'parcelado') {
-      statusHtml = `<div style="font-size:12px;color:var(--text-3)">Pago: <b>${fmtMoeda(c.totalPago||0,c.moeda||'USD')}</b></div>
-                    <div style="font-size:13px;color:#ef4444;font-weight:700">Restante: ${fmtMoeda(saldo,c.moeda||'USD')}</div>`;
-    } else if (c.tipo === 'prazo') {
-      const cor = vencido ? '#ef4444' : '#f59e0b';
-      statusHtml = `<div style="font-size:13px;font-weight:700;color:${cor}">${vencido ? '🚨 VENCIDO' : '⏳ Em aberto'}</div>`;
-    }
+  el.innerHTML = Object.entries(grupos).map(([fornecedor, grp]) => {
+    const moeda       = grp[0]?.moeda || 'USD';
+    const totalGrp    = grp.reduce((s,c) => s+(c.total||0), 0);
+    const totalPagoGrp= grp.reduce((s,c) => s+(c.totalPago||0), 0);
+    const saldoGrp    = totalGrp - totalPagoGrp;
+    const temAberto   = grp.some(c => c.status === 'aberto');
+    const vencidoGrp  = grp.some(c => c.tipo==='prazo' && c.status==='aberto' && c.prazoData && c.prazoData < hoje);
+    const gid         = 'g_' + btoa(unescape(encodeURIComponent(fornecedor))).replace(/[^a-z0-9]/gi,'').slice(0,20);
+    const fEsc        = fornecedor.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-    let btns = `<button onclick="openCompraModal('${c.id}')" title="Editar" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:13px">✏️</button>
-                <button onclick="deleteCompra('${c.id}')" title="Excluir" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:13px">🗑</button>`;
-    if (isAberto && c.tipo === 'parcelado') {
-      btns = `<button onclick="abrirPagamentoFornecedor('${c.id}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;font-weight:700">💵 Abater</button> ` + btns;
-    } else if (isAberto && c.tipo === 'prazo') {
-      btns = `<button onclick="marcarCompraPaga('${c.id}')" style="background:var(--success);color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;font-weight:700">✅ Pago</button> ` + btns;
-    }
-
-    const fatura = c.temFatura ? '<span style="font-size:11px;color:var(--text-3)">🧾 com fatura</span>' : '';
-
-    return `<div class="compra-card" style="${cardBorder}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-            <span style="font-weight:700;font-size:15px">${c.fornecedor||'—'}</span>
-            ${tipoBadge} ${fatura}
+    const rows = grp
+      .slice().sort((a,b) => (a.data||a.ts||'').localeCompare(b.data||b.ts||''))
+      .map(c => {
+        const saldo    = (c.total||0) - (c.totalPago||0);
+        const isAberto = c.status === 'aberto';
+        const vencido  = c.tipo==='prazo' && isAberto && c.prazoData && c.prazoData < hoje;
+        let statusCell = '';
+        if (!isAberto) {
+          statusCell = `<span style="color:var(--success);font-size:11px;font-weight:700">✅ Quitado</span>`;
+        } else if (c.tipo === 'parcelado') {
+          statusCell = `<span style="color:#ef4444;font-size:11px;font-weight:700">Restante: ${fmtMoeda(saldo,c.moeda||'USD')}</span>`;
+        } else if (c.tipo === 'prazo') {
+          statusCell = `<span style="color:${vencido?'#ef4444':'#f59e0b'};font-size:11px;font-weight:700">${vencido?'🚨 Vencido':'⏳ Em aberto'}</span>`;
+        }
+        const fatura = c.temFatura ? ' 🧾' : '';
+        return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 18px;border-top:1px solid var(--border);background:var(--bg);flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">📅 ${c.data||'—'} ${tipoBadgeFn(c)}${fatura}</div>
+            ${c.descricao ? `<div style="font-size:13px;color:var(--text-2);white-space:pre-line">${c.descricao}</div>` : ''}
+            ${c.obs ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px">💬 ${c.obs}</div>` : ''}
           </div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">📅 ${c.data||'—'}</div>
-          ${c.descricao ? `<div style="font-size:13px;color:var(--text-2)">${c.descricao}</div>` : ''}
-          ${c.obs ? `<div style="font-size:12px;color:var(--text-3);margin-top:4px">💬 ${c.obs}</div>` : ''}
+          <div style="text-align:right;flex-shrink:0;min-width:90px">
+            <div style="font-weight:700;font-size:14px">${fmtMoeda(c.total||0,c.moeda||'USD')}</div>
+            <div>${statusCell}</div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button onclick="openCompraModal('${c.id}')" title="Editar" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 7px;cursor:pointer;font-size:12px">✏️</button>
+            <button onclick="deleteCompra('${c.id}')" title="Excluir" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 7px;cursor:pointer;font-size:12px">🗑</button>
+          </div>
+        </div>`;
+      }).join('');
+
+    const saldoHtml = temAberto
+      ? `<span style="font-size:15px;font-weight:900;color:#ef4444">Saldo: ${fmtMoeda(saldoGrp,moeda)}</span>`
+      : `<span style="color:var(--success);font-weight:700;font-size:13px">✅ Quitado</span>`;
+
+    const abaterBtn = temAberto
+      ? `<button onclick="event.stopPropagation();abrirPagamentoFornecedor('${fEsc}','${moeda}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;font-weight:700">💵 Abater</button>`
+      : '';
+
+    return `<div style="border:1.5px solid ${vencidoGrp?'#ef4444':'var(--border)'};border-radius:var(--radius);margin-bottom:16px;overflow:hidden;box-shadow:var(--shadow-sm)">
+      <div onclick="toggleGrupoCompra('${gid}')" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--surface);cursor:pointer;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:16px;font-weight:800">📦 ${fornecedor}</span>
+          <span style="font-size:11px;color:var(--text-3);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 8px">${grp.length} compra${grp.length>1?'s':''}</span>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:17px;font-weight:900;margin-bottom:4px">${fmtMoeda(c.total||0,c.moeda||'USD')}</div>
-          <div style="margin-bottom:8px">${statusHtml}</div>
-          <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${btns}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${saldoHtml}
+          ${abaterBtn}
+          <button onclick="event.stopPropagation();openCompraModalComFornecedor('${fEsc}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;font-weight:600">＋ Compra</button>
+          <span id="${gid}_arr" style="color:var(--text-3);font-size:12px">▼</span>
         </div>
       </div>
+      <div id="${gid}">${rows}</div>
     </div>`;
   }).join('');
+}
+
+function toggleGrupoCompra(gid) {
+  const body  = document.getElementById(gid);
+  const arrow = document.getElementById(gid + '_arr');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (arrow) arrow.textContent = open ? '▶' : '▼';
+}
+
+function openCompraModalComFornecedor(fornecedor) {
+  openCompraModal(null);
+  document.getElementById('compraFornecedor').value = fornecedor;
 }
 
 function onCompraTipoChange() {
@@ -6077,16 +6127,27 @@ async function deleteCompra(id) {
   await db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(id)).delete().catch(console.error);
 }
 
-function abrirPagamentoFornecedor(id) {
-  pagamentoFornId = id;
-  const c = compras.find(x => x.id === id);
-  if (!c) return;
-  const saldo = (c.total||0) - (c.totalPago||0);
+function abrirPagamentoFornecedor(fornecedor, moeda) {
+  pagamentoFornId = fornecedor;
+  const abertas = compras.filter(c => c.fornecedor === fornecedor && c.status === 'aberto');
+  if (!abertas.length) return toast('Nenhuma compra em aberto para este fornecedor', 'error');
+  const totalForn     = abertas.reduce((s,c) => s+(c.total||0), 0);
+  const totalPagoForn = abertas.reduce((s,c) => s+(c.totalPago||0), 0);
+  const saldo         = totalForn - totalPagoForn;
+  const mo            = moeda || abertas[0]?.moeda || 'USD';
+  const linhas        = abertas
+    .slice().sort((a,b) => (a.data||'').localeCompare(b.data||''))
+    .map(c => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
+      <span>📅 ${c.data||'—'} · ${c.descricao ? c.descricao.split('\n')[0] : c.tipo}</span>
+      <span style="font-weight:700;flex-shrink:0;margin-left:8px">${fmtMoeda((c.total||0)-(c.totalPago||0),c.moeda||'USD')}</span>
+    </div>`).join('');
   document.getElementById('pagamentoFornInfo').innerHTML =
-    `<div><b>Fornecedor:</b> ${c.fornecedor}</div>
-     <div><b>Total da compra:</b> ${fmtMoeda(c.total,c.moeda||'USD')}</div>
-     <div><b>Já pago:</b> ${fmtMoeda(c.totalPago||0,c.moeda||'USD')}</div>
-     <div><b>Saldo restante:</b> <span style="color:#ef4444;font-weight:700">${fmtMoeda(saldo,c.moeda||'USD')}</span></div>`;
+    `<div style="font-weight:700;margin-bottom:8px">📦 ${fornecedor}</div>
+     ${linhas}
+     <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px;padding-top:6px">
+       <span>Saldo total em aberto:</span>
+       <span style="color:#ef4444;font-weight:900">${fmtMoeda(saldo,mo)}</span>
+     </div>`;
   document.getElementById('pagamentoFornValor').value = '';
   document.getElementById('pagamentoFornData').value = new Date().toISOString().slice(0,10);
   document.getElementById('pagamentoFornObs').value = '';
@@ -6094,35 +6155,46 @@ function abrirPagamentoFornecedor(id) {
 }
 
 async function savePagamentoFornecedor() {
-  const c = compras.find(x => x.id === pagamentoFornId);
-  if (!c) return;
+  const fornecedor = pagamentoFornId;
   const valor = parseFloat(document.getElementById('pagamentoFornValor').value);
   const data  = document.getElementById('pagamentoFornData').value;
   const obs   = document.getElementById('pagamentoFornObs').value.trim();
   if (isNaN(valor) || valor <= 0) return toast('Informe o valor pago', 'error');
   if (!data) return toast('Informe a data', 'error');
 
-  const novoTotalPago = (c.totalPago||0) + valor;
-  const novoPgtos = [...(c.pagamentos||[]), { id: Date.now(), valor, data, obs }];
-  const quitado   = novoTotalPago >= (c.total||0);
-  await db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(c.id)).update({
-    totalPago: novoTotalPago,
-    pagamentos: novoPgtos,
-    status: quitado ? 'pago' : 'aberto',
-    updatedAt: new Date().toISOString()
-  }).catch(console.error);
-  closeOverlay('pagamentoFornModal');
-  toast(quitado ? '✅ Compra quitada!' : `💵 Pagamento registrado. Saldo: ${fmtMoeda((c.total||0)-novoTotalPago,c.moeda||'USD')}`, 'success');
-}
+  // FIFO: quita as compras mais antigas primeiro
+  const abertas = compras
+    .filter(c => c.fornecedor === fornecedor && c.status === 'aberto')
+    .sort((a,b) => (a.data||a.ts||'').localeCompare(b.data||b.ts||''));
 
-async function marcarCompraPaga(id) {
-  if (!confirm('Marcar esta compra como paga?')) return;
-  const c = compras.find(x => x.id === id);
-  if (!c) return;
-  await db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(id)).update({
-    status: 'pago', totalPago: c.total||0, updatedAt: new Date().toISOString()
-  }).catch(console.error);
-  toast('✅ Compra marcada como paga!', 'success');
+  let restante = valor;
+  let quitadas = 0;
+  const batch  = db.batch();
+  for (const c of abertas) {
+    if (restante <= 0) break;
+    const saldo     = (c.total||0) - (c.totalPago||0);
+    const pagar     = Math.min(restante, saldo);
+    const novoTotal = (c.totalPago||0) + pagar;
+    const quitado   = novoTotal >= (c.total||0);
+    if (quitado) quitadas++;
+    batch.update(
+      db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(c.id)),
+      { totalPago: novoTotal,
+        pagamentos: [...(c.pagamentos||[]), { id: Date.now()+Math.random(), valor: pagar, data, obs }],
+        status: quitado ? 'pago' : 'aberto',
+        updatedAt: new Date().toISOString() }
+    );
+    restante -= pagar;
+  }
+  await batch.commit().catch(console.error);
+  closeOverlay('pagamentoFornModal');
+  const mo  = abertas[0]?.moeda || 'USD';
+  const msg = quitadas === abertas.length
+    ? `✅ Fornecedor quitado!`
+    : quitadas > 0
+      ? `✅ ${quitadas} compra(s) quitada(s). Saldo restante: ${fmtMoeda(restante > 0 ? restante : 0, mo)}`
+      : `💵 Abono registrado!`;
+  toast(msg, 'success');
 }
 
 function toast(msg, type='') {
