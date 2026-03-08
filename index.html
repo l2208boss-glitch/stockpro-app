@@ -2543,32 +2543,29 @@ function fmtDisplayAmt(moeda, val) {
   return `$${abs.toFixed(2)}`;
 }
 
-// Calcula quanto foi pago e a diferença DIRETAMENTE na moeda de exibição.
-// BRL e PIX são tratados como o mesmo "R$" — somam valores nominais sem
-// passar por USD, evitando distorção de taxas diferentes.
+// Calcula quanto foi pago e a diferença na moeda de exibição.
+// Cada moeda usa SUA PRÓPRIA cotação: BRL→cotacao.brl, PIX→cotacao.pix, PYG→cotacao.pyg.
+// Fluxo para moedas diferentes: valor_row → USD (pela taxa da row) → displayMoeda.
 // Retorna { totalDisplay, paidDisplay, diff } ou null se cotação inválida.
 function calcDisplayAmounts(displayMoeda, totalUSD) {
   const today = new Date().toISOString().slice(0,10);
   const ok = cotacao.date === today;
   let rate;
   if      (displayMoeda === 'USD') rate = 1;
-  else if (displayMoeda === 'BRL' || displayMoeda === 'PIX') rate = ok && cotacao.brl > 0 ? cotacao.brl : null;
+  else if (displayMoeda === 'BRL') rate = ok && cotacao.brl > 0 ? cotacao.brl : null;
+  else if (displayMoeda === 'PIX') rate = ok && cotacao.pix > 0 ? cotacao.pix : null;
   else if (displayMoeda === 'PYG') rate = ok && cotacao.pyg > 0 ? cotacao.pyg : null;
   else rate = null;
   if (rate === null) return null;
 
-  const isReal = m => m === 'BRL' || m === 'PIX';
   const totalDisplay = totalUSD * rate;
   let paidDisplay = 0;
   for (const row of splitPayRows) {
     if (!row.valor || row.valor <= 0) continue;
-    if (isReal(displayMoeda) && isReal(row.moeda)) {
-      // BRL e PIX são ambos "R$": soma nominal direto
-      paidDisplay += row.valor;
-    } else if (row.moeda === displayMoeda) {
-      paidDisplay += row.valor;
+    if (row.moeda === displayMoeda) {
+      paidDisplay += row.valor; // mesma moeda: soma direto
     } else {
-      // Moeda diferente: converte via USD
+      // Moeda diferente: converte pela taxa própria da row → USD → displayMoeda
       const rowUSD = toUSD(row.moeda, row.valor);
       if (rowUSD === null) return null;
       paidDisplay += rowUSD * rate;
