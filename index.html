@@ -1534,6 +1534,13 @@
         </label>
         <div style="font-size:12px;color:var(--text-3);margin-top:6px;padding-left:28px">Desmarcado = todos os produtos chegam com quantidade 0</div>
       </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600">
+          <input type="checkbox" id="copiarCustos" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+          Copiar custos e preços de venda
+        </label>
+        <div style="font-size:12px;color:var(--text-3);margin-top:6px;padding-left:28px">Desmarcado = custo e preço chegam zerados</div>
+      </div>
       <div class="field" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600">
           <input type="checkbox" id="copiarFotos" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
@@ -4296,8 +4303,9 @@ function openCopiarModal() {
 async function confirmCopiar() {
   const origemId = document.getElementById('copiarOrigem').value;
   if (!origemId) { toast('Selecione a filial de origem.', 'error'); return; }
-  const manterQtd  = document.getElementById('copiarQtd').checked;
-  const inclFotos  = document.getElementById('copiarFotos').checked;
+  const manterQtd   = document.getElementById('copiarQtd').checked;
+  const inclCustos  = document.getElementById('copiarCustos').checked;
+  const inclFotos   = document.getElementById('copiarFotos').checked;
   const btn = document.getElementById('btnConfirmCopiar');
   btn.disabled = true;
   btn.textContent = '⏳ Copiando...';
@@ -4317,7 +4325,11 @@ async function confirmCopiar() {
       const p = doc.data();
       const novoId = 'prod_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       idMap[String(p.id !== undefined ? p.id : doc.id)] = novoId;
-      const novoProd = { ...p, id: novoId, qty: manterQtd ? (p.qty || 0) : 0 };
+      const novoProd = { ...p, id: novoId,
+        qty:   manterQtd  ? (p.qty   || 0) : 0,
+        custo: inclCustos ? (p.custo || 0) : 0,
+        venda: inclCustos ? (p.venda || 0) : 0
+      };
       batch1.set(db.collection('lojas').doc(currentFilial.id).collection('produtos').doc(novoId), novoProd);
     });
     await batch1.commit();
