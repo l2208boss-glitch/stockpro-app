@@ -2603,8 +2603,9 @@ function updateSplitCalc() {
   const trocoSub  = document.getElementById('payTrocoSub');
   const btnConf   = document.getElementById('btnConfirmPayment');
 
-  // Moeda de exibição: sempre a da primeira linha (moeda principal do pagamento)
-  const displayMoeda = splitPayRows.length > 0 ? splitPayRows[0].moeda : 'USD';
+  // Moeda de exibição: sempre a da ÚLTIMA linha (a que o caixeiro está preenchendo).
+  // Assim, se o Falta mostra R$X (PIX), entrar R$X no PIX zera a diferença.
+  const displayMoeda = splitPayRows.length > 0 ? splitPayRows[splitPayRows.length - 1].moeda : 'USD';
 
   // Cálculo direto na moeda de exibição (BRL+PIX = mesmo R$, sem distorção de taxa)
   const da = calcDisplayAmounts(displayMoeda, total);
