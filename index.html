@@ -2513,8 +2513,11 @@ function renderSplitRows() {
   const hasPYG = ok && cotacao.pyg > 0;
 
   const opts = (sel) => ['USD','BRL','PIX','PYG'].map(m => {
-    const disabled = (m==='BRL'&&!hasBRL)||(m==='PIX'&&!hasPIX)||(m==='PYG'&&!hasPYG);
-    return `<option value="${m}" ${m===sel?'selected':''} ${disabled?'disabled':''}>${SPR_LABELS[m]}</option>`;
+    // Nunca bloquear a seleção — se cotação não estiver cadastrada,
+    // updateSplitCalc() já avisa e impede confirmar. Bloquear o select
+    // impedia o caixeiro de mudar de moeda.
+    const alreadyUsed = m !== sel && splitPayRows.some(r => r.moeda === m);
+    return `<option value="${m}" ${m===sel?'selected':''} ${alreadyUsed?'disabled':''}>${SPR_LABELS[m]}</option>`;
   }).join('');
 
   document.getElementById('splitPaymentRows').innerHTML = splitPayRows.map((row, i) => {
