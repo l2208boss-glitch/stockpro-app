@@ -1048,6 +1048,18 @@
     </div>
   </div>
 
+  <!-- Banner pós-venda: emitir fatura (Farmácia, qualquer role) -->
+  <div id="facturaPostVendaBanner" style="display:none;margin-bottom:16px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-sm)">
+    <div>
+      <div style="font-weight:700;font-size:14px">🧾 Deseja emitir fatura para esta venda?</div>
+      <div id="facturaPostVendaDesc" style="font-size:12px;color:var(--text-3);margin-top:2px"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <button onclick="emitirFacturaPostVenda()" style="background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Emitir Fatura</button>
+      <button onclick="dispensarFacturaBanner()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;cursor:pointer;font-size:13px;color:var(--text-2)">✕</button>
+    </div>
+  </div>
+
   <!-- Controle mensal de faturas (Farmácia + admin only) -->
   <div id="facturasBlock" style="display:none;margin-bottom:24px">
     <div class="sec-hd" style="padding:0 0 12px">
@@ -2494,6 +2506,8 @@ function addToCart(productId) {
   } else {
     cart.push({ productId: p.id, name: p.name, emoji: p.emoji || '📦', unit: p.unit, qty: 1, precoUSD: p.venda });
   }
+  // Ocultar banner de fatura ao iniciar nova venda
+  dispensarFacturaBanner();
   renderCart();
 }
 
@@ -2908,6 +2922,7 @@ async function confirmPayment() {
   renderCart();
   renderCaixaProducts();
   toast(`✅ Venda registrada! Total: $${total.toFixed(2)}`, 'success');
+  if (currentFilial && currentFilial.id === FARMACIA_ID) mostrarFacturaBanner(venda);
 }
 
 /* ══════════════════════════════════════════
@@ -4510,6 +4525,27 @@ function clearVendas() {
     snap.docs.forEach(d => batch.delete(d.ref));
     return batch.commit();
   }).catch(console.error);
+}
+
+function mostrarFacturaBanner(venda) {
+  const banner = document.getElementById('facturaPostVendaBanner');
+  const desc   = document.getElementById('facturaPostVendaDesc');
+  if (!banner) return;
+  facturaVenda = venda;
+  const itens = (venda.items || []).map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ');
+  if (desc) desc.textContent = `$${Number(venda.totalUSD).toFixed(2)} — ${itens}`;
+  banner.style.display = 'flex';
+}
+
+function dispensarFacturaBanner() {
+  const banner = document.getElementById('facturaPostVendaBanner');
+  if (banner) banner.style.display = 'none';
+  facturaVenda = null;
+}
+
+function emitirFacturaPostVenda() {
+  document.getElementById('facturaPostVendaBanner').style.display = 'none';
+  openFacturaModal();
 }
 
 function renderFacturasResumo() {
