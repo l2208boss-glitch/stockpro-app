@@ -6057,7 +6057,7 @@ function openCompraModal(id = null) {
   compraEditId = id;
   document.getElementById('compraModalTitle').textContent = id ? 'Editar Compra' : 'Nova Compra';
   if (id) {
-    const c = compras.find(x => x.id === id);
+    const c = compras.find(x => String(x.id) === String(id));
     if (!c) return;
     document.getElementById('compraFornecedor').value = c.fornecedor||'';
     document.getElementById('compraData').value = c.data||'';
