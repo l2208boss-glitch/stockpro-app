@@ -1033,6 +1033,8 @@
     <span>💱 Cotação:</span>
     <span id="cotDispBRL">1 USD = R$ --</span>
     <span>|</span>
+    <span id="cotDispPIX">1 USD = R$ (PIX) --</span>
+    <span>|</span>
     <span id="cotDispPYG">1 USD = ₲ --</span>
     <button class="btn-edit-cotacao" id="btnEditCotacao" onclick="openCotacaoModal()" style="display:none">✏️ Editar</button>
     <span class="cotacao-aviso" id="cotAviso" style="display:none">⚠️ Cotação não definida para hoje</span>
@@ -2650,6 +2652,7 @@ function renderCotacaoBar() {
   const today = new Date().toISOString().slice(0,10);
   const hasToday = cotacao.date === today && cotacao.brl > 0 && cotacao.pyg > 0;
   document.getElementById('cotDispBRL').textContent = hasToday ? `1 USD = R$ ${Number(cotacao.brl).toFixed(2)}` : '1 USD = R$ --';
+  document.getElementById('cotDispPIX').textContent = (cotacao.date === today && cotacao.pix > 0) ? `1 USD = R$ ${Number(cotacao.pix).toFixed(2)} (PIX)` : '1 USD = R$ -- (PIX)';
   document.getElementById('cotDispPYG').textContent = hasToday ? `1 USD = ₲ ${Number(cotacao.pyg).toLocaleString('pt-BR')}` : '1 USD = ₲ --';
   document.getElementById('cotAviso').style.display = hasToday ? 'none' : (user && user.role === 'admin' ? 'inline' : 'none');
 }
