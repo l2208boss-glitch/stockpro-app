@@ -3797,7 +3797,7 @@ function renderProducts() {
     const custo  = p.custo || 0;
     const venda  = p.venda || 0;
     const lucro  = venda - custo;
-    const margem = custo > 0 ? ((lucro/custo)*100).toFixed(1) : null;
+    const margem = venda > 0 ? ((lucro/venda)*100).toFixed(1) : null;
     const pricingBar = isAdmin ? `
       <div class="card-pricing">
         <div class="pricing-row">
