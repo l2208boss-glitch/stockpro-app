@@ -1110,7 +1110,9 @@
           <option value="7">Últimos 7 dias</option>
           <option value="30">Últimos 30 dias</option>
           <option value="todos">Tudo</option>
+          <option value="data">📅 Por data</option>
         </select>
+        <input type="date" id="vendasDataEspecifica" onchange="renderVendas()" style="display:none;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
         <button class="btn-clr" onclick="clearVendas()" title="Limpar histórico de vendas">🗑</button>
       </div>
     </div>
@@ -3148,6 +3150,10 @@ function renderVendas() {
   const filtro  = document.getElementById('vendasFiltro')?.value || 'hoje';
   const symb    = { USD: '$', BRL: 'R$ ', PIX: 'R$ ', PYG: '₲ ' };
 
+  // Mostrar/ocultar seletor de data específica
+  const dateInput = document.getElementById('vendasDataEspecifica');
+  if (dateInput) dateInput.style.display = filtro === 'data' ? '' : 'none';
+
   // Filtrar por período
   const now   = new Date();
   const today = now.toISOString().slice(0,10);
@@ -3155,6 +3161,7 @@ function renderVendas() {
     if (filtro === 'hoje')  return v.ts.slice(0,10) === today;
     if (filtro === '7')     return new Date(v.ts) >= new Date(now - 7*864e5);
     if (filtro === '30')    return new Date(v.ts) >= new Date(now - 30*864e5);
+    if (filtro === 'data')  { const d = dateInput?.value; return d ? v.ts.slice(0,10) === d : false; }
     return true;
   });
 
