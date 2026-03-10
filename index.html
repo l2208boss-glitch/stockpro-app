@@ -2817,31 +2817,27 @@ const SPR_SYMB   = { USD:'$', BRL:'R$ ', PIX:'R$ ', PYG:'₲ ' };
 // Converte valor de qualquer moeda para USD equivalente
 function toUSD(moeda, valor) {
   if (!valor || valor <= 0) return 0;
-  const today = new Date().toISOString().slice(0,10);
-  const ok = cotacao.date === today;
   if (moeda === 'USD') return valor;
-  if (moeda === 'BRL') return ok && cotacao.brl > 0 ? valor / cotacao.brl : null;
-  if (moeda === 'PIX') return ok && cotacao.pix > 0 ? valor / cotacao.pix : null;
-  if (moeda === 'PYG') return ok && cotacao.pyg > 0 ? valor / cotacao.pyg : null;
+  if (moeda === 'BRL') return cotacao.brl > 0 ? valor / cotacao.brl : null;
+  if (moeda === 'PIX') return cotacao.pix > 0 ? valor / cotacao.pix : null;
+  if (moeda === 'PYG') return cotacao.pyg > 0 ? valor / cotacao.pyg : null;
   return null;
 }
 
 // Converte USD para a moeda desejada e retorna string formatada
 function fromUSD(moeda, valorUSD) {
   if (valorUSD < 0) valorUSD = 0;
-  const today = new Date().toISOString().slice(0,10);
-  const ok = cotacao.date === today;
   if (moeda === 'USD') return `$${valorUSD.toFixed(2)}`;
   if (moeda === 'BRL') {
-    const v = ok && cotacao.brl > 0 ? valorUSD * cotacao.brl : null;
+    const v = cotacao.brl > 0 ? valorUSD * cotacao.brl : null;
     return v !== null ? `R$ ${v.toFixed(2)}` : `$${valorUSD.toFixed(2)}`;
   }
   if (moeda === 'PIX') {
-    const v = ok && cotacao.pix > 0 ? valorUSD * cotacao.pix : null;
+    const v = cotacao.pix > 0 ? valorUSD * cotacao.pix : null;
     return v !== null ? `R$ ${v.toFixed(2)}` : `$${valorUSD.toFixed(2)}`;
   }
   if (moeda === 'PYG') {
-    const v = ok && cotacao.pyg > 0 ? valorUSD * cotacao.pyg : null;
+    const v = cotacao.pyg > 0 ? valorUSD * cotacao.pyg : null;
     return v !== null ? `₲ ${Math.round(v).toLocaleString('pt-BR')}` : `$${valorUSD.toFixed(2)}`;
   }
   return `$${valorUSD.toFixed(2)}`;
@@ -2882,11 +2878,9 @@ function setSprValor(idx, val) {
 }
 
 function renderSplitRows() {
-  const today = new Date().toISOString().slice(0,10);
-  const ok = cotacao.date === today;
-  const hasBRL = ok && cotacao.brl > 0;
-  const hasPIX = ok && cotacao.pix > 0;
-  const hasPYG = ok && cotacao.pyg > 0;
+  const hasBRL = cotacao.brl > 0;
+  const hasPIX = cotacao.pix > 0;
+  const hasPYG = cotacao.pyg > 0;
 
   const opts = (sel) => ['USD','BRL','PIX','PYG'].map(m => {
     // Nunca bloquear a seleção — se cotação não estiver cadastrada,
@@ -2924,13 +2918,11 @@ function fmtDisplayAmt(moeda, val) {
 // Fluxo para moedas diferentes: valor_row → USD (pela taxa da row) → displayMoeda.
 // Retorna { totalDisplay, paidDisplay, diff } ou null se cotação inválida.
 function calcDisplayAmounts(displayMoeda, totalUSD) {
-  const today = new Date().toISOString().slice(0,10);
-  const ok = cotacao.date === today;
   let rate;
   if      (displayMoeda === 'USD') rate = 1;
-  else if (displayMoeda === 'BRL') rate = ok && cotacao.brl > 0 ? cotacao.brl : null;
-  else if (displayMoeda === 'PIX') rate = ok && cotacao.pix > 0 ? cotacao.pix : null;
-  else if (displayMoeda === 'PYG') rate = ok && cotacao.pyg > 0 ? cotacao.pyg : null;
+  else if (displayMoeda === 'BRL') rate = cotacao.brl > 0 ? cotacao.brl : null;
+  else if (displayMoeda === 'PIX') rate = cotacao.pix > 0 ? cotacao.pix : null;
+  else if (displayMoeda === 'PYG') rate = cotacao.pyg > 0 ? cotacao.pyg : null;
   else rate = null;
   if (rate === null) return null;
 
