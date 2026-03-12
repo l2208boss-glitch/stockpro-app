@@ -4793,10 +4793,11 @@ function renderFatCompra() {
       <div style="font-size:20px;font-weight:900;color:${color||'var(--text)'}">${val}</div>
     </div>`;
 
+  const fmtUSD = v => '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   resumo.innerHTML =
-    card('📥', 'Total notas compra', `$${totalCompra.toFixed(2)}`, 'var(--text)') +
-    card('🧾', 'Já faturado (mês)', `$${totalFaturado.toFixed(2)}`, 'var(--primary)') +
-    card('💰', 'Saldo disponível', `$${saldo.toFixed(2)}`, saldoColor);
+    card('📥', 'Total notas compra', fmtUSD(totalCompra), 'var(--text)') +
+    card('🧾', 'Já faturado (mês)', fmtUSD(totalFaturado), 'var(--primary)') +
+    card('💰', 'Saldo disponível', fmtUSD(saldo), saldoColor);
 
   if (!fatCompras.length) {
     lista.innerHTML = `<div style="color:var(--text-3);font-size:13px;padding:12px 0">Nenhuma nota de compra registrada.</div>`;
@@ -4818,7 +4819,7 @@ function renderFatCompra() {
           <td style="padding:10px 12px;font-size:13px">${dt}</td>
           <td style="padding:10px 12px;font-size:13px">${f.fornecedor || '—'}</td>
           <td style="padding:10px 12px;font-size:13px;color:var(--text-2)">${f.numNota || '—'}</td>
-          <td style="padding:10px 12px;font-size:13px;font-weight:700;text-align:right">$${Number(f.totalUSD).toFixed(2)}</td>
+          <td style="padding:10px 12px;font-size:13px;font-weight:700;text-align:right">${fmtUSD(f.totalUSD)}</td>
           <td style="padding:10px 12px;text-align:center">
             <button onclick="deleteFatCompra('${f.id}')" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:15px" title="Excluir">🗑</button>
           </td>
@@ -4882,9 +4883,10 @@ function renderFacturasResumo() {
       <div style="font-size:20px;font-weight:900;color:${color||'var(--text)'}">${val}</div>
     </div>`;
 
+  const fmtUSD2 = v => '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   resumo.innerHTML =
     card('🧾', 'Faturas emitidas', count, 'var(--primary)') +
-    card('💵', 'Total USD faturado', `$${totalUSD.toFixed(2)}`, 'var(--success)');
+    card('💵', 'Total USD faturado', fmtUSD2(totalUSD), 'var(--success)');
 
   const lista = document.getElementById('facturasLista');
   if (!lista) return;
@@ -4901,7 +4903,7 @@ function renderFacturasResumo() {
     <tbody>${sorted.map(f => `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 10px;font-weight:700">${String(f.numFactura||'—').padStart(7,'0')}</td>
       <td style="padding:8px 10px">${f.clienteNombre||'—'}</td>
-      <td style="padding:8px 10px;text-align:right">$${Number(f.totalUSD||0).toFixed(2)}</td>
+      <td style="padding:8px 10px;text-align:right">${fmtUSD2(f.totalUSD||0)}</td>
       <td style="padding:8px 10px;color:var(--text-3);font-size:12px">${f.ts ? new Date(f.ts).toLocaleString('pt-BR') : '—'}</td>
       <td style="padding:8px 10px;text-align:center">
         <button onclick="deleteFactura('${f.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Excluir registro">🗑</button>
