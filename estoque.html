@@ -1496,7 +1496,7 @@
       </div>
       <div class="field">
         <label class="modal-label">Valor em USD *</label>
-        <input class="modal-input" type="number" id="fatCompraValorUSD" min="0.01" step="0.01" placeholder="0.00">
+        <input class="modal-input" type="text" id="fatCompraValorUSD" placeholder="Ex: 150.000,00" inputmode="decimal">
       </div>
       <div class="field">
         <label class="modal-label">Data da Nota</label>
@@ -4840,7 +4840,7 @@ function openFatCompraModal() {
 async function saveFatCompra() {
   const fornecedor = document.getElementById('fatCompraFornecedor').value.trim();
   const numNota    = document.getElementById('fatCompraNumNota').value.trim();
-  const totalUSD   = parseFloat(document.getElementById('fatCompraValorUSD').value);
+  const totalUSD   = parseMoedaInput(document.getElementById('fatCompraValorUSD').value);
   const data       = document.getElementById('fatCompraData').value;
 
   if (!totalUSD || totalUSD <= 0) { toast('Informe o valor em USD', 'error'); return; }
