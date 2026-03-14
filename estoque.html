@@ -2756,6 +2756,7 @@ function renderCart() {
   if (!cart.length) {
     container.innerHTML = '<div class="cart-empty">Nenhum item adicionado</div>';
     document.getElementById('cartTotalUSD').textContent = '$0.00';
+    document.getElementById('cartTotalBRL').style.display = 'none';
     btnCobrar.disabled = true;
     return;
   }
