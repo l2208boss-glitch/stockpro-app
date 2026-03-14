@@ -751,6 +751,24 @@
 
     /* ─── VENDAS HISTORY ─── */
     .vendas-block { margin-top:28px; padding:0 24px 24px; }
+    /* ── Fechamento de Caixa ── */
+    .fech-section { display:grid; gap:10px; margin-bottom:18px; }
+    .fech-row { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--bg); border-radius:var(--radius-sm); border:1px solid var(--border); }
+    .fech-label { font-size:13px; font-weight:600; color:var(--text-2); }
+    .fech-val { font-size:15px; font-weight:800; color:var(--text); }
+    .fech-input-row { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border); gap:12px; }
+    .fech-input { flex:1; text-align:right; padding:6px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:15px; font-weight:700; max-width:160px; }
+    .fech-diff { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid; font-weight:700; }
+    .fech-diff.ok { background:#f0fdf4; border-color:#bbf7d0; color:#16a34a; }
+    .fech-diff.over { background:#fffbeb; border-color:#fbbf24; color:#d97706; }
+    .fech-diff.under { background:#fef2f2; border-color:#fecaca; color:#dc2626; }
+    .fech-divider { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-3); padding:6px 0 2px; }
+    .fech-hist-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:center; padding:10px 14px; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border); font-size:13px; }
+    .fech-hist-row .fh-date { font-weight:700; color:var(--text); }
+    .fech-hist-row .fh-user { color:var(--text-3); font-size:12px; }
+    .fech-hist-row .fh-diff { font-weight:800; }
+    .btn-fechar-caixa { background:#1e293b; color:#fff; border:none; border-radius:var(--radius-sm); padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; }
+    .btn-fechar-caixa:hover { background:#334155; }
     .venda-row td { padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); }
     .venda-items { font-size:12px; color:var(--text-2); max-width:200px; }
 
@@ -1114,12 +1132,19 @@
           <option value="data">📅 Por data</option>
         </select>
         <input type="date" id="vendasDataEspecifica" onchange="renderVendas()" style="display:none;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
+        <button class="btn-fechar-caixa" id="btnFechaCaixa" onclick="openFechamentoCaixa()" style="display:none">🔒 Fechar Caixa</button>
         <button class="btn-clr" onclick="clearVendas()" title="Limpar histórico de vendas">🗑</button>
       </div>
     </div>
 
     <!-- Resumo do período -->
     <div id="vendasResumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px"></div>
+
+    <!-- Histórico de fechamentos (admin only) -->
+    <div id="fechamentosBlock" style="display:none;margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-3);margin-bottom:8px">🔒 Fechamentos Salvos</div>
+      <div id="fechamentosLista" style="display:grid;gap:8px"></div>
+    </div>
 
     <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:auto">
       <table style="width:100%;border-collapse:collapse">
@@ -1136,6 +1161,23 @@
         </thead>
         <tbody id="vendasBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — FECHAMENTO DE CAIXA ══════════ -->
+<div class="overlay" id="fechamentoModal" onclick="overlayClick(event,'fechamentoModal')">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-title edit">🔒 Fechamento de Caixa</span>
+      <button class="btn-x" onclick="closeOverlay('fechamentoModal')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:75vh;overflow-y:auto">
+      <div id="fechModalBody"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('fechamentoModal')">Cancelar</button>
+      <button class="btn-confirm save" id="btnSalvarFechamento" onclick="salvarFechamento()">💾 Salvar Fechamento</button>
     </div>
   </div>
 </div>
@@ -2324,6 +2366,8 @@ function showCaixaApp() {
   document.getElementById('caixaHeaderUser').textContent = '👤 ' + user.name;
   document.getElementById('btnEditCotacao').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('vendasBlock').style.display = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnFechaCaixa').style.display = user.role === 'admin' ? '' : 'none';
+  if (user.role === 'admin') loadFechamentos();
   const isFarmacia = currentFilial && currentFilial.id === FARMACIA_ID;
   const factBtn = document.getElementById('btnFacturaConfig');
   if (factBtn) factBtn.style.display = (isFarmacia && user.role === 'admin') ? '' : 'none';
@@ -3282,6 +3326,204 @@ function renderVendas() {
       <td>${v.user}</td>
       ${facturaBtn}
     </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════
+   FECHAMENTO DE CAIXA
+══════════════════════════════════════════ */
+let _fechDados = null; // dados do período para o modal
+
+function openFechamentoCaixa() {
+  const filtro = document.getElementById('vendasFiltro')?.value || 'hoje';
+  const now    = new Date();
+  const today  = now.toISOString().slice(0,10);
+  const dateInput = document.getElementById('vendasDataEspecifica');
+  const dataRef   = filtro === 'data' ? (dateInput?.value || today) : today;
+
+  // Coleta vendas do dia/data selecionada
+  const filtradas = vendas.filter(v => v.ts.slice(0,10) === dataRef);
+  if (!filtradas.length) { toast('Nenhuma venda no período selecionado', 'error'); return; }
+
+  const totalUSD  = filtradas.reduce((s,v) => s + v.totalUSD, 0);
+  const recBRL    = filtradas.reduce((s,v) => v.pagamentos
+    ? s + v.pagamentos.filter(p=>p.moeda==='BRL').reduce((a,p)=>a+p.valor,0)
+    : s + (v.moedaPagamento==='BRL' ? v.valorPago : 0), 0);
+  const recPIX    = filtradas.reduce((s,v) => v.pagamentos
+    ? s + v.pagamentos.filter(p=>p.moeda==='PIX').reduce((a,p)=>a+p.valor,0)
+    : s + (v.moedaPagamento==='PIX' ? v.valorPago : 0), 0);
+  const recUSD    = filtradas.reduce((s,v) => v.pagamentos
+    ? s + v.pagamentos.filter(p=>p.moeda==='USD').reduce((a,p)=>a+p.valor,0)
+    : s + (v.moedaPagamento==='USD' ? v.valorPago : 0), 0);
+  const trocoBRL  = filtradas.reduce((s,v) => {
+    const t = Math.max(0, v.troco||0);
+    if (!t) return s;
+    const rate = v.cotacaoPIX > 0 ? v.cotacaoPIX : (v.cotacaoBRL > 0 ? v.cotacaoBRL : 0);
+    return s + (rate > 0 ? t * rate : 0);
+  }, 0);
+  const liquidoBRL = recBRL - trocoBRL;
+
+  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, trocoBRL, liquidoBRL };
+
+  const fmtR = v => `R$ ${v.toFixed(2)}`;
+  const fmtD = v => `$${v.toFixed(2)}`;
+
+  document.getElementById('fechModalBody').innerHTML = `
+    <div class="fech-divider">📊 Esperado pelo sistema</div>
+    <div class="fech-section">
+      <div class="fech-row">
+        <span class="fech-label">🧾 Vendas</span>
+        <span class="fech-val">${filtradas.length} vendas · ${fmtD(totalUSD)}</span>
+      </div>
+      ${liquidoBRL > 0 ? `<div class="fech-row">
+        <span class="fech-label">🇧🇷 Dinheiro no caixa</span>
+        <span class="fech-val">${fmtR(liquidoBRL)}</span>
+      </div>` : ''}
+      ${recPIX > 0 ? `<div class="fech-row">
+        <span class="fech-label">📱 PIX (conta)</span>
+        <span class="fech-val">${fmtR(recPIX)}</span>
+      </div>` : ''}
+      ${recUSD > 0 ? `<div class="fech-row">
+        <span class="fech-label">🇺🇸 USD físico</span>
+        <span class="fech-val">${fmtD(recUSD)}</span>
+      </div>` : ''}
+      ${trocoBRL > 0 ? `<div class="fech-row" style="opacity:.7">
+        <span class="fech-label">💸 Troco dado</span>
+        <span class="fech-val" style="color:var(--danger)">−${fmtR(trocoBRL)}</span>
+      </div>` : ''}
+    </div>
+
+    <div class="fech-divider">✏️ Informe o físico contado</div>
+    <div class="fech-section">
+      ${liquidoBRL > 0 ? `<div class="fech-input-row">
+        <span class="fech-label">🇧🇷 Dinheiro contado</span>
+        <input class="fech-input" type="number" step="0.01" min="0" id="fInBRL" placeholder="R$ 0,00" oninput="calcFechamento()">
+      </div>` : ''}
+      ${recPIX > 0 ? `<div class="fech-input-row">
+        <span class="fech-label">📱 PIX confirmado</span>
+        <input class="fech-input" type="number" step="0.01" min="0" id="fInPIX" placeholder="R$ 0,00" oninput="calcFechamento()">
+      </div>` : ''}
+      ${recUSD > 0 ? `<div class="fech-input-row">
+        <span class="fech-label">🇺🇸 USD contado</span>
+        <input class="fech-input" type="number" step="0.01" min="0" id="fInUSD" placeholder="$0.00" oninput="calcFechamento()">
+      </div>` : ''}
+    </div>
+
+    <div class="fech-divider">📋 Resultado</div>
+    <div id="fechDiffs" class="fech-section">
+      <div style="color:var(--text-3);font-size:13px;text-align:center;padding:8px">Preencha os valores acima</div>
+    </div>
+
+    <div style="margin-top:12px">
+      <textarea id="fInObs" placeholder="Observação (opcional)..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:vertical;min-height:60px;font-family:inherit;box-sizing:border-box"></textarea>
+    </div>`;
+
+  document.getElementById('fechamentoModal').classList.add('on');
+}
+
+function calcFechamento() {
+  if (!_fechDados) return;
+  const { liquidoBRL, recPIX, recUSD } = _fechDados;
+  const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || null;
+  const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || null;
+  const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || null;
+
+  const diffRow = (label, esperado, fisico, prefix) => {
+    if (fisico === null) return '';
+    const diff = fisico - esperado;
+    const abs  = Math.abs(diff);
+    const cls  = Math.abs(diff) < 0.05 ? 'ok' : diff > 0 ? 'over' : 'under';
+    const icon = cls === 'ok' ? '✅' : cls === 'over' ? '⚠️' : '❌';
+    const msg  = cls === 'ok'
+      ? 'BATEU'
+      : (diff > 0 ? `+${prefix}${abs.toFixed(2)} sobrou` : `−${prefix}${abs.toFixed(2)} faltou`);
+    return `<div class="fech-diff ${cls}"><span>${icon} ${label}</span><span>${msg}</span></div>`;
+  };
+
+  const html = diffRow('Dinheiro', liquidoBRL, fInBRL, 'R$ ')
+             + diffRow('PIX', recPIX, fInPIX, 'R$ ')
+             + diffRow('USD', recUSD, fInUSD, '$');
+
+  document.getElementById('fechDiffs').innerHTML = html ||
+    '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:8px">Preencha os valores acima</div>';
+}
+
+async function salvarFechamento() {
+  if (!_fechDados || !currentFilial) return;
+  const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || 0;
+  const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || 0;
+  const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || 0;
+  const obs    = document.getElementById('fInObs')?.value.trim() || '';
+
+  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, trocoBRL, liquidoBRL } = _fechDados;
+  const doc = {
+    id: Date.now(),
+    date, ts: new Date().toISOString(),
+    user: user.username,
+    vendas: nVendas, totalUSD: +totalUSD.toFixed(2),
+    esperadoBRL: +liquidoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +recUSD.toFixed(2),
+    trocoBRL: +trocoBRL.toFixed(2),
+    fisicoBRL: fInBRL, fisicoPIX: fInPIX, fisicoUSD: fInUSD,
+    diffBRL: +(fInBRL - liquidoBRL).toFixed(2),
+    diffPIX: +(fInPIX - recPIX).toFixed(2),
+    diffUSD: +(fInUSD - recUSD).toFixed(2),
+    obs
+  };
+
+  try {
+    document.getElementById('btnSalvarFechamento').disabled = true;
+    await db.collection(`lojas/${currentFilial.id}/fechamentos`).doc(String(doc.id)).set(doc);
+    closeOverlay('fechamentoModal');
+    toast('✅ Fechamento salvo com sucesso!', 'success');
+    loadFechamentos();
+  } catch(e) {
+    toast('Erro ao salvar fechamento', 'error');
+    console.error(e);
+  } finally {
+    document.getElementById('btnSalvarFechamento').disabled = false;
+  }
+}
+
+async function loadFechamentos() {
+  if (!currentFilial || user?.role !== 'admin') return;
+  try {
+    const snap = await db.collection(`lojas/${currentFilial.id}/fechamentos`)
+      .orderBy('ts','desc').limit(10).get();
+    const lista = snap.docs.map(d => d.data());
+    renderFechamentos(lista);
+  } catch(e) { /* sem fechamentos ainda */ }
+}
+
+function renderFechamentos(lista) {
+  const block = document.getElementById('fechamentosBlock');
+  const cont  = document.getElementById('fechamentosLista');
+  if (!lista.length) { block.style.display = 'none'; return; }
+  block.style.display = '';
+
+  cont.innerHTML = lista.map(f => {
+    const diffs = [];
+    if (f.fisicoBRL > 0) {
+      const d = f.diffBRL;
+      const cls = Math.abs(d) < 0.05 ? 'var(--success)' : d > 0 ? '#d97706' : 'var(--danger)';
+      diffs.push(`<span style="color:${cls};font-weight:700">BRL: ${d >= 0 ? '+' : ''}R$ ${d.toFixed(2)}</span>`);
+    }
+    if (f.fisicoPIX > 0) {
+      const d = f.diffPIX;
+      const cls = Math.abs(d) < 0.05 ? 'var(--success)' : d > 0 ? '#d97706' : 'var(--danger)';
+      diffs.push(`<span style="color:${cls};font-weight:700">PIX: ${d >= 0 ? '+' : ''}R$ ${d.toFixed(2)}</span>`);
+    }
+    if (f.fisicoUSD > 0) {
+      const d = f.diffUSD;
+      const cls = Math.abs(d) < 0.05 ? 'var(--success)' : d > 0 ? '#d97706' : 'var(--danger)';
+      diffs.push(`<span style="color:${cls};font-weight:700">USD: ${d >= 0 ? '+' : ''}$${d.toFixed(2)}</span>`);
+    }
+    const dt = new Date(f.ts).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+    return `<div class="fech-hist-row">
+      <div><div class="fh-date">📅 ${f.date}</div><div class="fh-user">${dt} · ${f.user}</div></div>
+      <div style="font-size:12px;color:var(--text-3)">${f.vendas} vendas · $${f.totalUSD.toFixed(2)}</div>
+      <div style="display:flex;flex-direction:column;gap:2px;font-size:12px">${diffs.join('')}</div>
+      <div style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.obs||''}">${f.obs || '—'}</div>
+    </div>`;
   }).join('');
 }
 
