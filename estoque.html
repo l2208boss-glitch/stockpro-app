@@ -1194,6 +1194,10 @@
           <span class="fech-label">🇺🇸 Fundo em USD</span>
           <input class="fech-input" type="number" step="0.01" min="0" id="abFundoUSD" placeholder="$0.00">
         </div>
+        <div class="fech-input-row">
+          <span class="fech-label">🇵🇾 Fundo em Guarani</span>
+          <input class="fech-input" type="number" step="1" min="0" id="abFundoPYG" placeholder="₲ 0">
+        </div>
         <div style="padding:4px 0">
           <textarea id="abObs" placeholder="Observação (opcional)..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:56px;font-family:inherit;box-sizing:border-box"></textarea>
         </div>
@@ -3394,8 +3398,9 @@ function renderAberturaBanner() {
   if (aberturaHoje) {
     const hora = new Date(aberturaHoje.ts).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
     const fundos = [];
-    if (aberturaHoje.fundoBRL > 0) fundos.push(`R$ ${aberturaHoje.fundoBRL.toFixed(2)}`);
-    if (aberturaHoje.fundoUSD > 0) fundos.push(`$${aberturaHoje.fundoUSD.toFixed(2)}`);
+    if (aberturaHoje.fundoBRL > 0) fundos.push(`R$ ${aberturaHoje.fundoBRL.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+    if (aberturaHoje.fundoUSD > 0) fundos.push(`$${aberturaHoje.fundoUSD.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+    if (aberturaHoje.fundoPYG > 0) fundos.push(`₲ ${Math.round(aberturaHoje.fundoPYG).toLocaleString('pt-BR')}`);
     banner.className = 'abertura-banner feito';
     msg.textContent  = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user} — Fundo: ${fundos.join(' + ') || 'R$ 0,00'}`;
     btn.style.display = 'none';
@@ -3409,6 +3414,7 @@ function renderAberturaBanner() {
 function openAberturaCaixa() {
   document.getElementById('abFundoBRL').value = '';
   document.getElementById('abFundoUSD').value = '';
+  document.getElementById('abFundoPYG').value = '';
   document.getElementById('abObs').value = '';
   document.getElementById('aberturaModal').classList.add('on');
   setTimeout(() => document.getElementById('abFundoBRL').focus(), 120);
@@ -3418,9 +3424,10 @@ async function salvarAbertura() {
   if (!currentFilial) return;
   const fundoBRL = parseFloat(document.getElementById('abFundoBRL').value) || 0;
   const fundoUSD = parseFloat(document.getElementById('abFundoUSD').value) || 0;
+  const fundoPYG = parseFloat(document.getElementById('abFundoPYG').value) || 0;
   const obs      = document.getElementById('abObs').value.trim();
   const today    = new Date().toISOString().slice(0,10);
-  const doc = { date: today, ts: new Date().toISOString(), user: user.username, fundoBRL, fundoUSD, obs };
+  const doc = { date: today, ts: new Date().toISOString(), user: user.username, fundoBRL, fundoUSD, fundoPYG, obs };
   try {
     document.getElementById('btnSalvarAbertura').disabled = true;
     await db.collection(`lojas/${currentFilial.id}/aberturas`).doc(today).set(doc);
@@ -3471,13 +3478,16 @@ function openFechamentoCaixa() {
 
   const fundoBRL = aberturaHoje?.fundoBRL || 0;
   const fundoUSD = aberturaHoje?.fundoUSD || 0;
+  const fundoPYG = aberturaHoje?.fundoPYG || 0;
   const esperadoBRL = fundoBRL + liquidoBRL;
   const esperadoUSD = fundoUSD + recUSD;
+  const esperadoPYG = fundoPYG + recPYG;
 
-  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, trocoBRL, liquidoBRL, fundoBRL, fundoUSD, esperadoBRL, esperadoUSD };
+  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, liquidoBRL, fundoBRL, fundoUSD, fundoPYG, esperadoBRL, esperadoUSD, esperadoPYG };
 
-  const fmtR = v => `R$ ${v.toFixed(2)}`;
-  const fmtD = v => `$${v.toFixed(2)}`;
+  const fmtR = v => `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const fmtD = v => `$${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const fmtG = v => `₲ ${Math.round(v).toLocaleString('pt-BR')}`;
 
   document.getElementById('fechModalBody').innerHTML = `
     <div class="fech-divider">📊 Esperado pelo sistema</div>
@@ -3505,6 +3515,10 @@ function openFechamentoCaixa() {
         <span class="fech-label">🇺🇸 USD esperado no caixa</span>
         <span class="fech-val">${fmtD(esperadoUSD)}</span>
       </div>` : ''}
+      ${esperadoPYG > 0 ? `<div class="fech-row">
+        <span class="fech-label">🇵🇾 Guarani esperado no caixa</span>
+        <span class="fech-val">${fmtG(esperadoPYG)}</span>
+      </div>` : ''}
       ${trocoBRL > 0 ? `<div class="fech-row" style="opacity:.65">
         <span class="fech-label">💸 Troco dado no dia</span>
         <span class="fech-val" style="color:var(--danger)">−${fmtR(trocoBRL)}</span>
@@ -3521,9 +3535,13 @@ function openFechamentoCaixa() {
         <span class="fech-label">📱 PIX confirmado</span>
         <input class="fech-input" type="number" step="0.01" min="0" id="fInPIX" placeholder="R$ 0,00" oninput="calcFechamento()">
       </div>` : ''}
-      ${recUSD > 0 ? `<div class="fech-input-row">
+      ${esperadoUSD > 0 ? `<div class="fech-input-row">
         <span class="fech-label">🇺🇸 USD contado</span>
         <input class="fech-input" type="number" step="0.01" min="0" id="fInUSD" placeholder="$0.00" oninput="calcFechamento()">
+      </div>` : ''}
+      ${esperadoPYG > 0 ? `<div class="fech-input-row">
+        <span class="fech-label">🇵🇾 Guarani contado</span>
+        <input class="fech-input" type="number" step="1" min="0" id="fInPYG" placeholder="₲ 0" oninput="calcFechamento()">
       </div>` : ''}
     </div>
 
@@ -3541,10 +3559,11 @@ function openFechamentoCaixa() {
 
 function calcFechamento() {
   if (!_fechDados) return;
-  const { esperadoBRL, recPIX, esperadoUSD } = _fechDados;
+  const { esperadoBRL, recPIX, esperadoUSD, esperadoPYG } = _fechDados;
   const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || null;
   const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || null;
   const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || null;
+  const fInPYG = parseFloat(document.getElementById('fInPYG')?.value) || null;
 
   const diffRow = (label, esperado, fisico, prefix) => {
     if (fisico === null) return '';
@@ -3560,7 +3579,8 @@ function calcFechamento() {
 
   const html = diffRow('Dinheiro físico', esperadoBRL, fInBRL, 'R$ ')
              + diffRow('PIX (conta)', recPIX, fInPIX, 'R$ ')
-             + diffRow('USD físico', esperadoUSD, fInUSD, '$');
+             + diffRow('USD físico', esperadoUSD, fInUSD, '$')
+             + diffRow('Guarani físico', esperadoPYG, fInPYG, '₲ ');
 
   document.getElementById('fechDiffs').innerHTML = html ||
     '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:8px">Preencha os valores acima</div>';
@@ -3571,21 +3591,23 @@ async function salvarFechamento() {
   const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || 0;
   const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || 0;
   const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || 0;
+  const fInPYG = parseFloat(document.getElementById('fInPYG')?.value) || 0;
   const obs    = document.getElementById('fInObs')?.value.trim() || '';
 
-  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, trocoBRL, fundoBRL, fundoUSD, esperadoBRL, esperadoUSD } = _fechDados;
+  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, fundoBRL, fundoUSD, fundoPYG, esperadoBRL, esperadoUSD, esperadoPYG } = _fechDados;
   const doc = {
     id: Date.now(),
     date, ts: new Date().toISOString(),
     user: user.username,
     vendas: nVendas, totalUSD: +totalUSD.toFixed(2),
-    fundoBRL: +fundoBRL.toFixed(2), fundoUSD: +fundoUSD.toFixed(2),
-    esperadoBRL: +esperadoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +esperadoUSD.toFixed(2),
+    fundoBRL: +fundoBRL.toFixed(2), fundoUSD: +fundoUSD.toFixed(2), fundoPYG: Math.round(fundoPYG),
+    esperadoBRL: +esperadoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +esperadoUSD.toFixed(2), esperadoPYG: Math.round(esperadoPYG),
     trocoBRL: +trocoBRL.toFixed(2),
-    fisicoBRL: fInBRL, fisicoPIX: fInPIX, fisicoUSD: fInUSD,
+    fisicoBRL: fInBRL, fisicoPIX: fInPIX, fisicoUSD: fInUSD, fisicoPYG: fInPYG,
     diffBRL: +(fInBRL - esperadoBRL).toFixed(2),
     diffPIX: +(fInPIX - recPIX).toFixed(2),
     diffUSD: +(fInUSD - esperadoUSD).toFixed(2),
+    diffPYG: Math.round(fInPYG - esperadoPYG),
     obs
   };
 
