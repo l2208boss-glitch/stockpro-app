@@ -1066,7 +1066,10 @@
   <!-- Banner abertura de caixa -->
   <div class="abertura-banner pendente" id="aberturaBanner">
     <span id="aberturaBannerMsg">⚠️ Abertura de caixa não registrada hoje</span>
-    <button class="btn-abrir-caixa" id="btnAbrirCaixa" onclick="openAberturaCaixa()">🔓 Registrar Abertura</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn-abrir-caixa" id="btnAbrirCaixa" onclick="openAberturaCaixa()">🔓 Registrar Abertura</button>
+      <button id="btnExcluirAbertura" onclick="excluirAbertura()" style="display:none;background:none;border:1px solid #dc2626;color:#dc2626;border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">🗑 Excluir</button>
+    </div>
   </div>
 
   <div class="caixa-layout">
@@ -3395,6 +3398,7 @@ function renderAberturaBanner() {
   const msg     = document.getElementById('aberturaBannerMsg');
   const btn     = document.getElementById('btnAbrirCaixa');
   if (!banner) return;
+  const btnExcluir = document.getElementById('btnExcluirAbertura');
   if (aberturaHoje) {
     const hora = new Date(aberturaHoje.ts).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
     const fundos = [];
@@ -3404,10 +3408,26 @@ function renderAberturaBanner() {
     banner.className = 'abertura-banner feito';
     msg.textContent  = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user} — Fundo: ${fundos.join(' + ') || 'R$ 0,00'}`;
     btn.style.display = 'none';
+    if (btnExcluir) btnExcluir.style.display = user?.role === 'admin' ? '' : 'none';
   } else {
     banner.className = 'abertura-banner pendente';
     msg.textContent  = '⚠️ Abertura de caixa não registrada hoje';
     btn.style.display = '';
+    if (btnExcluir) btnExcluir.style.display = 'none';
+  }
+}
+
+async function excluirAbertura() {
+  if (!currentFilial || !aberturaHoje) return;
+  if (!confirm('Excluir a abertura de caixa de hoje?')) return;
+  const today = new Date().toISOString().slice(0,10);
+  try {
+    await db.collection(`lojas/${currentFilial.id}/aberturas`).doc(today).delete();
+    aberturaHoje = null;
+    renderAberturaBanner();
+    toast('Abertura excluída', 'success');
+  } catch(e) {
+    toast('Erro ao excluir abertura', 'error');
   }
 }
 
@@ -3468,6 +3488,9 @@ function openFechamentoCaixa() {
   const recUSD    = filtradas.reduce((s,v) => v.pagamentos
     ? s + v.pagamentos.filter(p=>p.moeda==='USD').reduce((a,p)=>a+p.valor,0)
     : s + (v.moedaPagamento==='USD' ? v.valorPago : 0), 0);
+  const recPYG    = filtradas.reduce((s,v) => v.pagamentos
+    ? s + v.pagamentos.filter(p=>p.moeda==='PYG').reduce((a,p)=>a+p.valor,0)
+    : s + (v.moedaPagamento==='PYG' ? v.valorPago : 0), 0);
   const trocoBRL  = filtradas.reduce((s,v) => {
     const t = Math.max(0, v.troco||0);
     if (!t) return s;
