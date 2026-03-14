@@ -769,6 +769,11 @@
     .fech-hist-row .fh-diff { font-weight:800; }
     .btn-fechar-caixa { background:#1e293b; color:#fff; border:none; border-radius:var(--radius-sm); padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; }
     .btn-fechar-caixa:hover { background:#334155; }
+    .abertura-banner { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:10px 24px; font-size:13px; font-weight:600; }
+    .abertura-banner.pendente { background:#fef9c3; border-bottom:2px solid #fbbf24; color:#92400e; }
+    .abertura-banner.feito { background:#f0fdf4; border-bottom:1px solid #bbf7d0; color:#166534; }
+    .btn-abrir-caixa { background:#d97706; color:#fff; border:none; border-radius:var(--radius-sm); padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .btn-abrir-caixa:hover { background:#b45309; }
     .venda-row td { padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); }
     .venda-items { font-size:12px; color:var(--text-2); max-width:200px; }
 
@@ -1058,6 +1063,12 @@
     <span class="cotacao-aviso" id="cotAviso" style="display:none">⚠️ Cotação não definida para hoje</span>
   </div>
 
+  <!-- Banner abertura de caixa -->
+  <div class="abertura-banner pendente" id="aberturaBanner">
+    <span id="aberturaBannerMsg">⚠️ Abertura de caixa não registrada hoje</span>
+    <button class="btn-abrir-caixa" id="btnAbrirCaixa" onclick="openAberturaCaixa()">🔓 Registrar Abertura</button>
+  </div>
+
   <div class="caixa-layout">
     <!-- Produtos -->
     <div>
@@ -1161,6 +1172,36 @@
         </thead>
         <tbody id="vendasBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — ABERTURA DE CAIXA ══════════ -->
+<div class="overlay" id="aberturaModal" onclick="overlayClick(event,'aberturaModal')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd">
+      <span class="modal-title edit">🔓 Abertura de Caixa</span>
+      <button class="btn-x" onclick="closeOverlay('aberturaModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">Conte o dinheiro que está no caixa <strong>antes de começar</strong> as vendas e informe abaixo.</p>
+      <div class="fech-section">
+        <div class="fech-input-row">
+          <span class="fech-label">🇧🇷 Fundo em Dinheiro</span>
+          <input class="fech-input" type="number" step="0.01" min="0" id="abFundoBRL" placeholder="R$ 0,00">
+        </div>
+        <div class="fech-input-row">
+          <span class="fech-label">🇺🇸 Fundo em USD</span>
+          <input class="fech-input" type="number" step="0.01" min="0" id="abFundoUSD" placeholder="$0.00">
+        </div>
+        <div style="padding:4px 0">
+          <textarea id="abObs" placeholder="Observação (opcional)..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:56px;font-family:inherit;box-sizing:border-box"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('aberturaModal')">Cancelar</button>
+      <button class="btn-confirm save" id="btnSalvarAbertura" onclick="salvarAbertura()">🔓 Confirmar Abertura</button>
     </div>
   </div>
 </div>
@@ -2368,6 +2409,7 @@ function showCaixaApp() {
   document.getElementById('vendasBlock').style.display = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnFechaCaixa').style.display = user.role === 'admin' ? '' : 'none';
   if (user.role === 'admin') loadFechamentos();
+  loadAbertura();
   const isFarmacia = currentFilial && currentFilial.id === FARMACIA_ID;
   const factBtn = document.getElementById('btnFacturaConfig');
   if (factBtn) factBtn.style.display = (isFarmacia && user.role === 'admin') ? '' : 'none';
@@ -3330,6 +3372,70 @@ function renderVendas() {
 }
 
 /* ══════════════════════════════════════════
+   ABERTURA DE CAIXA
+══════════════════════════════════════════ */
+let aberturaHoje = null;
+
+async function loadAbertura() {
+  if (!currentFilial) return;
+  const today = new Date().toISOString().slice(0,10);
+  try {
+    const snap = await db.collection(`lojas/${currentFilial.id}/aberturas`).doc(today).get();
+    aberturaHoje = snap.exists ? snap.data() : null;
+  } catch(e) { aberturaHoje = null; }
+  renderAberturaBanner();
+}
+
+function renderAberturaBanner() {
+  const banner  = document.getElementById('aberturaBanner');
+  const msg     = document.getElementById('aberturaBannerMsg');
+  const btn     = document.getElementById('btnAbrirCaixa');
+  if (!banner) return;
+  if (aberturaHoje) {
+    const hora = new Date(aberturaHoje.ts).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+    const fundos = [];
+    if (aberturaHoje.fundoBRL > 0) fundos.push(`R$ ${aberturaHoje.fundoBRL.toFixed(2)}`);
+    if (aberturaHoje.fundoUSD > 0) fundos.push(`$${aberturaHoje.fundoUSD.toFixed(2)}`);
+    banner.className = 'abertura-banner feito';
+    msg.textContent  = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user} — Fundo: ${fundos.join(' + ') || 'R$ 0,00'}`;
+    btn.style.display = 'none';
+  } else {
+    banner.className = 'abertura-banner pendente';
+    msg.textContent  = '⚠️ Abertura de caixa não registrada hoje';
+    btn.style.display = '';
+  }
+}
+
+function openAberturaCaixa() {
+  document.getElementById('abFundoBRL').value = '';
+  document.getElementById('abFundoUSD').value = '';
+  document.getElementById('abObs').value = '';
+  document.getElementById('aberturaModal').classList.add('on');
+  setTimeout(() => document.getElementById('abFundoBRL').focus(), 120);
+}
+
+async function salvarAbertura() {
+  if (!currentFilial) return;
+  const fundoBRL = parseFloat(document.getElementById('abFundoBRL').value) || 0;
+  const fundoUSD = parseFloat(document.getElementById('abFundoUSD').value) || 0;
+  const obs      = document.getElementById('abObs').value.trim();
+  const today    = new Date().toISOString().slice(0,10);
+  const doc = { date: today, ts: new Date().toISOString(), user: user.username, fundoBRL, fundoUSD, obs };
+  try {
+    document.getElementById('btnSalvarAbertura').disabled = true;
+    await db.collection(`lojas/${currentFilial.id}/aberturas`).doc(today).set(doc);
+    aberturaHoje = doc;
+    renderAberturaBanner();
+    closeOverlay('aberturaModal');
+    toast('✅ Abertura registrada!', 'success');
+  } catch(e) {
+    toast('Erro ao salvar abertura', 'error');
+  } finally {
+    document.getElementById('btnSalvarAbertura').disabled = false;
+  }
+}
+
+/* ══════════════════════════════════════════
    FECHAMENTO DE CAIXA
 ══════════════════════════════════════════ */
 let _fechDados = null; // dados do período para o modal
@@ -3363,7 +3469,12 @@ function openFechamentoCaixa() {
   }, 0);
   const liquidoBRL = recBRL - trocoBRL;
 
-  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, trocoBRL, liquidoBRL };
+  const fundoBRL = aberturaHoje?.fundoBRL || 0;
+  const fundoUSD = aberturaHoje?.fundoUSD || 0;
+  const esperadoBRL = fundoBRL + liquidoBRL;
+  const esperadoUSD = fundoUSD + recUSD;
+
+  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, trocoBRL, liquidoBRL, fundoBRL, fundoUSD, esperadoBRL, esperadoUSD };
 
   const fmtR = v => `R$ ${v.toFixed(2)}`;
   const fmtD = v => `$${v.toFixed(2)}`;
@@ -3372,23 +3483,30 @@ function openFechamentoCaixa() {
     <div class="fech-divider">📊 Esperado pelo sistema</div>
     <div class="fech-section">
       <div class="fech-row">
-        <span class="fech-label">🧾 Vendas</span>
+        <span class="fech-label">🧾 Vendas do dia</span>
         <span class="fech-val">${filtradas.length} vendas · ${fmtD(totalUSD)}</span>
       </div>
-      ${liquidoBRL > 0 ? `<div class="fech-row">
-        <span class="fech-label">🇧🇷 Dinheiro no caixa</span>
-        <span class="fech-val">${fmtR(liquidoBRL)}</span>
+      ${fundoBRL > 0 ? `<div class="fech-row" style="opacity:.75">
+        <span class="fech-label">🔓 Fundo inicial (abertura)</span>
+        <span class="fech-val">${fmtR(fundoBRL)}</span>
+      </div>` : `<div class="fech-row" style="background:#fef9c3;border-color:#fbbf24">
+        <span class="fech-label" style="color:#92400e">⚠️ Sem abertura registrada hoje</span>
+        <span class="fech-val" style="color:#92400e;font-size:12px">fundo = R$ 0</span>
+      </div>`}
+      ${esperadoBRL > 0 ? `<div class="fech-row" style="border-color:var(--primary);background:var(--primary-light)">
+        <span class="fech-label" style="color:var(--primary-dark)">🇧🇷 Esperado no caixa físico</span>
+        <span class="fech-val" style="color:var(--primary)">${fmtR(esperadoBRL)}</span>
       </div>` : ''}
       ${recPIX > 0 ? `<div class="fech-row">
-        <span class="fech-label">📱 PIX (conta)</span>
+        <span class="fech-label">📱 PIX esperado (conta)</span>
         <span class="fech-val">${fmtR(recPIX)}</span>
       </div>` : ''}
-      ${recUSD > 0 ? `<div class="fech-row">
-        <span class="fech-label">🇺🇸 USD físico</span>
-        <span class="fech-val">${fmtD(recUSD)}</span>
+      ${esperadoUSD > 0 ? `<div class="fech-row">
+        <span class="fech-label">🇺🇸 USD esperado no caixa</span>
+        <span class="fech-val">${fmtD(esperadoUSD)}</span>
       </div>` : ''}
-      ${trocoBRL > 0 ? `<div class="fech-row" style="opacity:.7">
-        <span class="fech-label">💸 Troco dado</span>
+      ${trocoBRL > 0 ? `<div class="fech-row" style="opacity:.65">
+        <span class="fech-label">💸 Troco dado no dia</span>
         <span class="fech-val" style="color:var(--danger)">−${fmtR(trocoBRL)}</span>
       </div>` : ''}
     </div>
@@ -3423,7 +3541,7 @@ function openFechamentoCaixa() {
 
 function calcFechamento() {
   if (!_fechDados) return;
-  const { liquidoBRL, recPIX, recUSD } = _fechDados;
+  const { esperadoBRL, recPIX, esperadoUSD } = _fechDados;
   const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || null;
   const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || null;
   const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || null;
@@ -3440,9 +3558,9 @@ function calcFechamento() {
     return `<div class="fech-diff ${cls}"><span>${icon} ${label}</span><span>${msg}</span></div>`;
   };
 
-  const html = diffRow('Dinheiro', liquidoBRL, fInBRL, 'R$ ')
-             + diffRow('PIX', recPIX, fInPIX, 'R$ ')
-             + diffRow('USD', recUSD, fInUSD, '$');
+  const html = diffRow('Dinheiro físico', esperadoBRL, fInBRL, 'R$ ')
+             + diffRow('PIX (conta)', recPIX, fInPIX, 'R$ ')
+             + diffRow('USD físico', esperadoUSD, fInUSD, '$');
 
   document.getElementById('fechDiffs').innerHTML = html ||
     '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:8px">Preencha os valores acima</div>';
@@ -3455,18 +3573,19 @@ async function salvarFechamento() {
   const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || 0;
   const obs    = document.getElementById('fInObs')?.value.trim() || '';
 
-  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, trocoBRL, liquidoBRL } = _fechDados;
+  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, trocoBRL, fundoBRL, fundoUSD, esperadoBRL, esperadoUSD } = _fechDados;
   const doc = {
     id: Date.now(),
     date, ts: new Date().toISOString(),
     user: user.username,
     vendas: nVendas, totalUSD: +totalUSD.toFixed(2),
-    esperadoBRL: +liquidoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +recUSD.toFixed(2),
+    fundoBRL: +fundoBRL.toFixed(2), fundoUSD: +fundoUSD.toFixed(2),
+    esperadoBRL: +esperadoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +esperadoUSD.toFixed(2),
     trocoBRL: +trocoBRL.toFixed(2),
     fisicoBRL: fInBRL, fisicoPIX: fInPIX, fisicoUSD: fInUSD,
-    diffBRL: +(fInBRL - liquidoBRL).toFixed(2),
+    diffBRL: +(fInBRL - esperadoBRL).toFixed(2),
     diffPIX: +(fInPIX - recPIX).toFixed(2),
-    diffUSD: +(fInUSD - recUSD).toFixed(2),
+    diffUSD: +(fInUSD - esperadoUSD).toFixed(2),
     obs
   };
 
