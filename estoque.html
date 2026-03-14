@@ -3185,21 +3185,32 @@ function renderVendas() {
     return s + (v.moedaPagamento==='USD' ? v.valorPago : 0);
   }, 0);
   const trocoTotal = filtradas.reduce((s,v) => s + Math.max(0, v.troco||0), 0);
+  // Troco total em BRL (usando a cotação salva em cada venda)
+  const trocoBRL = filtradas.reduce((s,v) => {
+    const t = Math.max(0, v.troco||0);
+    if (!t) return s;
+    const rate = v.cotacaoPIX > 0 ? v.cotacaoPIX : (v.cotacaoBRL > 0 ? v.cotacaoBRL : 0);
+    return s + (rate > 0 ? t * rate : 0);
+  }, 0);
+  const liquidoBRL = recBRL - trocoBRL; // dinheiro físico esperado no caixa
 
-  const statCard = (icon, label, val, color) =>
+  const statCard = (icon, label, val, color, sub) =>
     `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm)">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${icon} ${label}</div>
       <div style="font-size:20px;font-weight:900;color:${color||'var(--text)'}">${val}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--text-3);margin-top:4px">${sub}</div>` : ''}
     </div>`;
 
   resumo.innerHTML = filtradas.length === 0
     ? `<div style="color:var(--text-3);font-size:13px;padding:8px 0">Nenhuma venda no período</div>`
     : statCard('🧾','Vendas', filtradas.length, 'var(--primary)')
     + statCard('💵','Total USD', `$${totalUSD.toFixed(2)}`, 'var(--success)')
-    + (recBRL  > 0 ? statCard('🇧🇷','Recebido BRL', `R$ ${recBRL.toFixed(2)}`,  'var(--text)') : '')
-    + (recPIX  > 0 ? statCard('📱','Recebido PIX', `R$ ${recPIX.toFixed(2)}`,  'var(--primary)') : '')
+    + (recBRL  > 0 ? statCard('🇧🇷','Recebido Dinheiro', `R$ ${recBRL.toFixed(2)}`, 'var(--text)') : '')
+    + (recPIX  > 0 ? statCard('📱','Recebido PIX', `R$ ${recPIX.toFixed(2)}`, 'var(--primary)') : '')
     + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', `₲ ${Math.round(recPYG).toLocaleString('pt-BR')}`, 'var(--text)') : '')
-    + (recUSD  > 0 ? statCard('🇺🇸','Recebido USD', `$${recUSD.toFixed(2)}`,  'var(--text)') : '');
+    + (recUSD  > 0 ? statCard('🇺🇸','Recebido USD', `$${recUSD.toFixed(2)}`, 'var(--text)') : '')
+    + (trocoBRL > 0 ? statCard('💸','Troco Dado', `R$ ${trocoBRL.toFixed(2)}`, 'var(--danger)') : '')
+    + (recBRL  > 0 ? statCard('💰','Líquido no Caixa', `R$ ${liquidoBRL.toFixed(2)}`, liquidoBRL >= 0 ? 'var(--success)' : 'var(--danger)', 'Dinheiro recebido − troco dado') : '');
 
   const isFarmaciaCol = !!(currentFilial && currentFilial.id === FARMACIA_ID);
   const thFact = document.getElementById('thFactura');
@@ -3236,16 +3247,14 @@ function renderVendas() {
         })();
     const pagCell = pagRows.join('<br>');
 
-    // Exibir troco na moeda local se a venda foi em BRL/PIX
+    // Exibir troco/desconto na moeda local se a venda foi em BRL/PIX
     const _trocoMoeda = v.moedaPagamento === 'USD' ? 'USD'
       : (v.cotacaoPIX > 0 ? 'PIX' : (v.cotacaoBRL > 0 ? 'BRL' : 'USD'));
     const _trocoRate = _trocoMoeda === 'PIX' ? v.cotacaoPIX : (_trocoMoeda === 'BRL' ? v.cotacaoBRL : 1);
-    const trocoDisplay = _trocoMoeda === 'USD'
-      ? `$${Math.max(0, trocoUSD).toFixed(2)}`
-      : `R$ ${(Math.max(0, trocoUSD) * _trocoRate).toFixed(2)}`;
+    const _fmt = (usd) => _trocoMoeda === 'USD' ? `$${Math.abs(usd).toFixed(2)}` : `R$ ${(Math.abs(usd) * _trocoRate).toFixed(2)}`;
     const trocoCell = descontoPct > 0
-      ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:var(--text-3)">${trocoDisplay}</small>`
-      : `<span style="color:var(--success);font-weight:700">${trocoDisplay}</span>`;
+      ? `<span style="color:#d97706;font-weight:700">🏷️ -${descontoPct.toFixed(1)}%</span><br><small style="color:#d97706">-${_fmt(trocoUSD)}</small>`
+      : `<span style="color:var(--success);font-weight:700">${_fmt(trocoUSD)}</span>`;
 
     const facturaBtn = isFarmaciaCol
       ? `<td style="text-align:center"><button onclick="abrirFacturaVenda('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Gerar fatura">🧾</button></td>`
