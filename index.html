@@ -1055,6 +1055,7 @@
         <span>Total USD:</span>
         <span class="cart-total-usd" id="cartTotalUSD">$0.00</span>
       </div>
+      <div id="cartTotalBRL" style="display:none;text-align:right;font-size:22px;font-weight:900;color:#16a34a;margin-top:4px;letter-spacing:-.5px"></div>
       <button class="btn-cobrar" id="btnCobrar" onclick="openPaymentModal()" disabled>💳 Cobrar</button>
       <button class="btn-limpar-cart" onclick="clearCart()">🗑 Limpar carrinho</button>
     </div>
@@ -1373,6 +1374,7 @@
       <div class="pay-total-box">
         <div class="pay-total-label">Total a cobrar</div>
         <div class="pay-total-val" id="payTotalUSD">$0.00</div>
+        <div id="payTotalBRL" style="font-size:15px;font-weight:700;color:var(--primary-dark);margin-top:4px;opacity:.85"></div>
       </div>
       <!-- Linhas de pagamento (geradas por JS) -->
       <div id="splitPaymentRows"></div>
@@ -2774,6 +2776,14 @@ function renderCart() {
     </div>`).join('');
 
   document.getElementById('cartTotalUSD').textContent = `$${total.toFixed(2)}`;
+  const brlEl = document.getElementById('cartTotalBRL');
+  const brlRate = cotacao.pix > 0 ? cotacao.pix : (cotacao.brl > 0 ? cotacao.brl : 0);
+  if (brlRate > 0) {
+    brlEl.textContent = `≈ R$ ${(total * brlRate).toFixed(2)}`;
+    brlEl.style.display = '';
+  } else {
+    brlEl.style.display = 'none';
+  }
   btnCobrar.disabled = false;
 }
 
@@ -3065,6 +3075,9 @@ function openPaymentModal() {
   if (!cart.length) return;
   const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
   document.getElementById('payTotalUSD').textContent = `$${total.toFixed(2)}`;
+  const _brlRate = cotacao.pix > 0 ? cotacao.pix : (cotacao.brl > 0 ? cotacao.brl : 0);
+  const _brlEl = document.getElementById('payTotalBRL');
+  _brlEl.textContent = _brlRate > 0 ? `≈ R$ ${(total * _brlRate).toFixed(2)}` : '';
   document.getElementById('payTrocoBox').style.display = 'none';
   document.getElementById('paySplitSummary').style.display = 'none';
   document.getElementById('btnConfirmPayment').disabled = true;
