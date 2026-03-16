@@ -925,7 +925,7 @@
         <button class="btn-clr" id="btnCopiarProdutos" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openCopiarModal()" title="Copiar produtos de outra filial">📋 Copiar de outra filial</button>
         <button class="btn-clr" id="btnImportCSV" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0ea5e9;color:#fff;border:none" onclick="openImportModal()" title="Importar lista de produtos via CSV">📥 Importar CSV</button>
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
-        <button class="btn-clr" id="btnConfronto" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#7c3aed;color:#fff;border:none;cursor:pointer" onclick="openConfronto()">📊 Confronto de Estoque</button>
+        <button class="btn-clr" id="btnConfronto" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#7c3aed;color:#fff;border:none;cursor:pointer;position:relative" onclick="openConfronto()">📊 Confronto de Estoque<span id="confrontosBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:18px"></span></button>
       </div>
     </div>
     <div style="margin-bottom:16px;position:relative">
@@ -3849,14 +3849,26 @@ async function salvarConfronto() {
 }
 
 let _confrontosList = [];
-async function loadConfontos() {
+let _confrontosUnsub = null;
+function loadConfontos() {
   if (!currentFilial || user?.role !== 'admin') return;
-  try {
-    const snap = await db.collection(`lojas/${currentFilial.id}/confrontos`)
-      .orderBy('ts','desc').limit(20).get();
-    _confrontosList = snap.docs.map(d => d.data());
-    renderConfontos(_confrontosList);
-  } catch(e) { /* sem confrontos ainda */ }
+  // cancelar listener anterior se existir
+  if (_confrontosUnsub) { _confrontosUnsub(); _confrontosUnsub = null; }
+  _confrontosUnsub = db.collection(`lojas/${currentFilial.id}/confrontos`)
+    .orderBy('ts','desc').limit(20)
+    .onSnapshot(snap => {
+      _confrontosList = snap.docs.map(d => d.data());
+      renderConfontos(_confrontosList);
+      // notificar se chegou novo pendente
+      const pendentes = _confrontosList.filter(c => c.status === 'pendente');
+      if (pendentes.length) {
+        const badge = document.getElementById('confrontosBadge');
+        if (badge) { badge.textContent = pendentes.length; badge.style.display = ''; }
+      } else {
+        const badge = document.getElementById('confrontosBadge');
+        if (badge) badge.style.display = 'none';
+      }
+    }, () => { /* sem confrontos ainda */ });
 }
 
 function renderConfontos(lista) {
@@ -3988,6 +4000,7 @@ function doLogout() {
   stopPresencaModal();
   stopListeners();
   if (unsubFiliais) { unsubFiliais(); unsubFiliais = null; }
+  if (_confrontosUnsub) { _confrontosUnsub(); _confrontosUnsub = null; }
   user = null; currentFilial = null; currentMode = null;
   products = []; history = []; photos = {}; filiais = [];
   cart = []; vendas = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
