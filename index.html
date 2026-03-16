@@ -925,6 +925,7 @@
         <button class="btn-clr" id="btnCopiarProdutos" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openCopiarModal()" title="Copiar produtos de outra filial">📋 Copiar de outra filial</button>
         <button class="btn-clr" id="btnImportCSV" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0ea5e9;color:#fff;border:none" onclick="openImportModal()" title="Importar lista de produtos via CSV">📥 Importar CSV</button>
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
+        <button class="btn-clr" id="btnConfronto" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#7c3aed;color:#fff;border:none;cursor:pointer" onclick="openConfronto()">📊 Confronto de Estoque</button>
       </div>
     </div>
     <div style="margin-bottom:16px;position:relative">
@@ -1030,6 +1031,17 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ══════════ CONFRONTOS PENDENTES (admin) ══════════ -->
+    <div id="confrontosBlock" style="display:none;margin-top:24px">
+      <div class="sec-hd">
+        <div>
+          <div class="sec-title">📊 Confrontos de Estoque</div>
+          <div class="sec-sub" id="confrontosSubtitle">Contagens físicas aguardando aprovação</div>
+        </div>
+      </div>
+      <div id="confrontosLista" style="display:grid;gap:10px"></div>
     </div>
 
   </main>
@@ -1226,6 +1238,43 @@
     <div class="modal-ft">
       <button class="btn-cancel" onclick="closeOverlay('fechamentoModal')">Cancelar</button>
       <button class="btn-confirm save" id="btnSalvarFechamento" onclick="salvarFechamento()">💾 Salvar Fechamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — CONFRONTO DE ESTOQUE ══════════ -->
+<div class="overlay" id="confrontoModal" onclick="overlayClick(event,'confrontoModal')">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hd">
+      <span class="modal-title edit">📊 Confronto de Estoque</span>
+      <button class="btn-x" onclick="closeOverlay('confrontoModal')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:72vh;overflow-y:auto">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.</p>
+      <div id="confrontoListaProdutos" style="display:grid;gap:6px"></div>
+      <div style="margin-top:12px">
+        <textarea id="confrontoObs" placeholder="Observação (opcional)..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:54px;font-family:inherit;box-sizing:border-box"></textarea>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('confrontoModal')">Cancelar</button>
+      <button class="btn-confirm save" id="btnSalvarConfronto" onclick="salvarConfronto()">📤 Enviar Contagem</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — RESULTADO CONFRONTO ══════════ -->
+<div class="overlay" id="confrontoResultModal" onclick="overlayClick(event,'confrontoResultModal')">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hd">
+      <span class="modal-title edit">📋 Resultado do Confronto</span>
+      <button class="btn-x" onclick="closeOverlay('confrontoResultModal')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:72vh;overflow-y:auto">
+      <div id="confrontoResultBody"></div>
+    </div>
+    <div class="modal-ft" id="confrontoResultFt">
+      <button class="btn-cancel" onclick="closeOverlay('confrontoResultModal')">Fechar</button>
     </div>
   </div>
 </div>
@@ -2400,6 +2449,7 @@ function showEstoqueApp() {
   const isAdmin = user.role === 'admin';
   document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
   document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
+  if (isAdmin) loadConfontos();
 }
 
 function showCaixaApp() {
@@ -3406,7 +3456,11 @@ function renderAberturaBanner() {
     if (aberturaHoje.fundoUSD > 0) fundos.push(`$${aberturaHoje.fundoUSD.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
     if (aberturaHoje.fundoPYG > 0) fundos.push(`₲ ${Math.round(aberturaHoje.fundoPYG).toLocaleString('pt-BR')}`);
     banner.className = 'abertura-banner feito';
-    msg.textContent  = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user} — Fundo: ${fundos.join(' + ') || 'R$ 0,00'}`;
+    if (user?.role === 'op') {
+      msg.textContent = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user}`;
+    } else {
+      msg.textContent = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user} — Fundo: ${fundos.join(' + ') || 'R$ 0,00'}`;
+    }
     btn.style.display = 'none';
     if (btnExcluir) btnExcluir.style.display = user?.role === 'admin' ? '' : 'none';
   } else {
@@ -3512,6 +3566,8 @@ function openFechamentoCaixa() {
   const fmtD = v => `$${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtG = v => `₲ ${Math.round(v).toLocaleString('pt-BR')}`;
 
+  const temFundo = fundoBRL > 0 || fundoUSD > 0 || fundoPYG > 0;
+
   document.getElementById('fechModalBody').innerHTML = `
     <div class="fech-divider">📊 Esperado pelo sistema</div>
     <div class="fech-section">
@@ -3519,17 +3575,23 @@ function openFechamentoCaixa() {
         <span class="fech-label">🧾 Vendas do dia</span>
         <span class="fech-val">${filtradas.length} vendas · ${fmtD(totalUSD)}</span>
       </div>
-      ${fundoBRL > 0 ? `<div class="fech-row" style="opacity:.75">
+      ${temFundo ? `<div class="fech-row" style="opacity:.75">
         <span class="fech-label">🔓 Fundo inicial (abertura)</span>
-        <span class="fech-val">${fmtR(fundoBRL)}</span>
+        <span class="fech-val">${[fundoBRL>0?fmtR(fundoBRL):'', fundoUSD>0?fmtD(fundoUSD):'', fundoPYG>0?fmtG(fundoPYG):''].filter(Boolean).join(' + ')}</span>
+      </div>
+      <div class="fech-row" style="background:#f1f5f9;border-color:var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-2);width:100%">
+          <input type="checkbox" id="fIncluirFundo" checked onchange="calcFechamento()" style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary)">
+          Somar fundo inicial ao "esperado físico"
+        </label>
       </div>` : `<div class="fech-row" style="background:#fef9c3;border-color:#fbbf24">
         <span class="fech-label" style="color:#92400e">⚠️ Sem abertura registrada hoje</span>
         <span class="fech-val" style="color:#92400e;font-size:12px">fundo = R$ 0</span>
       </div>`}
-      ${esperadoBRL > 0 ? `<div class="fech-row" style="border-color:var(--primary);background:var(--primary-light)">
+      <div id="rowEsperadoBRL" class="fech-row" style="border-color:var(--primary);background:var(--primary-light);${liquidoBRL<=0&&!temFundo?'display:none':''}">
         <span class="fech-label" style="color:var(--primary-dark)">🇧🇷 Esperado no caixa físico</span>
-        <span class="fech-val" style="color:var(--primary)">${fmtR(esperadoBRL)}</span>
-      </div>` : ''}
+        <span class="fech-val" id="fEsperadoBRL" style="color:var(--primary)">${fmtR(esperadoBRL)}</span>
+      </div>
       ${recPIX > 0 ? `<div class="fech-row">
         <span class="fech-label">📱 PIX esperado (conta)</span>
         <span class="fech-val">${fmtR(recPIX)}</span>
@@ -3550,7 +3612,7 @@ function openFechamentoCaixa() {
 
     <div class="fech-divider">✏️ Informe o físico contado</div>
     <div class="fech-section">
-      ${liquidoBRL > 0 ? `<div class="fech-input-row">
+      ${(liquidoBRL > 0 || temFundo) ? `<div class="fech-input-row">
         <span class="fech-label">🇧🇷 Dinheiro contado</span>
         <input class="fech-input" type="number" step="0.01" min="0" id="fInBRL" placeholder="R$ 0,00" oninput="calcFechamento()">
       </div>` : ''}
@@ -3558,11 +3620,11 @@ function openFechamentoCaixa() {
         <span class="fech-label">📱 PIX confirmado</span>
         <input class="fech-input" type="number" step="0.01" min="0" id="fInPIX" placeholder="R$ 0,00" oninput="calcFechamento()">
       </div>` : ''}
-      ${esperadoUSD > 0 ? `<div class="fech-input-row">
+      ${(esperadoUSD > 0 || fundoUSD > 0) ? `<div class="fech-input-row">
         <span class="fech-label">🇺🇸 USD contado</span>
         <input class="fech-input" type="number" step="0.01" min="0" id="fInUSD" placeholder="$0.00" oninput="calcFechamento()">
       </div>` : ''}
-      ${esperadoPYG > 0 ? `<div class="fech-input-row">
+      ${(esperadoPYG > 0 || fundoPYG > 0) ? `<div class="fech-input-row">
         <span class="fech-label">🇵🇾 Guarani contado</span>
         <input class="fech-input" type="number" step="1" min="0" id="fInPYG" placeholder="₲ 0" oninput="calcFechamento()">
       </div>` : ''}
@@ -3582,17 +3644,32 @@ function openFechamentoCaixa() {
 
 function calcFechamento() {
   if (!_fechDados) return;
-  const { esperadoBRL, recPIX, esperadoUSD, esperadoPYG } = _fechDados;
-  const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || null;
-  const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || null;
-  const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || null;
-  const fInPYG = parseFloat(document.getElementById('fInPYG')?.value) || null;
+  const { recPIX, esperadoUSD, esperadoPYG, liquidoBRL, fundoBRL, fundoUSD, fundoPYG } = _fechDados;
+  const incluirFundo = document.getElementById('fIncluirFundo')?.checked !== false;
+  const efEsperadoBRL = (incluirFundo ? fundoBRL : 0) + liquidoBRL;
+  const efEsperadoUSD = (incluirFundo ? fundoUSD : 0) + (esperadoUSD - fundoUSD);
+  const efEsperadoPYG = (incluirFundo ? fundoPYG : 0) + (esperadoPYG - fundoPYG);
+
+  // Atualiza o span do esperado
+  const spanBRL = document.getElementById('fEsperadoBRL');
+  if (spanBRL) spanBRL.textContent = `R$ ${efEsperadoBRL.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const rowBRL = document.getElementById('rowEsperadoBRL');
+  if (rowBRL) rowBRL.style.display = efEsperadoBRL > 0 ? '' : 'none';
+
+  const fInBRL = parseFloat(document.getElementById('fInBRL')?.value);
+  const fInBRLv = isNaN(fInBRL) ? null : fInBRL;
+  const fInPIX = parseFloat(document.getElementById('fInPIX')?.value);
+  const fInPIXv = isNaN(fInPIX) ? null : fInPIX;
+  const fInUSD = parseFloat(document.getElementById('fInUSD')?.value);
+  const fInUSDv = isNaN(fInUSD) ? null : fInUSD;
+  const fInPYG = parseFloat(document.getElementById('fInPYG')?.value);
+  const fInPYGv = isNaN(fInPYG) ? null : fInPYG;
 
   const diffRow = (label, esperado, fisico, prefix) => {
     if (fisico === null) return '';
     const diff = fisico - esperado;
     const abs  = Math.abs(diff);
-    const cls  = Math.abs(diff) < 0.05 ? 'ok' : diff > 0 ? 'over' : 'under';
+    const cls  = abs < 0.05 ? 'ok' : diff > 0 ? 'over' : 'under';
     const icon = cls === 'ok' ? '✅' : cls === 'over' ? '⚠️' : '❌';
     const msg  = cls === 'ok'
       ? 'BATEU'
@@ -3600,10 +3677,10 @@ function calcFechamento() {
     return `<div class="fech-diff ${cls}"><span>${icon} ${label}</span><span>${msg}</span></div>`;
   };
 
-  const html = diffRow('Dinheiro físico', esperadoBRL, fInBRL, 'R$ ')
-             + diffRow('PIX (conta)', recPIX, fInPIX, 'R$ ')
-             + diffRow('USD físico', esperadoUSD, fInUSD, '$')
-             + diffRow('Guarani físico', esperadoPYG, fInPYG, '₲ ');
+  const html = diffRow('Dinheiro físico', efEsperadoBRL, fInBRLv, 'R$ ')
+             + diffRow('PIX (conta)', recPIX, fInPIXv, 'R$ ')
+             + diffRow('USD físico', efEsperadoUSD, fInUSDv, '$')
+             + diffRow('Guarani físico', efEsperadoPYG, fInPYGv, '₲ ');
 
   document.getElementById('fechDiffs').innerHTML = html ||
     '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:8px">Preencha os valores acima</div>';
@@ -3617,20 +3694,25 @@ async function salvarFechamento() {
   const fInPYG = parseFloat(document.getElementById('fInPYG')?.value) || 0;
   const obs    = document.getElementById('fInObs')?.value.trim() || '';
 
-  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, fundoBRL, fundoUSD, fundoPYG, esperadoBRL, esperadoUSD, esperadoPYG } = _fechDados;
+  const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, fundoBRL, fundoUSD, fundoPYG, liquidoBRL, esperadoBRL, esperadoUSD, esperadoPYG } = _fechDados;
+  const incluirFundo = document.getElementById('fIncluirFundo')?.checked !== false;
+  const efEsperadoBRL = (incluirFundo ? fundoBRL : 0) + liquidoBRL;
+  const efEsperadoUSD = (incluirFundo ? fundoUSD : 0) + (esperadoUSD - fundoUSD);
+  const efEsperadoPYG = (incluirFundo ? fundoPYG : 0) + (esperadoPYG - fundoPYG);
   const doc = {
     id: Date.now(),
     date, ts: new Date().toISOString(),
     user: user.username,
     vendas: nVendas, totalUSD: +totalUSD.toFixed(2),
     fundoBRL: +fundoBRL.toFixed(2), fundoUSD: +fundoUSD.toFixed(2), fundoPYG: Math.round(fundoPYG),
-    esperadoBRL: +esperadoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +esperadoUSD.toFixed(2), esperadoPYG: Math.round(esperadoPYG),
+    incluirFundo,
+    esperadoBRL: +efEsperadoBRL.toFixed(2), esperadoPIX: +recPIX.toFixed(2), esperadoUSD: +efEsperadoUSD.toFixed(2), esperadoPYG: Math.round(efEsperadoPYG),
     trocoBRL: +trocoBRL.toFixed(2),
     fisicoBRL: fInBRL, fisicoPIX: fInPIX, fisicoUSD: fInUSD, fisicoPYG: fInPYG,
-    diffBRL: +(fInBRL - esperadoBRL).toFixed(2),
+    diffBRL: +(fInBRL - efEsperadoBRL).toFixed(2),
     diffPIX: +(fInPIX - recPIX).toFixed(2),
-    diffUSD: +(fInUSD - esperadoUSD).toFixed(2),
-    diffPYG: Math.round(fInPYG - esperadoPYG),
+    diffUSD: +(fInUSD - efEsperadoUSD).toFixed(2),
+    diffPYG: Math.round(fInPYG - efEsperadoPYG),
     obs
   };
 
@@ -3689,6 +3771,196 @@ function renderFechamentos(lista) {
       <div style="font-size:11px;color:var(--text-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.obs||''}">${f.obs || '—'}</div>
     </div>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// CONFRONTO DE ESTOQUE
+// ═══════════════════════════════════════════════
+
+function openConfronto() {
+  if (!currentFilial) return;
+  const lista = document.getElementById('confrontoListaProdutos');
+  document.getElementById('confrontoObs').value = '';
+  lista.innerHTML = products.length === 0
+    ? '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:12px">Nenhum produto cadastrado</div>'
+    : products.map(p => `
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)">
+        <span style="font-size:18px;min-width:24px;text-align:center">${p.emoji||'📦'}</span>
+        <span style="flex:1;font-size:13px;font-weight:600;color:var(--text-1)">${p.name}</span>
+        <span style="font-size:12px;color:var(--text-3);min-width:60px;text-align:right">Sistema: <strong>${p.qty??0}</strong> ${p.unit||''}</span>
+        <input type="number" step="1" min="0" data-pid="${p.id}"
+          placeholder="Contado"
+          style="width:82px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;text-align:center;background:var(--bg)">
+      </div>`).join('');
+  document.getElementById('confrontoModal').classList.add('on');
+}
+
+async function salvarConfronto() {
+  if (!currentFilial) return;
+  const inputs = document.querySelectorAll('#confrontoListaProdutos input[data-pid]');
+  const items = [];
+  inputs.forEach(inp => {
+    const v = inp.value.trim();
+    if (v === '') return;
+    const pid = inp.getAttribute('data-pid');
+    const prod = products.find(p => String(p.id) === String(pid));
+    if (!prod) return;
+    const qtyFisico = parseFloat(v);
+    if (isNaN(qtyFisico)) return;
+    items.push({ productId: pid, productName: prod.name, emoji: prod.emoji||'📦', unit: prod.unit||'',
+      qtySistema: prod.qty??0, qtyFisico, diff: qtyFisico - (prod.qty??0) });
+  });
+  if (!items.length) { toast('Informe ao menos uma quantidade', 'error'); return; }
+  const obs = document.getElementById('confrontoObs').value.trim();
+  const id = Date.now();
+  const doc = { id, ts: new Date().toISOString(), user: user.username, status: 'pendente',
+    filialId: currentFilial.id, filialNome: currentFilial.nome||currentFilial.id, obs, items };
+  try {
+    document.getElementById('btnSalvarConfronto').disabled = true;
+    await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id)).set(doc);
+    closeOverlay('confrontoModal');
+    toast('✅ Contagem enviada para o admin', 'success');
+    if (user.role === 'admin') loadConfontos();
+  } catch(e) {
+    toast('Erro ao salvar contagem', 'error');
+    console.error(e);
+  } finally {
+    document.getElementById('btnSalvarConfronto').disabled = false;
+  }
+}
+
+let _confrontosList = [];
+async function loadConfontos() {
+  if (!currentFilial || user?.role !== 'admin') return;
+  try {
+    const snap = await db.collection(`lojas/${currentFilial.id}/confrontos`)
+      .orderBy('ts','desc').limit(20).get();
+    _confrontosList = snap.docs.map(d => d.data());
+    renderConfontos(_confrontosList);
+  } catch(e) { /* sem confrontos ainda */ }
+}
+
+function renderConfontos(lista) {
+  const block = document.getElementById('confrontosBlock');
+  const cont  = document.getElementById('confrontosLista');
+  if (!block) return;
+  if (!lista.length) { block.style.display = 'none'; return; }
+  block.style.display = '';
+  const pendentes = lista.filter(c => c.status === 'pendente');
+  const outros    = lista.filter(c => c.status !== 'pendente');
+  document.getElementById('confrontosSubtitle').textContent =
+    `${pendentes.length} pendente(s) · ${outros.length} já processado(s)`;
+
+  cont.innerHTML = lista.map(c => {
+    const dt = new Date(c.ts).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+    const divergentes = c.items.filter(i => i.diff !== 0);
+    const ok          = c.items.filter(i => i.diff === 0);
+    const badges = divergentes.length === 0
+      ? `<span style="color:var(--success);font-weight:700;font-size:12px">✅ Tudo conferido</span>`
+      : `<span style="color:var(--danger);font-weight:700;font-size:12px">❌ ${divergentes.length} divergência(s)</span>
+         <span style="color:var(--success);font-size:12px">· ✅ ${ok.length} ok</span>`;
+    const statusColor = c.status === 'pendente' ? '#d97706' : c.status === 'aprovado' ? 'var(--success)' : 'var(--danger)';
+    const statusLabel = c.status === 'pendente' ? '⏳ Pendente' : c.status === 'aprovado' ? '✅ Aprovado' : '❌ Rejeitado';
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow-sm)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div>
+          <div style="font-size:13px;font-weight:700">📊 Contagem de ${c.user}</div>
+          <div style="font-size:11px;color:var(--text-3)">${dt} · ${c.items.length} produto(s) conferido(s)</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:${statusColor};font-weight:700;background:${statusColor}22;padding:3px 8px;border-radius:20px">${statusLabel}</span>
+          ${c.status === 'pendente' ? `
+            <button onclick="verConfronto('${c.id}')" style="padding:5px 10px;font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer">👁 Ver detalhes</button>` : `
+            <button onclick="verConfronto('${c.id}')" style="padding:5px 10px;font-size:12px;background:var(--surface);color:var(--text-1);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer">👁 Ver</button>`}
+        </div>
+      </div>
+      <div style="font-size:12px">${badges}</div>
+      ${c.obs ? `<div style="font-size:11px;color:var(--text-3);margin-top:6px">💬 ${c.obs}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+let _confrontoAtual = null;
+function verConfronto(id) {
+  const snap = _confrontosList?.find(c => String(c.id) === String(id));
+  if (!snap) return;
+  _confrontoAtual = snap;
+  const fmtDiff = (diff, unit) => {
+    if (diff === 0) return `<span style="color:var(--success);font-weight:700">✅ OK</span>`;
+    const sign = diff > 0 ? `+${diff}` : `${diff}`;
+    return `<span style="color:${diff>0?'#d97706':'var(--danger)'};font-weight:700">${sign} ${unit}</span>`;
+  };
+  const rows = snap.items.map(i =>
+    `<tr style="${i.diff!==0?'background:#fff7ed':''}">
+      <td>${i.emoji} ${i.productName}</td>
+      <td style="text-align:center">${i.qtySistema} ${i.unit}</td>
+      <td style="text-align:center">${i.qtyFisico} ${i.unit}</td>
+      <td style="text-align:center">${fmtDiff(i.diff, i.unit)}</td>
+    </tr>`).join('');
+  document.getElementById('confrontoResultBody').innerHTML = `
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">Enviado por <strong>${snap.user}</strong> em ${new Date(snap.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--bg)">
+        <th style="padding:7px 10px;text-align:left;border-bottom:2px solid var(--border)">Produto</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--border)">Sistema</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--border)">Contado</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--border)">Diferença</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${snap.obs ? `<div style="font-size:12px;color:var(--text-2);margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--radius-sm)">💬 ${snap.obs}</div>` : ''}`;
+  const ft = document.getElementById('confrontoResultFt');
+  if (snap.status === 'pendente') {
+    ft.innerHTML = `
+      <button class="btn-cancel" onclick="closeOverlay('confrontoResultModal')">Cancelar</button>
+      <button onclick="processarConfronto('${snap.id}','rejeitado')" style="padding:10px 18px;border:none;border-radius:var(--radius-sm);background:var(--danger);color:#fff;font-weight:600;cursor:pointer">❌ Rejeitar</button>
+      <button onclick="processarConfronto('${snap.id}','aprovado')" style="padding:10px 18px;border:none;border-radius:var(--radius-sm);background:var(--success);color:#fff;font-weight:600;cursor:pointer">✅ Aprovar e Ajustar Estoque</button>`;
+  } else {
+    ft.innerHTML = `<button class="btn-cancel" onclick="closeOverlay('confrontoResultModal')">Fechar</button>`;
+  }
+  document.getElementById('confrontoResultModal').classList.add('on');
+}
+
+async function processarConfronto(id, status) {
+  if (!currentFilial || !_confrontoAtual) return;
+  const conf = _confrontoAtual;
+  try {
+    await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id))
+      .update({ status, processadoEm: new Date().toISOString(), processadoPor: user.username });
+    if (status === 'aprovado') {
+      // Aplica ajustes no estoque para itens com diferença
+      const divergentes = conf.items.filter(i => i.diff !== 0);
+      for (const item of divergentes) {
+        const novaQty = item.qtyFisico;
+        await db.collection(`lojas/${currentFilial.id}/produtos`).doc(String(item.productId))
+          .update({ qty: novaQty });
+        await db.collection(`lojas/${currentFilial.id}/historico`).add({
+          id: Date.now() + Math.random(),
+          productId: item.productId,
+          type: 'ajuste',
+          qty: item.diff,
+          saldo: novaQty,
+          obs: `Ajuste via confronto de estoque (contagem de ${conf.user})`,
+          user: user.username,
+          ts: new Date().toISOString()
+        });
+      }
+      toast(`✅ Estoque ajustado: ${divergentes.length} produto(s) corrigido(s)`, 'success');
+    } else {
+      toast('Confronto rejeitado', 'success');
+    }
+    closeOverlay('confrontoResultModal');
+    loadConfontos();
+    if (status === 'aprovado') {
+      const snap = await db.collection(`lojas/${currentFilial.id}/produtos`).get();
+      products = snap.docs.map(d => d.data());
+      renderProducts();
+    }
+  } catch(e) {
+    toast('Erro ao processar confronto', 'error');
+    console.error(e);
+  }
 }
 
 function doLogout() {
@@ -4104,6 +4376,7 @@ function renderAll() {
   renderStats(); renderProducts(); renderHistory(); populateFilter();
   document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
   document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
+  if (isAdmin) loadConfontos();
 }
 
 function fmtMoney(v) {
