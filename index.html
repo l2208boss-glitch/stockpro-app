@@ -1775,6 +1775,11 @@
         </div>
       </div>
 
+      <div class="field" id="fieldQtyInicial" style="margin-bottom:0">
+        <label class="modal-label" for="eQtyInicial">Quantidade inicial</label>
+        <input class="modal-input" type="number" id="eQtyInicial" placeholder="0" min="0" step="1">
+      </div>
+
       <div class="field" style="margin-bottom:20px">
         <label class="modal-label" for="eValidade">Validade (opcional)</label>
         <input class="modal-input" type="date" id="eValidade">
@@ -5032,8 +5037,10 @@ function openEditProduct(productId) {
     document.getElementById('eCusto').value    = '';
     document.getElementById('eVenda').value    = '';
     document.getElementById('eValidade').value = '';
+    document.getElementById('eQtyInicial').value = '';
     document.getElementById('editModalTitle').textContent = '✏️ Novo Produto';
   }
+  document.getElementById('fieldQtyInicial').style.display = productId ? 'none' : '';
   refreshPhotoPreview();
   document.getElementById('editOverlay').classList.add('on');
   setTimeout(() => document.getElementById('eName').focus(), 120);
@@ -5092,7 +5099,7 @@ function saveEditProduct() {
       emoji:    document.getElementById('eEmoji').value.trim() || '📦',
       custo:    parseFloat(document.getElementById('eCusto').value) || 0,
       venda:    parseFloat(document.getElementById('eVenda').value) || 0,
-      qty:      0,
+      qty:      parseFloat(document.getElementById('eQtyInicial').value) || 0,
       validade,
     };
     if (editPhotoTemp) photos[newId] = editPhotoTemp;
@@ -5101,6 +5108,12 @@ function saveEditProduct() {
     toast(`✅ Produto "${p.name}" adicionado!`, 'success');
     saveProduct(p);
     savePhoto(newId, editPhotoTemp || null);
+    if (p.qty > 0) {
+      const hDoc = { id: Date.now(), productId: newId, type: 'entrada', qty: p.qty, saldo: p.qty,
+        obs: 'Estoque inicial', user: user.username, ts: new Date().toISOString() };
+      history.unshift(hDoc);
+      db.collection(`lojas/${currentFilial.id}/historico`).add(hDoc).catch(console.error);
+    }
     return;
   }
 
