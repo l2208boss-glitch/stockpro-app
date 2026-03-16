@@ -3792,7 +3792,7 @@ function openConfronto() {
       <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm)">
         <span style="font-size:18px;min-width:24px;text-align:center">${p.emoji||'📦'}</span>
         <span style="flex:1;font-size:13px;font-weight:600;color:var(--text-1)">${p.name}</span>
-        <span style="font-size:12px;color:var(--text-3);min-width:60px;text-align:right">Sistema: <strong>${p.qty??0}</strong> ${p.unit||''}</span>
+        ${user.role === 'admin' ? `<span style="font-size:12px;color:var(--text-3);min-width:60px;text-align:right">Sistema: <strong>${p.qty??0}</strong> ${p.unit||''}</span>` : ''}
         <input type="number" step="1" min="0" data-pid="${p.id}"
           placeholder="Contado"
           style="width:82px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;text-align:center;background:var(--bg)">
