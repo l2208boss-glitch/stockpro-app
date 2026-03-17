@@ -1183,6 +1183,7 @@
             <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Troco</th>
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Operador</th>
             <th id="thFactura" style="padding:12px;text-align:center;font-size:12px;color:var(--text-2);display:none">Fatura</th>
+            <th style="padding:12px;text-align:center;font-size:12px;color:var(--text-2)"></th>
           </tr>
         </thead>
         <tbody id="vendasBody"></tbody>
@@ -1257,9 +1258,13 @@
           oninput="filtrarConfronto()"
           style="width:100%;box-sizing:border-box;padding:9px 12px 9px 38px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg);color:var(--text-1);outline:none">
       </div>
+      <div id="confrontoRascunhoBanner" style="display:none;background:#fef9c3;border:1px solid #fbbf24;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:8px;align-items:center;justify-content:space-between;gap:8px">
+        <span>💾 Rascunho restaurado (<span id="confrontoRascunhoAge"></span>) — continue de onde parou.</span>
+        <button onclick="_limparRascunhoConfronto();openConfronto()" style="background:none;border:none;cursor:pointer;font-size:12px;color:#dc2626;font-weight:700;padding:0">✕ Descartar</button>
+      </div>
       <div id="confrontoListaProdutos" style="display:grid;gap:6px"></div>
       <div style="margin-top:12px">
-        <textarea id="confrontoObs" placeholder="Observação (opcional)..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:54px;font-family:inherit;box-sizing:border-box"></textarea>
+        <textarea id="confrontoObs" placeholder="Observação (opcional)..." oninput="_salvarRascunhoConfronto()" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:54px;font-family:inherit;box-sizing:border-box"></textarea>
       </div>
     </div>
     <div class="modal-ft">
@@ -3334,33 +3339,34 @@ function renderVendas() {
     return true;
   });
 
-  // Calcular resumo — suporta formato antigo e novo (pagamentos[])
-  const totalUSD  = filtradas.reduce((s,v) => s + v.totalUSD, 0);
-  const recBRL = filtradas.reduce((s,v) => {
+  // Calcular resumo — suporta formato antigo e novo (pagamentos[]); excluir canceladas
+  const ativas = filtradas.filter(v => !v.cancelada);
+  const totalUSD  = ativas.reduce((s,v) => s + v.totalUSD, 0);
+  const recBRL = ativas.reduce((s,v) => {
     if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='BRL').reduce((a,p)=>a+p.valor,0);
     return s + (v.moedaPagamento==='BRL' ? v.valorPago : 0);
   }, 0);
-  const recPIX = filtradas.reduce((s,v) => {
+  const recPIX = ativas.reduce((s,v) => {
     if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='PIX').reduce((a,p)=>a+p.valor,0);
     return s + (v.moedaPagamento==='PIX' ? v.valorPago : 0);
   }, 0);
-  const recPYG = filtradas.reduce((s,v) => {
+  const recPYG = ativas.reduce((s,v) => {
     if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='PYG').reduce((a,p)=>a+p.valor,0);
     return s + (v.moedaPagamento==='PYG' ? v.valorPago : 0);
   }, 0);
-  const recUSD = filtradas.reduce((s,v) => {
+  const recUSD = ativas.reduce((s,v) => {
     if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='USD').reduce((a,p)=>a+p.valor,0);
     return s + (v.moedaPagamento==='USD' ? v.valorPago : 0);
   }, 0);
-  const trocoTotal = filtradas.reduce((s,v) => s + Math.max(0, v.troco||0), 0);
   // Troco total em BRL (usando a cotação salva em cada venda)
-  const trocoBRL = filtradas.reduce((s,v) => {
+  const trocoBRL = ativas.reduce((s,v) => {
     const t = Math.max(0, v.troco||0);
     if (!t) return s;
     const rate = v.cotacaoPIX > 0 ? v.cotacaoPIX : (v.cotacaoBRL > 0 ? v.cotacaoBRL : 0);
     return s + (rate > 0 ? t * rate : 0);
   }, 0);
   const liquidoBRL = recBRL - trocoBRL; // dinheiro físico esperado no caixa
+  const nCanceladas = filtradas.length - ativas.length;
 
   const statCard = (icon, label, val, color, sub) =>
     `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm)">
@@ -3371,7 +3377,7 @@ function renderVendas() {
 
   resumo.innerHTML = filtradas.length === 0
     ? `<div style="color:var(--text-3);font-size:13px;padding:8px 0">Nenhuma venda no período</div>`
-    : statCard('🧾','Vendas', filtradas.length, 'var(--primary)')
+    : statCard('🧾','Vendas', ativas.length + (nCanceladas > 0 ? ` <small style="color:var(--danger);font-size:13px">(${nCanceladas} cancel.)</small>` : ''), 'var(--primary)')
     + statCard('💵','Total USD', `$${totalUSD.toFixed(2)}`, 'var(--success)')
     + (recBRL  > 0 ? statCard('🇧🇷','Recebido Dinheiro', `R$ ${recBRL.toFixed(2)}`, 'var(--text)') : '')
     + (recPIX  > 0 ? statCard('📱','Recebido PIX', `R$ ${recPIX.toFixed(2)}`, 'var(--primary)') : '')
@@ -3385,7 +3391,7 @@ function renderVendas() {
   if (thFact) thFact.style.display = isFarmaciaCol ? '' : 'none';
 
   if (!filtradas.length) {
-    tbody.innerHTML = `<tr><td colspan="${isFarmaciaCol ? 7 : 6}" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${isFarmaciaCol ? 8 : 7}" style="text-align:center;color:var(--text-3);padding:32px">Nenhuma venda no período</td></tr>`;
     return;
   }
 
@@ -3394,6 +3400,7 @@ function renderVendas() {
     const itens = v.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ');
     const descontoPct = v.descontoPct > 0 ? v.descontoPct : 0;
     const trocoUSD = Number(v.troco);
+    const cancelada = v.cancelada === true;
 
     // Coluna "Pagamento" — tag + valor na mesma linha para cada forma
     const pagRows = (v.pagamentos && v.pagamentos.length)
@@ -3425,9 +3432,13 @@ function renderVendas() {
       : `<span style="color:var(--success);font-weight:700">${_fmt(trocoUSD)}</span>`;
 
     const facturaBtn = isFarmaciaCol
-      ? `<td style="text-align:center"><button onclick="abrirFacturaVenda('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Gerar fatura">🧾</button></td>`
+      ? `<td style="text-align:center">${cancelada ? '' : `<button onclick="abrirFacturaVenda('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Gerar fatura">🧾</button>`}</td>`
       : '';
-    return `<tr class="venda-row">
+    const cancelBtn = cancelada
+      ? `<td style="text-align:center"><span style="color:var(--danger);font-size:11px;font-weight:700">CANCELADA</span></td>`
+      : `<td style="text-align:center"><button onclick="cancelarVenda('${v.id}')" style="background:none;border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:13px;color:#dc2626" title="Cancelar venda e devolver estoque">🚫</button></td>`;
+    const rowStyle = cancelada ? 'opacity:0.5;text-decoration:line-through' : '';
+    return `<tr class="venda-row" style="${rowStyle}">
       <td>${dt}</td>
       <td class="venda-items">${itens}</td>
       <td style="text-align:right;font-weight:700">$${Number(v.totalUSD).toFixed(2)}</td>
@@ -3435,8 +3446,53 @@ function renderVendas() {
       <td style="text-align:right">${trocoCell}</td>
       <td>${v.user}</td>
       ${facturaBtn}
+      ${cancelBtn}
     </tr>`;
   }).join('');
+}
+
+/* ══════════════════════════════════════════
+   CAIXA — CANCELAR VENDA
+══════════════════════════════════════════ */
+async function cancelarVenda(vendaId) {
+  const venda = vendas.find(v => String(v.id) === String(vendaId));
+  if (!venda) { toast('Venda não encontrada', 'error'); return; }
+  if (venda.cancelada) { toast('Venda já foi cancelada', 'info'); return; }
+
+  const itensStr = venda.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ');
+  if (!confirm(`Cancelar esta venda?\n\n${itensStr}\nTotal: $${Number(venda.totalUSD).toFixed(2)}\n\nOs produtos voltarão ao estoque automaticamente.`)) return;
+
+  try {
+    // Devolver estoque
+    for (const item of venda.items) {
+      const p = products.find(x => String(x.id) === String(item.productId));
+      if (p) {
+        saveQtyDelta(p.id, item.qty);
+        const entry = {
+          id: Date.now() + Math.random(),
+          datetime: new Date().toISOString(),
+          productId: p.id,
+          productName: p.name,
+          emoji: p.emoji,
+          type: 'entrada',
+          qty: item.qty,
+          balance: (p.qty || 0) + item.qty,
+          obs: `Cancelamento da Venda #${vendaId}`,
+          user: user.name
+        };
+        saveHistoryEntry(entry);
+        p.qty = (p.qty || 0) + item.qty;
+      }
+    }
+    // Marcar venda como cancelada no Firestore
+    await col('vendas').doc(String(vendaId)).update({ cancelada: true, canceladaEm: new Date().toISOString(), canceladaPor: user.name });
+    renderVendas();
+    renderCaixaProducts();
+    toast('🚫 Venda cancelada — estoque devolvido', 'success');
+  } catch(e) {
+    console.error(e);
+    toast('Erro ao cancelar venda', 'error');
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -3539,8 +3595,8 @@ function openFechamentoCaixa() {
   const dateInput = document.getElementById('vendasDataEspecifica');
   const dataRef   = filtro === 'data' ? (dateInput?.value || today) : today;
 
-  // Coleta vendas do dia/data selecionada
-  const filtradas = vendas.filter(v => v.ts.slice(0,10) === dataRef);
+  // Coleta vendas do dia/data selecionada (excluir canceladas do fechamento)
+  const filtradas = vendas.filter(v => v.ts.slice(0,10) === dataRef && !v.cancelada);
   if (!filtradas.length) { toast('Nenhuma venda no período selecionado', 'error'); return; }
 
   const totalUSD  = filtradas.reduce((s,v) => s + v.totalUSD, 0);
@@ -3795,10 +3851,23 @@ function filtrarConfronto() {
   });
 }
 
+function _confrontoRascunhoKey() {
+  return `confronto_rascunho_${currentFilial?.id}_${user?.username}`;
+}
+function _salvarRascunhoConfronto() {
+  const inputs = document.querySelectorAll('#confrontoListaProdutos input[data-pid]');
+  const vals = {};
+  inputs.forEach(inp => { if (inp.value.trim() !== '') vals[inp.getAttribute('data-pid')] = inp.value; });
+  const obs = document.getElementById('confrontoObs')?.value || '';
+  localStorage.setItem(_confrontoRascunhoKey(), JSON.stringify({ vals, obs, ts: Date.now() }));
+}
+function _limparRascunhoConfronto() {
+  localStorage.removeItem(_confrontoRascunhoKey());
+}
+
 function openConfronto() {
   if (!currentFilial) return;
   const lista = document.getElementById('confrontoListaProdutos');
-  document.getElementById('confrontoObs').value = '';
   document.getElementById('confrontoBusca').value = '';
   lista.innerHTML = products.length === 0
     ? '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:12px">Nenhum produto cadastrado</div>'
@@ -3807,10 +3876,33 @@ function openConfronto() {
         <span style="font-size:18px;min-width:24px;text-align:center">${p.emoji||'📦'}</span>
         <span style="flex:1;font-size:13px;font-weight:600;color:var(--text-1)">${p.name}</span>
         ${user.role === 'admin' ? `<span style="font-size:12px;color:var(--text-3);min-width:60px;text-align:right">Sistema: <strong>${p.qty??0}</strong> ${p.unit||''}</span>` : ''}
-        <input type="number" step="1" min="0" data-pid="${p.id}"
+        <input type="number" step="any" min="0" data-pid="${p.id}"
           placeholder="Contado"
-          style="width:82px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;text-align:center;background:var(--bg)">
+          style="width:82px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;text-align:center;background:var(--bg)"
+          oninput="_salvarRascunhoConfronto()">
       </div>`).join('');
+
+  // Restaurar rascunho salvo
+  const raw = localStorage.getItem(_confrontoRascunhoKey());
+  if (raw) {
+    try {
+      const { vals, obs, ts } = JSON.parse(raw);
+      const ageMin = Math.round((Date.now() - ts) / 60000);
+      Object.entries(vals).forEach(([pid, val]) => {
+        const inp = lista.querySelector(`input[data-pid="${pid}"]`);
+        if (inp) inp.value = val;
+      });
+      document.getElementById('confrontoObs').value = obs || '';
+      const bannerEl = document.getElementById('confrontoRascunhoBanner');
+      if (bannerEl) bannerEl.style.display = 'flex';
+      const ageSpan = document.getElementById('confrontoRascunhoAge');
+      if (ageSpan) ageSpan.textContent = ageMin < 2 ? 'agora mesmo' : `há ${ageMin} min`;
+    } catch(e) { localStorage.removeItem(_confrontoRascunhoKey()); }
+  } else {
+    document.getElementById('confrontoObs').value = '';
+    const bannerEl = document.getElementById('confrontoRascunhoBanner');
+    if (bannerEl) bannerEl.style.display = 'none';
+  }
   document.getElementById('confrontoModal').classList.add('on');
 }
 
@@ -3826,8 +3918,10 @@ async function salvarConfronto() {
     if (!prod) return;
     const qtyFisico = parseFloat(v);
     if (isNaN(qtyFisico)) return;
+    const qtySistema = Math.round((prod.qty??0) * 1000) / 1000;
+    const diff = Math.round((qtyFisico - qtySistema) * 1000) / 1000;
     items.push({ productId: pid, productName: prod.name, emoji: prod.emoji||'📦', unit: prod.unit||'',
-      qtySistema: prod.qty??0, qtyFisico, diff: qtyFisico - (prod.qty??0) });
+      qtySistema, qtyFisico, diff });
   });
   if (!items.length) { toast('Informe ao menos uma quantidade', 'error'); return; }
   const obs = document.getElementById('confrontoObs').value.trim();
@@ -3837,6 +3931,7 @@ async function salvarConfronto() {
   try {
     document.getElementById('btnSalvarConfronto').disabled = true;
     await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id)).set(doc);
+    _limparRascunhoConfronto();
     closeOverlay('confrontoModal');
     toast('✅ Contagem enviada para o admin', 'success');
     if (user.role === 'admin') loadConfontos();
@@ -3884,8 +3979,8 @@ function renderConfontos(lista) {
 
   cont.innerHTML = lista.map(c => {
     const dt = new Date(c.ts).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
-    const divergentes = c.items.filter(i => i.diff !== 0);
-    const ok          = c.items.filter(i => i.diff === 0);
+    const divergentes = c.items.filter(i => Math.abs(i.diff) >= 0.01);
+    const ok          = c.items.filter(i => Math.abs(i.diff) < 0.01);
     const badges = divergentes.length === 0
       ? `<span style="color:var(--success);font-weight:700;font-size:12px">✅ Tudo conferido</span>`
       : `<span style="color:var(--danger);font-weight:700;font-size:12px">❌ ${divergentes.length} divergência(s)</span>
@@ -3917,12 +4012,12 @@ function verConfronto(id) {
   if (!snap) return;
   _confrontoAtual = snap;
   const fmtDiff = (diff, unit) => {
-    if (diff === 0) return `<span style="color:var(--success);font-weight:700">✅ OK</span>`;
+    if (Math.abs(diff) < 0.01) return `<span style="color:var(--success);font-weight:700">✅ OK</span>`;
     const sign = diff > 0 ? `+${diff}` : `${diff}`;
     return `<span style="color:${diff>0?'#d97706':'var(--danger)'};font-weight:700">${sign} ${unit}</span>`;
   };
   const rows = snap.items.map(i =>
-    `<tr style="${i.diff!==0?'background:#fff7ed':''}">
+    `<tr style="${Math.abs(i.diff)>=0.01?'background:#fff7ed':''}">
       <td>${i.emoji} ${i.productName}</td>
       <td style="text-align:center">${i.qtySistema} ${i.unit}</td>
       <td style="text-align:center">${i.qtyFisico} ${i.unit}</td>
@@ -3961,7 +4056,7 @@ async function processarConfronto(id, status) {
       .update({ status, processadoEm: new Date().toISOString(), processadoPor: user.username });
     if (status === 'aprovado') {
       // Aplica ajustes no estoque para itens com diferença
-      const divergentes = conf.items.filter(i => i.diff !== 0);
+      const divergentes = conf.items.filter(i => Math.abs(i.diff) >= 0.01);
       for (const item of divergentes) {
         const novaQty = item.qtyFisico;
         await db.collection(`lojas/${currentFilial.id}/produtos`).doc(String(item.productId))
