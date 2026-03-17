@@ -1212,7 +1212,7 @@
         </div>
         <div class="fech-input-row">
           <span class="fech-label">🇵🇾 Fundo em Guarani</span>
-          <input class="fech-input" type="number" step="1" min="0" id="abFundoPYG" placeholder="₲ 0">
+          <input class="fech-input" type="number" step="0.001" min="0" id="abFundoPYG" placeholder="0 mil ₲">
         </div>
         <div style="padding:4px 0">
           <textarea id="abObs" placeholder="Observação (opcional)..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:56px;font-family:inherit;box-sizing:border-box"></textarea>
@@ -2992,7 +2992,7 @@ function toUSD(moeda, valor) {
   if (moeda === 'USD') return valor;
   if (moeda === 'BRL') return cotacao.brl > 0 ? valor / cotacao.brl : null;
   if (moeda === 'PIX') return cotacao.pix > 0 ? valor / cotacao.pix : null;
-  if (moeda === 'PYG') return cotacao.pyg > 0 ? valor / cotacao.pyg : null;
+  if (moeda === 'PYG') return cotacao.pyg > 0 ? (valor * 1000) / cotacao.pyg : null; // input em "mil ₲"
   return null;
 }
 
@@ -3010,7 +3010,7 @@ function fromUSD(moeda, valorUSD) {
   }
   if (moeda === 'PYG') {
     const v = cotacao.pyg > 0 ? valorUSD * cotacao.pyg : null;
-    return v !== null ? `₲ ${Math.round(v).toLocaleString('pt-BR')}` : `$${valorUSD.toFixed(2)}`;
+    return v !== null ? fmtGs(Math.round(v)) : `$${valorUSD.toFixed(2)}`;
   }
   return `$${valorUSD.toFixed(2)}`;
 }
@@ -3064,7 +3064,7 @@ function renderSplitRows() {
 
   document.getElementById('splitPaymentRows').innerHTML = splitPayRows.map((row, i) => {
     const step = row.moeda === 'PYG' ? '1' : '0.01';
-    const ph   = row.moeda === 'USD' ? '$0.00' : row.moeda === 'PYG' ? '0' : 'R$ 0,00';
+    const ph   = row.moeda === 'USD' ? '$0.00' : row.moeda === 'PYG' ? 'mil ₲' : 'R$ 0,00';
     const usd  = toUSD(row.moeda, row.valor);
     const usdTag = (usd !== null && usd > 0) ? `≈$${usd.toFixed(2)}` : '';
     return `<div class="split-pay-row">
@@ -3077,11 +3077,25 @@ function renderSplitRows() {
   }).join('');
 }
 
+// Formata Guaranis em notação "mil" para exibição amigável
+// Ex: 66000 → "₲ 66 mil" | 1200000 → "₲ 1,2 mi" | 500 → "₲ 500"
+function fmtGs(v) {
+  const abs = Math.round(Math.abs(v));
+  if (abs === 0) return '₲ 0';
+  if (abs < 1000) return `₲ ${abs}`;
+  if (abs < 1000000) {
+    const k = abs / 1000;
+    return `₲ ${Number.isInteger(k) ? k : k.toFixed(1)} mil`;
+  }
+  const m = abs / 1000000;
+  return `₲ ${Number.isInteger(m) ? m : m.toFixed(2).replace(/\.?0+$/,'')} mi`;
+}
+
 // Formata um valor na moeda de exibição (sem converter — valor já está na moeda)
 function fmtDisplayAmt(moeda, val) {
   const abs = Math.abs(val);
   if (moeda === 'BRL' || moeda === 'PIX') return `R$ ${abs.toFixed(2)}`;
-  if (moeda === 'PYG') return `₲ ${Math.round(abs).toLocaleString('pt-BR')}`;
+  if (moeda === 'PYG') return fmtGs(abs);
   return `$${abs.toFixed(2)}`;
 }
 
@@ -3103,7 +3117,7 @@ function calcDisplayAmounts(displayMoeda, totalUSD) {
   for (const row of splitPayRows) {
     if (!row.valor || row.valor <= 0) continue;
     if (row.moeda === displayMoeda) {
-      paidDisplay += row.valor; // mesma moeda: soma direto
+      paidDisplay += row.moeda === 'PYG' ? row.valor * 1000 : row.valor; // PYG input em "mil ₲"
     } else {
       // Moeda diferente: converte pela taxa própria da row → USD → displayMoeda
       const rowUSD = toUSD(row.moeda, row.valor);
@@ -3266,7 +3280,7 @@ async function confirmPayment() {
       totalPagoUSD += usd;
       pagamentos.push({
         moeda: row.moeda,
-        valor: row.moeda === 'PYG' ? Math.round(row.valor) : +Number(row.valor).toFixed(2),
+        valor: row.moeda === 'PYG' ? Math.round(row.valor * 1000) : +Number(row.valor).toFixed(2), // PYG input em "mil ₲"
         valorUSD: +usd.toFixed(4)
       });
     }
@@ -3381,7 +3395,7 @@ function renderVendas() {
     + statCard('💵','Total USD', `$${totalUSD.toFixed(2)}`, 'var(--success)')
     + (recBRL  > 0 ? statCard('🇧🇷','Recebido Dinheiro', `R$ ${recBRL.toFixed(2)}`, 'var(--text)') : '')
     + (recPIX  > 0 ? statCard('📱','Recebido PIX', `R$ ${recPIX.toFixed(2)}`, 'var(--primary)') : '')
-    + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', `₲ ${Math.round(recPYG).toLocaleString('pt-BR')}`, 'var(--text)') : '')
+    + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', fmtGs(Math.round(recPYG)), 'var(--text)') : '')
     + (recUSD  > 0 ? statCard('🇺🇸','Recebido USD', `$${recUSD.toFixed(2)}`, 'var(--text)') : '')
     + (trocoBRL > 0 ? statCard('💸','Troco Dado', `R$ ${trocoBRL.toFixed(2)}`, 'var(--danger)') : '')
     + (recBRL  > 0 ? statCard('💰','Líquido no Caixa', `R$ ${liquidoBRL.toFixed(2)}`, liquidoBRL >= 0 ? 'var(--success)' : 'var(--danger)', 'Dinheiro recebido − troco dado') : '');
@@ -3407,7 +3421,7 @@ function renderVendas() {
       ? v.pagamentos.filter(p => p.valor > 0).map(p => {
           const s2 = symb[p.moeda] || '';
           const val = p.moeda === 'PYG'
-            ? `${s2}${Math.round(p.valor).toLocaleString('pt-BR')}`
+            ? fmtGs(Math.round(p.valor))
             : `${s2}${Number(p.valor).toFixed(2)}`;
           return `<span class="pag-tag">${SPR_LABELS[p.moeda]||p.moeda}</span> <b>${val}</b>`;
         })
@@ -3416,7 +3430,7 @@ function renderVendas() {
           const s2 = symb[moeda] || '';
           const vp = v.valorPago;
           const val = moeda === 'PYG'
-            ? `${s2}${Math.round(vp).toLocaleString('pt-BR')}`
+            ? fmtGs(Math.round(vp))
             : `${s2}${Number(vp).toFixed(2)}`;
           return [`<span class="pag-tag">${SPR_LABELS[moeda]||moeda}</span> <b>${val}</b>`];
         })();
@@ -3521,7 +3535,7 @@ function renderAberturaBanner() {
     const fundos = [];
     if (aberturaHoje.fundoBRL > 0) fundos.push(`R$ ${aberturaHoje.fundoBRL.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
     if (aberturaHoje.fundoUSD > 0) fundos.push(`$${aberturaHoje.fundoUSD.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
-    if (aberturaHoje.fundoPYG > 0) fundos.push(`₲ ${Math.round(aberturaHoje.fundoPYG).toLocaleString('pt-BR')}`);
+    if (aberturaHoje.fundoPYG > 0) fundos.push(fmtGs(Math.round(aberturaHoje.fundoPYG)));
     banner.className = 'abertura-banner feito';
     if (user?.role === 'op') {
       msg.textContent = `✅ Caixa aberto às ${hora} por ${aberturaHoje.user}`;
@@ -3565,7 +3579,7 @@ async function salvarAbertura() {
   if (!currentFilial) return;
   const fundoBRL = parseFloat(document.getElementById('abFundoBRL').value) || 0;
   const fundoUSD = parseFloat(document.getElementById('abFundoUSD').value) || 0;
-  const fundoPYG = parseFloat(document.getElementById('abFundoPYG').value) || 0;
+  const fundoPYG = (parseFloat(document.getElementById('abFundoPYG').value) || 0) * 1000; // input em "mil ₲"
   const obs      = document.getElementById('abObs').value.trim();
   const today    = new Date().toISOString().slice(0,10);
   const doc = { date: today, ts: new Date().toISOString(), user: user.username, fundoBRL, fundoUSD, fundoPYG, obs };
@@ -3631,7 +3645,7 @@ function openFechamentoCaixa() {
 
   const fmtR = v => `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtD = v => `$${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  const fmtG = v => `₲ ${Math.round(v).toLocaleString('pt-BR')}`;
+  const fmtG = v => fmtGs(Math.round(v));
 
   const temFundo = fundoBRL > 0 || fundoUSD > 0 || fundoPYG > 0;
 
@@ -3693,7 +3707,7 @@ function openFechamentoCaixa() {
       </div>` : ''}
       ${(esperadoPYG > 0 || fundoPYG > 0) ? `<div class="fech-input-row">
         <span class="fech-label">🇵🇾 Guarani contado</span>
-        <input class="fech-input" type="number" step="1" min="0" id="fInPYG" placeholder="₲ 0" oninput="calcFechamento()">
+        <input class="fech-input" type="number" step="0.001" min="0" id="fInPYG" placeholder="0 mil ₲" oninput="calcFechamento()">
       </div>` : ''}
     </div>
 
@@ -3730,9 +3744,9 @@ function calcFechamento() {
   const fInUSD = parseFloat(document.getElementById('fInUSD')?.value);
   const fInUSDv = isNaN(fInUSD) ? null : fInUSD;
   const fInPYG = parseFloat(document.getElementById('fInPYG')?.value);
-  const fInPYGv = isNaN(fInPYG) ? null : fInPYG;
+  const fInPYGv = isNaN(fInPYG) ? null : fInPYG * 1000; // input em "mil ₲" → converte para Gs
 
-  const diffRow = (label, esperado, fisico, prefix) => {
+  const diffRow = (label, esperado, fisico, fmt) => {
     if (fisico === null) return '';
     const diff = fisico - esperado;
     const abs  = Math.abs(diff);
@@ -3740,14 +3754,16 @@ function calcFechamento() {
     const icon = cls === 'ok' ? '✅' : cls === 'over' ? '⚠️' : '❌';
     const msg  = cls === 'ok'
       ? 'BATEU'
-      : (diff > 0 ? `+${prefix}${abs.toFixed(2)} sobrou` : `−${prefix}${abs.toFixed(2)} faltou`);
+      : (diff > 0 ? `+${fmt(abs)} sobrou` : `−${fmt(abs)} faltou`);
     return `<div class="fech-diff ${cls}"><span>${icon} ${label}</span><span>${msg}</span></div>`;
   };
+  const fmtR = v => `R$ ${v.toFixed(2)}`;
+  const fmtD = v => `$${v.toFixed(2)}`;
 
-  const html = diffRow('Dinheiro físico', efEsperadoBRL, fInBRLv, 'R$ ')
-             + diffRow('PIX (conta)', recPIX, fInPIXv, 'R$ ')
-             + diffRow('USD físico', efEsperadoUSD, fInUSDv, '$')
-             + diffRow('Guarani físico', efEsperadoPYG, fInPYGv, '₲ ');
+  const html = diffRow('Dinheiro físico', efEsperadoBRL, fInBRLv, fmtR)
+             + diffRow('PIX (conta)', recPIX, fInPIXv, fmtR)
+             + diffRow('USD físico', efEsperadoUSD, fInUSDv, fmtD)
+             + diffRow('Guarani físico', efEsperadoPYG, fInPYGv, fmtGs);
 
   document.getElementById('fechDiffs').innerHTML = html ||
     '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:8px">Preencha os valores acima</div>';
@@ -3758,7 +3774,7 @@ async function salvarFechamento() {
   const fInBRL = parseFloat(document.getElementById('fInBRL')?.value) || 0;
   const fInPIX = parseFloat(document.getElementById('fInPIX')?.value) || 0;
   const fInUSD = parseFloat(document.getElementById('fInUSD')?.value) || 0;
-  const fInPYG = parseFloat(document.getElementById('fInPYG')?.value) || 0;
+  const fInPYG = (parseFloat(document.getElementById('fInPYG')?.value) || 0) * 1000; // input em "mil ₲"
   const obs    = document.getElementById('fInObs')?.value.trim() || '';
 
   const { date, vendas: nVendas, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, fundoBRL, fundoUSD, fundoPYG, liquidoBRL, esperadoBRL, esperadoUSD, esperadoPYG } = _fechDados;
