@@ -3440,12 +3440,25 @@ function renderVendas() {
     if (v.pagamentos) return s + v.pagamentos.filter(p=>p.moeda==='USD').reduce((a,p)=>a+p.valor,0);
     return s + (v.moedaPagamento==='USD' ? v.valorPago : 0);
   }, 0);
-  // Troco total em BRL (usando a cotação salva em cada venda)
+  // Troco por moeda (dado na mesma moeda do pagamento)
+  const _pm = v => v.pagamentos?.length === 1 ? v.pagamentos[0].moeda : (v.moedaPagamento || 'BRL');
   const trocoBRL = ativas.reduce((s,v) => {
     const t = Math.max(0, v.troco||0);
     if (!t) return s;
-    const rate = v.cotacaoPIX > 0 ? v.cotacaoPIX : (v.cotacaoBRL > 0 ? v.cotacaoBRL : 0);
+    const m = _pm(v);
+    if (m !== 'BRL' && m !== 'PIX') return s;
+    const rate = m === 'PIX' ? (v.cotacaoPIX||0) : (v.cotacaoBRL||0);
     return s + (rate > 0 ? t * rate : 0);
+  }, 0);
+  const trocoPYG = ativas.reduce((s,v) => {
+    const t = Math.max(0, v.troco||0);
+    if (!t || _pm(v) !== 'PYG') return s;
+    return s + t * (v.cotacaoPYG||0);
+  }, 0);
+  const trocoUSD = ativas.reduce((s,v) => {
+    const t = Math.max(0, v.troco||0);
+    if (!t || _pm(v) !== 'USD') return s;
+    return s + t;
   }, 0);
   const liquidoBRL = recBRL - trocoBRL; // dinheiro físico esperado no caixa
   const nCanceladas = filtradas.length - ativas.length;
@@ -3465,7 +3478,9 @@ function renderVendas() {
     + (recPIX  > 0 ? statCard('📱','Recebido PIX', `R$ ${recPIX.toFixed(2)}`, 'var(--primary)') : '')
     + (recPYG  > 0 ? statCard('🇵🇾','Recebido PYG', fmtGs(Math.round(recPYG)), 'var(--text)') : '')
     + (recUSD  > 0 ? statCard('🇺🇸','USD em Mãos', `$${recUSD.toFixed(2)}`, '#0369a1') : '')
-    + (trocoBRL > 0 ? statCard('💸','Troco Dado', `R$ ${trocoBRL.toFixed(2)}`, 'var(--danger)') : '')
+    + (trocoBRL > 0 ? statCard('💸','Troco BRL', `R$ ${trocoBRL.toFixed(2)}`, 'var(--danger)') : '')
+    + (trocoPYG > 0 ? statCard('💸','Troco PYG', fmtGs(Math.round(trocoPYG)), 'var(--danger)') : '')
+    + (trocoUSD > 0 ? statCard('💸','Troco USD', `$${trocoUSD.toFixed(2)}`, 'var(--danger)') : '')
     + (recBRL  > 0 ? statCard('💰','Líquido no Caixa', `R$ ${liquidoBRL.toFixed(2)}`, liquidoBRL >= 0 ? 'var(--success)' : 'var(--danger)', 'Dinheiro recebido − troco dado') : '');
 
   const isFarmaciaCol = !!(currentFilial && currentFilial.id === FARMACIA_ID);
@@ -3772,11 +3787,25 @@ function openFechamentoCaixa() {
   const recPYG    = filtradas.reduce((s,v) => v.pagamentos
     ? s + v.pagamentos.filter(p=>p.moeda==='PYG').reduce((a,p)=>a+p.valor,0)
     : s + (v.moedaPagamento==='PYG' ? v.valorPago : 0), 0);
+  // Troco por moeda (dado na mesma moeda do pagamento)
+  const _pm2 = v => v.pagamentos?.length === 1 ? v.pagamentos[0].moeda : (v.moedaPagamento || 'BRL');
   const trocoBRL  = filtradas.reduce((s,v) => {
     const t = Math.max(0, v.troco||0);
     if (!t) return s;
-    const rate = v.cotacaoPIX > 0 ? v.cotacaoPIX : (v.cotacaoBRL > 0 ? v.cotacaoBRL : 0);
+    const m = _pm2(v);
+    if (m !== 'BRL' && m !== 'PIX') return s;
+    const rate = m === 'PIX' ? (v.cotacaoPIX||0) : (v.cotacaoBRL||0);
     return s + (rate > 0 ? t * rate : 0);
+  }, 0);
+  const trocoPYG  = filtradas.reduce((s,v) => {
+    const t = Math.max(0, v.troco||0);
+    if (!t || _pm2(v) !== 'PYG') return s;
+    return s + t * (v.cotacaoPYG||0);
+  }, 0);
+  const trocoUSD  = filtradas.reduce((s,v) => {
+    const t = Math.max(0, v.troco||0);
+    if (!t || _pm2(v) !== 'USD') return s;
+    return s + t;
   }, 0);
   const liquidoBRL = recBRL - trocoBRL;
 
@@ -3797,10 +3826,10 @@ function openFechamentoCaixa() {
   const netSangrPYG = sangrPYG - suprPYG;
 
   const esperadoBRL = fundoBRL + liquidoBRL - netSangrBRL;
-  const esperadoUSD = fundoUSD + recUSD - netSangrUSD;
-  const esperadoPYG = fundoPYG + recPYG - netSangrPYG;
+  const esperadoUSD = fundoUSD + recUSD - trocoUSD - netSangrUSD;
+  const esperadoPYG = fundoPYG + recPYG - trocoPYG - netSangrPYG;
 
-  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, liquidoBRL, fundoBRL, fundoUSD, fundoPYG, esperadoBRL, esperadoUSD, esperadoPYG, movs, sangrBRL, sangrUSD, sangrPYG, suprBRL, suprUSD, suprPYG, netSangrBRL, netSangrUSD, netSangrPYG };
+  _fechDados = { date: dataRef, vendas: filtradas.length, totalUSD, recBRL, recPIX, recUSD, recPYG, trocoBRL, trocoPYG, trocoUSD, liquidoBRL, fundoBRL, fundoUSD, fundoPYG, esperadoBRL, esperadoUSD, esperadoPYG, movs, sangrBRL, sangrUSD, sangrPYG, suprBRL, suprUSD, suprPYG, netSangrBRL, netSangrUSD, netSangrPYG };
 
   const fmtR = v => `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtD = v => `$${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -3845,8 +3874,16 @@ function openFechamentoCaixa() {
         <span class="fech-val">${fmtG(esperadoPYG)}</span>
       </div>` : ''}
       ${trocoBRL > 0 ? `<div class="fech-row" style="opacity:.65">
-        <span class="fech-label">💸 Troco dado no dia</span>
+        <span class="fech-label">💸 Troco BRL dado</span>
         <span class="fech-val" style="color:var(--danger)">−${fmtR(trocoBRL)}</span>
+      </div>` : ''}
+      ${trocoPYG > 0 ? `<div class="fech-row" style="opacity:.65">
+        <span class="fech-label">💸 Troco PYG dado</span>
+        <span class="fech-val" style="color:var(--danger)">−${fmtG(trocoPYG)}</span>
+      </div>` : ''}
+      ${trocoUSD > 0 ? `<div class="fech-row" style="opacity:.65">
+        <span class="fech-label">💸 Troco USD dado</span>
+        <span class="fech-val" style="color:var(--danger)">−${fmtD(trocoUSD)}</span>
       </div>` : ''}
       ${movs.length > 0 ? `<div class="fech-row" style="opacity:.8;flex-direction:column;align-items:flex-start;gap:6px">
         <span class="fech-label" style="font-weight:700">💸 Sangrias / Suprimentos</span>
