@@ -2257,7 +2257,7 @@ function setupRealtimeListeners() {
 
   unsubHistory = col('historico').onSnapshot(snap => {
     history = snap.docs.map(d => d.data())
-      .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+      .sort((a, b) => new Date(a.datetime || a.ts) - new Date(b.datetime || b.ts));
     renderStats(); renderHistory(); renderReports();
   }, console.error);
 
@@ -4304,15 +4304,19 @@ async function processarConfronto(id, status) {
         const novaQty = item.qtyFisico;
         await db.collection(`lojas/${currentFilial.id}/produtos`).doc(String(item.productId))
           .update({ qty: novaQty });
+        const adjProd = products.find(p => String(p.id) === String(item.productId));
         await db.collection(`lojas/${currentFilial.id}/historico`).add({
           id: Date.now() + Math.random(),
           productId: item.productId,
+          datetime: new Date().toISOString(),
+          productName: adjProd?.name || item.productId,
+          emoji: adjProd?.emoji || '📦',
           type: 'ajuste',
-          qty: item.diff,
-          saldo: novaQty,
+          qty: Math.abs(item.diff),
+          delta: item.diff,
+          balance: novaQty,
           obs: `Ajuste via confronto de estoque (contagem de ${conf.user})`,
-          user: user.username,
-          ts: new Date().toISOString()
+          user: user.username
         });
       }
       toast(`✅ Estoque ajustado: ${divergentes.length} produto(s) corrigido(s)`, 'success');
@@ -4925,17 +4929,25 @@ function renderHistory() {
   const empty = document.getElementById('histEmpty');
   if (!rows.length) { body.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  body.innerHTML = rows.map(r => `
+  body.innerHTML = rows.map(r => {
+    const rDate = r.datetime || r.ts;
+    const rProd = products.find(p => String(p.id) === String(r.productId));
+    const rEmoji = r.emoji || rProd?.emoji || '📦';
+    const rName  = r.productName || rProd?.name || r.productId || '—';
+    const rBalance = r.balance ?? r.saldo ?? '—';
+    const rDelta = r.delta ?? r.qty;
+    return `
     <tr>
-      <td style="white-space:nowrap;color:var(--text-3);font-size:13px">${fmtDate(r.datetime)}</td>
-      <td><span style="font-size:16px">${r.emoji}</span> ${r.productName}</td>
+      <td style="white-space:nowrap;color:var(--text-3);font-size:13px">${fmtDate(rDate)}</td>
+      <td><span style="font-size:16px">${rEmoji}</span> ${rName}</td>
       <td><span class="badge ${r.type==='entrada'?'badge-in':r.type==='ajuste'?'badge-adj':'badge-out'}">${r.type==='entrada'?'▲ Entrada':r.type==='ajuste'?'⚖️ Ajuste':'▼ Saída'}</span></td>
-      <td style="font-weight:700;color:${r.type==='entrada'?'var(--success)':r.type==='ajuste'?(r.delta>=0?'var(--success)':'var(--danger)'):'var(--danger)'}">${r.type==='ajuste'?(r.delta>=0?'+'+r.delta:r.delta):r.type==='entrada'?'+'+r.qty:'-'+r.qty}</td>
-      <td style="font-weight:600">${r.balance}</td>
+      <td style="font-weight:700;color:${r.type==='entrada'?'var(--success)':r.type==='ajuste'?(rDelta>=0?'var(--success)':'var(--danger)'):'var(--danger)'}">${r.type==='ajuste'?(rDelta>=0?'+'+rDelta:rDelta):r.type==='entrada'?'+'+r.qty:'-'+r.qty}</td>
+      <td style="font-weight:600">${rBalance}</td>
       <td style="color:var(--text-2);font-size:13px;max-width:180px">${r.obs||'—'}</td>
       <td style="color:var(--text-3);font-size:12px">${r.user}</td>
       <td><button onclick="deleteHistoryEntry('${r.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.45;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.opacity=1;this.style.background='var(--danger-light)'" onmouseout="this.style.opacity=.45;this.style.background='none'" title="Excluir permanentemente">🗑</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function deleteHistoryEntry(id) {
@@ -5474,8 +5486,9 @@ function saveEditProduct() {
     saveProduct(p);
     savePhoto(newId, editPhotoTemp || null);
     if (p.qty > 0) {
-      const hDoc = { id: Date.now(), productId: newId, type: 'entrada', qty: p.qty, saldo: p.qty,
-        obs: 'Estoque inicial', user: user.username, ts: new Date().toISOString() };
+      const hDoc = { id: Date.now(), productId: newId, datetime: new Date().toISOString(),
+        productName: p.name, emoji: p.emoji, type: 'entrada', qty: p.qty, balance: p.qty,
+        obs: 'Estoque inicial', user: user.username };
       history.unshift(hDoc);
       db.collection(`lojas/${currentFilial.id}/historico`).add(hDoc).catch(console.error);
     }
