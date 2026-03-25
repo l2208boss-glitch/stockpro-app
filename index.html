@@ -2876,6 +2876,14 @@ function setupCaixaListeners() {
         fatCompras = snap.docs.map(d => d.data());
         renderFatCompra();
       }, console.error);
+
+    if (unsubCompras) { unsubCompras(); unsubCompras = null; }
+    unsubCompras = db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`)
+      .orderBy('ts','desc')
+      .onSnapshot(snap => {
+        compras = snap.docs.map(d => d.data());
+        renderFatCompra();
+      }, console.error);
   }
 }
 
