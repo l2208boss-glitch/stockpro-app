@@ -5883,7 +5883,10 @@ function renderFatCompra() {
   block.style.display = (isFarmacia && isAdmin) ? '' : 'none';
   if (!isFarmacia || !isAdmin) return;
 
-  const totalCompra   = fatCompras.reduce((s, f) => s + (f.totalUSD || 0), 0);
+  // Notas manuais (faturas_compra) + compras com "Tem fatura" em USD
+  const totalFatManuais = fatCompras.reduce((s, f) => s + (f.totalUSD || 0), 0);
+  const totalFatAuto    = compras.filter(c => c.temFatura && c.moeda === 'USD').reduce((s, c) => s + (c.total || 0), 0);
+  const totalCompra   = totalFatManuais + totalFatAuto;
   const totalFaturado = facturasEmitidas.reduce((s, f) => s + (f.totalUSD || 0), 0);
   const saldo         = totalCompra - totalFaturado;
   const saldoColor    = saldo >= 0 ? 'var(--success)' : '#ef4444';
@@ -6986,6 +6989,7 @@ function showComprasApp() {
       compras = snap.docs.map(d => d.data());
       renderComprasResumo();
       renderComprasList();
+      renderFatCompra();
     }, console.error);
 }
 
