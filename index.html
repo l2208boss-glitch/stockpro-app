@@ -4848,15 +4848,16 @@ function photoHTML(p, size) {
 
 /* ══════════════════════════════════════════
    BULA DB — Base de conhecimento Farmácia
+   Cobre todos os 167 produtos cadastrados
 ══════════════════════════════════════════ */
 const BULA_DB = [
   // ── PROTEÍNAS ────────────────────────────
-  { keys: ['whey isolado','whey protein isolado','proteína isolada','iso whey'],
+  { keys: ['whey isolado','whey protein isolado','proteína isolada','iso whey','whey isolate','iso'],
     nome: 'Whey Protein Isolado',
     paraQueServe: 'Suplemento proteico de alta absorção obtido do soro do leite. Ideal para ganho e manutenção de massa muscular, recuperação pós-treino e em dietas restritivas. Possui baixo teor de gordura e lactose.',
     comoUsar: 'Misture 1 dose (30 g) em 200–250 ml de água ou leite. Consumir preferencialmente logo após o treino. Pode ser usado também ao acordar ou entre refeições.' },
 
-  { keys: ['whey concentrado','whey protein concentrado','whey protein'],
+  { keys: ['whey concentrado','whey protein concentrado','whey protein','whey','syntrax','coke whey','goldstand','gold stand','anabolhardcore','muscletech','womens prote','whey shake','whey premium'],
     nome: 'Whey Protein Concentrado',
     paraQueServe: 'Proteína do soro do leite com 70–80% de proteína. Apoia o ganho de massa muscular e a recuperação após exercícios. Contém pequenas quantidades de gordura e carboidratos.',
     comoUsar: 'Misture 1 dose (30–35 g) em 200–300 ml de água ou leite. Consumir após o treino ou como complemento proteico em qualquer refeição.' },
@@ -4876,18 +4877,18 @@ const BULA_DB = [
     paraQueServe: 'Proteína do leite de digestão lenta (6–8 h), que libera aminoácidos gradualmente. Excelente para o período noturno, evitando o catabolismo muscular durante o sono.',
     comoUsar: '1 dose (30–40 g) em água ou leite. Consumir preferencialmente antes de dormir.' },
 
-  { keys: ['proteína vegetal','vegan protein','proteína vegan','proteína de ervilha','proteína de arroz'],
+  { keys: ['proteína vegetal','vegan protein','proteína vegan','proteína de ervilha','proteína de arroz','whey vegan','vegan lander','vegan dragon'],
     nome: 'Proteína Vegetal',
     paraQueServe: 'Fonte proteica plant-based (ervilha, arroz, soja ou combinações). Indicada para veganos, vegetarianos ou pessoas com intolerância à lactose. Apoia a construção muscular e a saciedade.',
     comoUsar: '1 dose (30 g) em 250 ml de água ou bebida vegetal. Pode ser usada após o treino ou como complemento proteico nas refeições.' },
 
   // ── AMINOÁCIDOS ──────────────────────────
-  { keys: ['bcaa','aminoácidos ramificados','aminoacidos ramificados'],
+  { keys: ['bcaa','aminoácidos ramificados','aminoacidos ramificados','lipo6 bcaa','bcaa intense'],
     nome: 'BCAA (Aminoácidos de Cadeia Ramificada)',
     paraQueServe: 'Trio de aminoácidos essenciais (Leucina, Isoleucina e Valina) que o organismo não produz. Reduzem o catabolismo muscular, fadiga durante o treino e auxiliam na recuperação.',
     comoUsar: '5–10 g diluídos em água, consumidos antes, durante ou após o treino. Na versão cápsula, seguir a dose indicada na embalagem (geralmente 2–4 cápsulas).' },
 
-  { keys: ['glutamina','l-glutamina'],
+  { keys: ['glutamina','l-glutamina','glutami'],
     nome: 'Glutamina',
     paraQueServe: 'Aminoácido mais abundante nos músculos. Fortalece o sistema imunológico, melhora a recuperação muscular, auxilia na saúde intestinal e reduz o catabolismo em treinos intensos.',
     comoUsar: '5 g (1 colher rasa) em água, suco ou shake. Pode ser tomada em jejum, após o treino ou antes de dormir. Não misturar com bebidas quentes.' },
@@ -4923,7 +4924,7 @@ const BULA_DB = [
     comoUsar: '500 mg a 1 g ao dia com as refeições. Em casos de herpes, podem ser usados 1–3 g/dia conforme orientação profissional.' },
 
   // ── PRÉ-TREINO / ENERGIA ─────────────────
-  { keys: ['pré-treino','pre-treino','pre treino'],
+  { keys: ['pré-treino','pre-treino','pre treino','c4','no explode','no-xplode','psychotic','explode 1','no xplode'],
     nome: 'Pré-Treino',
     paraQueServe: 'Fórmula combinada (geralmente cafeína, beta-alanina, citrulina e outros) que aumenta energia, foco, resistência e pump durante o treino.',
     comoUsar: '1 dose (conforme embalagem) diluída em 200–300 ml de água, 20–30 min antes do treino. Evitar uso após 16h para não prejudicar o sono. Não exceder a dose diária.' },
@@ -4933,69 +4934,69 @@ const BULA_DB = [
     paraQueServe: 'Estimulante do sistema nervoso central. Aumenta o estado de alerta, concentração, reduz a percepção de fadiga e melhora o desempenho físico e mental.',
     comoUsar: '100–200 mg (1 cápsula) 30–60 min antes da atividade física ou quando precisar de foco. Dose máxima recomendada: 400 mg/dia. Evitar uso próximo ao horário de dormir.' },
 
-  { keys: ['termogênico','termogenico','fat burner'],
+  { keys: ['termogênico','termogenico','fat burner','hydroxcut','hydroxycut','advanced cuts','lipo6 black','lipo revolution','lipo-revolution','lipo6 intense','lipo6 hers','lipo hers'],
     nome: 'Termogênico',
     paraQueServe: 'Fórmula que eleva a temperatura corporal e acelera o metabolismo, aumentando o gasto calórico. Auxilia no processo de emagrecimento quando combinado com dieta e exercícios.',
     comoUsar: '1–2 cápsulas antes do treino ou pela manhã. Não exceder a dose indicada. Contraindicado para hipertensos, cardíacos e gestantes. Evitar uso à noite.' },
 
-  { keys: ['l-carnitina','carnitina'],
+  { keys: ['l-carnitina','carnitina','lipo6 carnitine','carnitine'],
     nome: 'L-Carnitina',
     paraQueServe: 'Transporta ácidos graxos para dentro das mitocôndrias para serem queimados como energia. Auxilia na queima de gordura, especialmente durante exercícios aeróbicos, e melhora a recuperação muscular.',
     comoUsar: '1–3 g em água ou suco, 30–60 minutos antes do exercício aeróbico. Pode ser tomada em jejum para potencializar a utilização de gordura.' },
 
   // ── VITAMINAS ────────────────────────────
-  { keys: ['vitamina c','vitamina c 1000','ácido ascórbico','acido ascorbico'],
+  { keys: ['vitamina c','vitamina c 1000','ácido ascórbico','acido ascorbico','vita c','vitam c','vitamin c'],
     nome: 'Vitamina C (Ácido Ascórbico)',
     paraQueServe: 'Potente antioxidante essencial para o sistema imunológico, síntese de colágeno, absorção de ferro não-heme e proteção celular. Ajuda na prevenção e redução da duração de resfriados.',
     comoUsar: '500 mg a 1 g ao dia, preferencialmente durante as refeições para melhor absorção e menor irritação gástrica. Doses acima de 2 g/dia podem causar diarreia.' },
 
-  { keys: ['vitamina d','vitamina d3','colecalciferol','vitamina d 2000','vitamina d 5000'],
+  { keys: ['vitamina d','vitamina d3','colecalciferol','vitamina d 2000','vitamina d 5000','vitam d3','vitam d','vitamin d'],
     nome: 'Vitamina D3 (Colecalciferol)',
     paraQueServe: 'Essencial para absorção de cálcio e saúde óssea, função imunológica, humor e saúde muscular. A deficiência é muito comum em populações com pouca exposição solar.',
     comoUsar: '1.000–2.000 UI ao dia junto a uma refeição contendo gordura (melhora a absorção). Doses maiores devem ser orientadas por exame laboratorial e profissional de saúde.' },
 
-  { keys: ['vitamina e','tocoferol','vitamina e 400'],
+  { keys: ['vitamina e','tocoferol','vitamina e 400','vitamin e'],
     nome: 'Vitamina E (Tocoferol)',
     paraQueServe: 'Antioxidante lipossolúvel que protege as células do dano oxidativo. Apoia a saúde da pele, sistema imunológico e função cardiovascular.',
     comoUsar: '1 cápsula (400 UI) ao dia junto a uma refeição contendo gordura. Doses acima de 1.000 UI/dia não são recomendadas sem orientação médica.' },
 
-  { keys: ['vitamina b12','cobalamina','cianocobalamina','vitamina b 12'],
+  { keys: ['vitamina b12','cobalamina','cianocobalamina','vitamina b 12','b12','vitami b','ferrocuprin'],
     nome: 'Vitamina B12 (Cobalamina)',
     paraQueServe: 'Fundamental para a formação de glóbulos vermelhos, função neurológica e síntese de DNA. Deficiência causa anemia, fadiga intensa, formigamentos e problemas neurológicos. Veganos têm risco elevado de deficiência.',
     comoUsar: '1 comprimido ou cápsula (500 mcg a 1.000 mcg) ao dia, preferencialmente junto a uma refeição. Sublingual tem absorção superior.' },
 
-  { keys: ['complexo b','vitamina b complex','complex b','vitaminas do complexo b'],
+  { keys: ['complexo b','vitamina b complex','complex b','vitaminas do complexo b','b complex'],
     nome: 'Complexo B',
     paraQueServe: 'Conjunto de vitaminas B (B1, B2, B3, B5, B6, B7, B9, B12) essenciais para metabolismo energético, função neurológica, saúde da pele, cabelo e unhas. Reduz fadiga e estresse.',
     comoUsar: '1 cápsula/comprimido ao dia, preferencialmente pela manhã junto a uma refeição (as vitaminas B dão energia e podem dificultar o sono se tomadas à noite).' },
 
-  { keys: ['vitamina a','retinol','vitamina a 10000'],
+  { keys: ['vitamina a','retinol','vitamina a 10000','beta carotene','beta-carotene','vita a'],
     nome: 'Vitamina A (Retinol)',
     paraQueServe: 'Essencial para a visão (especialmente noturna), saúde da pele, sistema imunológico e crescimento celular. Antioxidante importante.',
     comoUsar: '1 cápsula ao dia (1.000–5.000 UI) junto a uma refeição com gordura. Não exceder a dose sem orientação — vitamina A é lipossolúvel e pode acumular em excesso.' },
 
-  { keys: ['vitamina k','vitamina k2','mk7','menaquinona'],
+  { keys: ['vitamina k','vitamina k2','mk7','menaquinona','vitami k','vitamin k','vitami k2'],
     nome: 'Vitamina K2',
     paraQueServe: 'Direciona o cálcio para os ossos e dentes, prevenindo calcificação nas artérias. Frequentemente usada em conjunto com Vitamina D3 para maximizar saúde óssea e cardiovascular.',
     comoUsar: '100–200 mcg ao dia junto a uma refeição com gordura. Frequentemente combinada com Vitamina D3 na mesma cápsula.' },
 
   // ── MINERAIS ─────────────────────────────
-  { keys: ['ômega 3','omega 3','óleo de peixe','oleo de peixe','fish oil'],
+  { keys: ['ômega 3','omega 3','óleo de peixe','oleo de peixe','fish oil','omega3','super omega','omega 3.'],
     nome: 'Ômega 3 (Óleo de Peixe)',
     paraQueServe: 'Ácidos graxos essenciais EPA e DHA. Reduzem inflamação, triglicerídeos, risco cardiovascular, melhoram função cerebral, humor, articulações e visão.',
     comoUsar: '1–2 cápsulas (1–2 g) ao dia junto às refeições para evitar sabor de peixe. Dose terapêutica (para triglicerídeos): até 4 g/dia sob orientação médica.' },
 
-  { keys: ['zinco','sulfato de zinco','gluconato de zinco','zinco quelado'],
+  { keys: ['zinco','sulfato de zinco','gluconato de zinco','zinco quelado','zinc'],
     nome: 'Zinco',
     paraQueServe: 'Mineral essencial para imunidade, síntese de testosterona, cicatrização, metabolismo e sentidos do paladar e olfato. A deficiência é comum e compromete a imunidade.',
     comoUsar: '15–30 mg ao dia, preferencialmente junto a uma refeição (pode causar náusea em jejum). Não tomar com cálcio ou ferro ao mesmo tempo — competem pela absorção.' },
 
-  { keys: ['magnésio','magnesio','cloreto de magnesio','magnésio quelado','mg'],
+  { keys: ['magnésio','magnesio','cloreto de magnesio','magnésio quelado','magnesi','magnesium','neuro mag','neuro-mag'],
     nome: 'Magnésio',
     paraQueServe: 'Participa de mais de 300 reações enzimáticas. Essencial para contrações musculares, qualidade do sono, redução de cãibras, saúde óssea, controle do estresse e metabolismo de energia.',
     comoUsar: '200–400 mg ao dia, preferencialmente à noite (tem leve efeito relaxante). Quelatos (bisglicinato, treonato) têm melhor absorção e menos efeitos laxantes que o óxido de magnésio.' },
 
-  { keys: ['cálcio','calcio','carbonato de cálcio','citrato de cálcio'],
+  { keys: ['cálcio','calcio','carbonato de cálcio','citrato de cálcio','calciu','calcium'],
     nome: 'Cálcio',
     paraQueServe: 'Mineral fundamental para ossos e dentes, contração muscular (incluindo o coração), coagulação sanguínea e função nervosa.',
     comoUsar: '500–1.000 mg ao dia divididos em 2 doses (o organismo absorve melhor em doses menores). Citrato de cálcio pode ser tomado com ou sem comida; carbonato de cálcio deve ser tomado com refeição.' },
@@ -5021,7 +5022,7 @@ const BULA_DB = [
     comoUsar: '200–400 mcg ao dia junto a uma refeição. Especialmente indicado para pessoas com resistência à insulina ou compulsão por carboidratos.' },
 
   // ── COLÁGENO / ARTICULAÇÕES ──────────────
-  { keys: ['colágeno','colageno','colágeno hidrolisado','colágeno tipo 2','colageno tipo ii'],
+  { keys: ['colágeno','colageno','colágeno hidrolisado','colágeno tipo 2','colageno tipo ii','collagen','collage','collag','colage','hydrofon','hydrolyzed'],
     nome: 'Colágeno Hidrolisado',
     paraQueServe: 'Proteína estrutural que compõe pele, cartilagens, tendões e ossos. A suplementação melhora a elasticidade da pele, reduz rugas, alivia dores articulares e fortalece unhas e cabelos.',
     comoUsar: '10 g ao dia (colágeno tipo I/III) diluídos em suco ou água com vitamina C para potencializar a síntese. Colágeno tipo II (undenatured): 40 mg/dia antes das refeições.' },
@@ -5037,7 +5038,7 @@ const BULA_DB = [
     comoUsar: '800–1.200 mg ao dia com refeição. Geralmente combinada com glucosamina para efeito sinérgico. Requer uso por pelo menos 3 meses para avaliar os resultados.' },
 
   // ── SONO / RELAXAMENTO ───────────────────
-  { keys: ['melatonina'],
+  { keys: ['melatonina','melaton','melatonin'],
     nome: 'Melatonina',
     paraQueServe: 'Hormônio natural do sono produzido pela glândula pineal. Regula o ciclo circadiano, melhora a qualidade e o início do sono, combate o jet lag e insônia leve.',
     comoUsar: '0,5–3 mg de 30 a 60 minutos antes de dormir. Comece com a menor dose efetiva. Não é um sedativo forte — ajuda a "sinalizar" o sono ao organismo.' },
@@ -5052,7 +5053,7 @@ const BULA_DB = [
     paraQueServe: 'Aminoácido precursor da serotonina e melatonina. Melhora o humor, reduz ansiedade e melhora a qualidade do sono.',
     comoUsar: '500 mg a 1 g, 30–60 minutos antes de dormir, com estômago relativamente vazio. Evitar junto a proteínas (competem pela absorção).' },
 
-  { keys: ['5-htp','5 htp','hidroxitriptofano'],
+  { keys: ['5-htp','5 htp','5thp','5-thp','5 thp','hidroxitriptofano'],
     nome: '5-HTP',
     paraQueServe: 'Precursor direto da serotonina e melatonina, com melhor passagem pela barreira hematoencefálica que o triptofano. Melhora humor, reduz ansiedade, compulsão alimentar e auxilia no sono.',
     comoUsar: '50–100 mg de 30 a 60 minutos antes de dormir ou com as refeições. Não combinar com antidepressivos (ISRS/IMAO) sem orientação médica — risco de síndrome serotonérgica.' },
@@ -5063,7 +5064,7 @@ const BULA_DB = [
     comoUsar: '300–600 mg de extrato, 30–60 minutos antes de dormir. Efeito mais evidente após uso contínuo por 2–4 semanas. Não misturar com álcool ou sedativos.' },
 
   // ── IMUNIDADE / ANTIOXIDANTES ────────────
-  { keys: ['probiótico','probiotico','lactobacillus','bifidobacterium'],
+  { keys: ['probiótico','probiotico','lactobacillus','bifidobacterium','probiotic'],
     nome: 'Probiótico',
     paraQueServe: 'Microrganismos vivos (bactérias benéficas) que colonizam o intestino. Equilibram a flora intestinal, melhoram a digestão, imunidade, reduzem inflamação e auxiliam em problemas como diarreia, constipação e intolerâncias.',
     comoUsar: '1 cápsula (de acordo com a concentração de UFC) ao dia, preferencialmente em jejum ou 30 min antes das refeições. Conservar em local fresco. Algumas fórmulas precisam de refrigeração.' },
@@ -5078,7 +5079,7 @@ const BULA_DB = [
     paraQueServe: 'Ácido graxo que auxilia na redução da gordura corporal, preservação da massa muscular e pode ter propriedades anticancerígenas e anti-inflamatórias.',
     comoUsar: '3–4 g ao dia (1–2 cápsulas junto a cada refeição principal). Resultados visíveis geralmente após 3–6 meses de uso contínuo.' },
 
-  { keys: ['coenzima q10','coq10','ubiquinol','ubiquinona'],
+  { keys: ['coenzima q10','coq10','ubiquinol','ubiquinona','coq30','coq'],
     nome: 'Coenzima Q10 (CoQ10)',
     paraQueServe: 'Antioxidante produzido pelo corpo que decai com a idade. Essencial para produção de energia celular (mitocôndrias), saúde cardiovascular e combate ao estresse oxidativo. Importante para quem usa estatinas (que reduzem CoQ10).',
     comoUsar: '100–300 mg ao dia junto a uma refeição com gordura. Ubiquinol tem melhor absorção que ubiquinona, especialmente em maiores de 40 anos.' },
@@ -5098,13 +5099,13 @@ const BULA_DB = [
     paraQueServe: 'Planta que pode estimular a produção de LH, auxiliando no aumento da testosterona endógena, libido, desempenho sexual e força muscular (efeitos variáveis entre indivíduos).',
     comoUsar: '500–1.500 mg ao dia, preferencialmente antes do treino ou com refeições. Ciclos de 8 semanas com pausa de 4 semanas são frequentemente recomendados.' },
 
-  { keys: ['biotina','vitamina h','biotina 10000','vitamina b7'],
+  { keys: ['biotina','vitamina h','biotina 10000','vitamina b7','biotin'],
     nome: 'Biotina (Vitamina B7/H)',
     paraQueServe: 'Vitamina do complexo B essencial para o metabolismo de carboidratos, gorduras e proteínas. Muito usada para fortalecer cabelos e unhas frágeis e promover crescimento capilar.',
     comoUsar: '1 cápsula (2.500–10.000 mcg) ao dia, com ou sem alimentos. Efeitos nos cabelos e unhas são percebidos após 3–6 meses de uso contínuo.' },
 
   // ── MEDICAMENTOS COMUNS ──────────────────
-  { keys: ['paracetamol','acetaminofeno','tylenol'],
+  { keys: ['paracetamol','acetaminofeno','tylenol','kitadol'],
     nome: 'Paracetamol (Acetaminofeno)',
     paraQueServe: 'Analgésico e antitérmico. Indicado para dores leves a moderadas (cabeça, dente, músculo, menstrual) e febre.',
     comoUsar: 'Adultos: 500–1.000 mg a cada 6 horas (máximo 4 g/dia). Crianças: dose por peso corporal (conforme pediatra). Tomar com água; pode ser com ou sem alimento. Evitar uso prolongado e não combinar com álcool — risco de toxicidade hepática.' },
@@ -5119,7 +5120,7 @@ const BULA_DB = [
     paraQueServe: 'Analgésico e antitérmico potente. Muito eficaz para febre alta, cólicas (renal, intestinal, menstrual) e dores em geral. Amplamente usado no Brasil.',
     comoUsar: 'Adultos: 500–1.000 mg (1–2 comprimidos de 500 mg) a cada 6 horas. Máximo: 4 g/dia. Gotas: 20–40 gotas em água. Pode ser tomada com ou sem alimento. Contraindicada para menores de 3 meses.' },
 
-  { keys: ['omeprazol','prilosec','losec'],
+  { keys: ['omeprazol','prilosec','losec','gastricaim'],
     nome: 'Omeprazol',
     paraQueServe: 'Inibidor da bomba de prótons. Reduz a produção de ácido gástrico. Indicado para gastrite, úlcera péptica, refluxo gastroesofágico (GERD) e proteção gástrica com uso de AINEs.',
     comoUsar: '20–40 mg em jejum, 30 minutos antes do café da manhã. Engolir inteiro, sem mastigar. Uso prolongado (>8 semanas) somente com orientação médica.' },
@@ -5134,7 +5135,7 @@ const BULA_DB = [
     paraQueServe: 'Anti-histamínico de 2ª geração. Eficaz para rinite alérgica, urticária, coceira e reações alérgicas. Pode causar leve sonolência em algumas pessoas.',
     comoUsar: '10 mg (1 comprimido) uma vez ao dia, preferencialmente à noite se houver sonolência. Com ou sem alimentos.' },
 
-  { keys: ['diclofenaco','voltaren','diclofen'],
+  { keys: ['diclofenaco','voltaren','diclofen','dolo reumin','rheumazin','reumazin','algilem'],
     nome: 'Diclofenaco',
     paraQueServe: 'Anti-inflamatório não esteroidal potente. Usado para dores musculares, articulares (artrite, artrose), lesões esportivas, dores pós-cirúrgicas e menstruais.',
     comoUsar: 'Oral: 50 mg 2–3× ao dia com alimento. Gel (tópico): aplicar 2–4× ao dia na área afetada. Uso oral prolongado requer proteção gástrica (omeprazol). Contraindicado com insuficiência renal ou cardíaca grave.' },
@@ -5225,15 +5226,299 @@ const BULA_DB = [
     paraQueServe: 'Combinação de vitaminas e minerais essenciais que preenche lacunas da dieta. Apoia energia, imunidade, saúde geral e metabolismo.',
     comoUsar: '1 comprimido/cápsula ao dia, geralmente pela manhã junto ao café da manhã (as vitaminas B dão energia). Não tomar em jejum se causar náusea.' },
 
-  { keys: ['albumina desnatada','ovo em pó','clara em pó'],
+  { keys: ['albumina desnatada','ovo em po','clara em po'],
     nome: 'Clara de Ovo em Pó (Albumina Desnatada)',
     paraQueServe: 'Proteína de alto valor biológico de absorção intermediária. Alternativa ao whey para quem tem intolerância ao leite. Boa relação custo-benefício proteico.',
     comoUsar: '2–3 colheres (20–30 g) em água, suco ou leite. Pode ser consumida a qualquer momento do dia — pré-treino, pós-treino ou antes de dormir.' },
 
-  { keys: ['vitamina c efervescente','vitamina c lipossomal','vitamina c mastigavel'],
-    nome: 'Vitamina C (formas especiais)',
-    paraQueServe: 'Formulações de maior absorção ou conveniência da vitamina C. A forma lipossomal tem biodisponibilidade superior. Efervescente garante hidratação junto. Mesmas indicações da vitamina C tradicional.',
-    comoUsar: 'Efervescente: 1 comprimido dissolvido em 200 ml de água. Lipossomal: conforme embalagem. 1× ao dia preferencialmente com refeição.' },
+  // ── NOVAS ENTRADAS — SUPLEMENTOS ─────────
+  { keys: ['eaa','aminoacidos essenciais','essential amino','hydration nutrex'],
+    nome: 'EAA (Aminoácidos Essenciais)',
+    paraQueServe: 'Fórmula com os 9 aminoácidos essenciais (incluindo BCAA) que o corpo não produz. Apoia a síntese proteica, recuperação muscular e reduz o catabolismo durante o treino. Frequentemente combinada com eletrólitos para hidratação.',
+    comoUsar: '1 dose em 300–400 ml de água, durante o treino ou após. Pode substituir ou complementar o BCAA isolado.' },
+
+  { keys: ['pasta amendoim','peanut butter'],
+    nome: 'Pasta de Amendoim',
+    paraQueServe: 'Alimento rico em proteínas (25–28 g/100 g), gorduras monoinsaturadas saudáveis, magnésio e vitamina E. Excelente complemento calórico e proteico na dieta. Auxilia no ganho de massa e na saciedade.',
+    comoUsar: '1–2 colheres (30–60 g) ao dia. Pode ser consumida com frutas, pão integral, aveia ou adicionada a shakes. Sem adição de açúcar ou óleo hidrogenado nas versões naturais.' },
+
+  { keys: ['super digestive','digestive enzyme','enzima digestiva'],
+    nome: 'Enzimas Digestivas',
+    paraQueServe: 'Complexo de enzimas (amilase, protease, lipase e outras) que auxiliam a digestão de carboidratos, proteínas e gorduras. Reduz gases, inchaço e desconforto após refeições ricas em proteínas ou volumosas.',
+    comoUsar: '1–2 cápsulas imediatamente antes ou durante as refeições principais. Especialmente útil em dietas hipercalóricas com alto consumo proteico.' },
+
+  { keys: ['hair skin','hair skin nail','cabelo pele','good women','opti women','opti-women'],
+    nome: 'Multivitamínico Feminino',
+    paraQueServe: 'Fórmula multivitamínica desenvolvida para mulheres, contendo vitaminas, minerais e antioxidantes nas doses adequadas ao metabolismo feminino. Apoia energia, imunidade, saúde hormonal, pele, cabelo e unhas.',
+    comoUsar: '2–3 cápsulas/comprimidos ao dia junto às refeições (conforme embalagem). Tomar pela manhã para aproveitar as vitaminas do complexo B na energia diurna.' },
+
+  { keys: ['good men','opti men','men multivitamin'],
+    nome: 'Multivitamínico Masculino',
+    paraQueServe: 'Fórmula multivitamínica para homens com vitaminas, minerais, antioxidantes e extratos vegetais voltados ao metabolismo, energia, saúde prostática e função hormonal masculina.',
+    comoUsar: '2–3 cápsulas/comprimidos ao dia junto às refeições. Preferencialmente pela manhã.' },
+
+  { keys: ['hey gummes','gummies beauty','gummy beauty','gummi'],
+    nome: 'Gummies de Beleza (Hair/Skin/Nails)',
+    paraQueServe: 'Suplemento em goma com biotina, vitaminas C, E e outros nutrientes para fortalecer cabelos, unhas e melhorar a saúde da pele. Forma palatável e conveniente.',
+    comoUsar: '2 gummies ao dia, com ou sem alimento, conforme indicação da embalagem. Mastigar bem antes de engolir.' },
+
+  { keys: ['dhea 25','dhea 50','dhea life','7-keto','7 keto','7keto'],
+    nome: 'DHEA / 7-Keto DHEA',
+    paraQueServe: 'DHEA (deidroepiandrosterona) é um hormônio precursor de estrogênio e testosterona, cujos níveis caem com a idade. Pode melhorar energia, libido, composição corporal e bem-estar. 7-Keto DHEA é um metabólito que não se converte em hormônios sexuais, tendo ação termogênica e anti-envelhecimento.',
+    comoUsar: '25–100 mg ao dia com refeição. Uso prolongado requer acompanhamento médico — pode afetar o perfil hormonal. Contraindicado em pessoas com histórico de cânceres hormônio-dependentes.' },
+
+  { keys: ['acido folico','folic acid','folato'],
+    nome: 'Ácido Fólico (Vitamina B9)',
+    paraQueServe: 'Vitamina essencial para síntese de DNA, divisão celular e formação de glóbulos vermelhos. Fundamental na gravidez para prevenir defeitos do tubo neural. Importante para mulheres em idade fértil e pessoas com deficiência.',
+    comoUsar: '400–800 mcg ao dia, preferencialmente com refeição. Durante a gestação: 400–1.000 mcg/dia conforme orientação médica. Pode ser tomado a qualquer hora.' },
+
+  { keys: ['choline','inositol','colina','inosi now'],
+    nome: 'Colina + Inositol',
+    paraQueServe: 'Nutrientes lipótropos que auxiliam no metabolismo das gorduras, prevenindo acúmulo no fígado (esteatose). A colina é precursora da acetilcolina (neurotransmissor do foco e memória). O inositol auxilia no equilíbrio do humor, SOP e ansiedade.',
+    comoUsar: '500 mg de cada ao dia, com refeição. Colina: evitar doses muito altas (odor corporal). Inositol para SOP/ansiedade: até 4 g/dia sob orientação.' },
+
+  { keys: ['hyaluronic','hialuronico','acido hialuronico'],
+    nome: 'Ácido Hialurônico',
+    paraQueServe: 'Componente natural da pele e articulações com alta capacidade de reter água. Suplemento oral melhora a hidratação da pele, reduz rugas e pode aliviar dores articulares (osteoartrite).',
+    comoUsar: '120–240 mg ao dia com água, preferencialmente antes das refeições. Efeitos na pele percebidos após 4–8 semanas de uso contínuo.' },
+
+  { keys: ['cranberry'],
+    nome: 'Cranberry',
+    paraQueServe: 'Extrato de cranberry rico em proantocianidinas que impedem a adesão de bactérias (E. coli) na parede do trato urinário. Indicado para prevenção de infecções urinárias recorrentes, especialmente em mulheres.',
+    comoUsar: '300–400 mg de extrato padronizado ao dia, com água. Não substitui antibiótico em infecção ativa — atua como prevenção. Beber bastante água.' },
+
+  { keys: ['resveratrol'],
+    nome: 'Resveratrol',
+    paraQueServe: 'Polifenol antioxidante encontrado em uvas e vinho tinto. Ação anti-inflamatória, cardioprotetora, anti-envelhecimento e potencialmente anticancerígena. Ativa sirtuínas (genes ligados à longevidade).',
+    comoUsar: '100–500 mg ao dia com refeição. A forma trans-resveratrol tem maior biodisponibilidade. Melhor absorção com gorduras.' },
+
+  { keys: ['lipo6 diuretic','diuretic','diuretico ozui'],
+    nome: 'Diurético (Lipo6 Diuretic)',
+    paraQueServe: 'Fórmula com extratos naturais diuréticos (dente-de-leão, extrato verde de chá) que reduzem retenção de líquidos, auxiliando na definição muscular e redução do inchaço.',
+    comoUsar: '1–2 cápsulas ao dia pela manhã com bastante água (não reduzir hidratação). Uso por períodos curtos (máx. 4 semanas contínuas). Repor eletrólitos.' },
+
+  { keys: ['calciu magne zinc','calcium magnesium zinc','cal mag zinc'],
+    nome: 'Cálcio + Magnésio + Zinco',
+    paraQueServe: 'Combinação de três minerais essenciais para saúde óssea, muscular e imunológica. Cálcio fortalece ossos; magnésio melhora o sono e reduz cãibras; zinco suporta imunidade e testosterona.',
+    comoUsar: '2 comprimidos ao dia com refeição, preferencialmente à noite (o magnésio favorece o relaxamento e o sono). Separar do ferro se usado.' },
+
+  { keys: ['calciu vitam','calciu vitamin','calciu d','calcio vitam','calcio vitamin'],
+    nome: 'Cálcio + Vitamina D',
+    paraQueServe: 'Combinação sinérgica: a Vitamina D melhora drasticamente a absorção do cálcio no intestino. Indicado para saúde óssea, prevenção de osteoporose e suporte ao sistema imunológico.',
+    comoUsar: '1–2 comprimidos ao dia junto a uma refeição com gordura (aumenta absorção da Vitamina D). Tomar conforme orientação médica se reposição terapêutica.' },
+
+  { keys: ['ferrocuprin','ferro b12','iron b12'],
+    nome: 'Ferro + Vitamina B12',
+    paraQueServe: 'Combinação para tratamento de anemias — ferropriva (falta de ferro) e megaloblástica (falta de B12). Essencial para formação de hemoglobina e glóbulos vermelhos, combatendo fadiga, fraqueza e palidez.',
+    comoUsar: '1 comprimido ao dia em jejum (ou com vitamina C para melhorar absorção do ferro). Evitar junto a cálcio, leite, chá ou café. Pode escurecer as fezes — é normal.' },
+
+  // ── MEDICAMENTOS PARA EMAGRECER (controlados) ──
+  { keys: ['lipolees','lipoland','reta synedica','tiezec','tg 5','tg 10','tg 12','tg 15'],
+    nome: 'Medicamento para Emagrecimento (Controlado)',
+    paraQueServe: 'Medicamento de uso controlado prescrito para tratamento de obesidade. Age no sistema nervoso central reduzindo o apetite e/ou aumentando a saciedade. Indicado apenas para IMC ≥ 30 (ou ≥ 27 com comorbidades) sob estrita supervisão médica.',
+    comoUsar: 'Dose conforme prescrição médica individual. Tomar pela manhã para minimizar insônia. Não combinar com outros estimulantes. Exige receituário de controle especial para dispensação. Contraindicado para cardíacos, hipertensos não controlados e gestantes.' },
+
+  // ── DISFUNÇÃO ERÉTIL ──────────────────────
+  { keys: ['tadala','36h tadala','digram tadala','erectalis','tadalafil','cialis'],
+    nome: 'Tadalafila (Cialis)',
+    paraQueServe: 'Inibidor da PDE5. Trata disfunção erétil e hiperplasia prostática benigna. A versão "36h" permite espontaneidade pois o efeito dura até 36 horas — não precisa ser tomado próximo ao ato.',
+    comoUsar: 'Disfunção erétil: 10–20 mg até 36h antes da atividade sexual (dose única conforme necessário). Uso diário: 5 mg/dia. Não combinar com nitratos (risco grave de hipotensão). Requer prescrição médica.' },
+
+  { keys: ['pramil','sildenafil','viagra','sildenafila'],
+    nome: 'Sildenafil (Pramil / Viagra)',
+    paraQueServe: 'Inibidor da PDE5. Tratamento de disfunção erétil. Age em 30–60 minutos e o efeito dura 4–6 horas. Exige estimulação sexual para funcionar.',
+    comoUsar: '25–100 mg (dose usual: 50 mg) de 30 a 60 min antes da atividade sexual. Evitar refeições pesadas antes (reduzem absorção). Não combinar com nitratos, poppers ou anti-hipertensivos em doses altas. Requer prescrição médica.' },
+
+  // ── DERMATOLOGIA ─────────────────────────
+  { keys: ['roaccutan','isotretinoina','isotretinoin','acutane'],
+    nome: 'Isotretinoína (Roaccutane)',
+    paraQueServe: 'Derivado da vitamina A para tratamento de acne grave (nódulo-cística), acne resistente a antibióticos e rosácea. Reduz dramaticamente a produção de sebo, inflamação e a bactéria causadora da acne. Pode ser curativo permanente.',
+    comoUsar: 'Dose conforme prescrição (geralmente 0,5–1 mg/kg/dia, dividida em 2 doses com refeição contendo gordura). Tratamento dura 4–6 meses. Exige exames mensais e contracepção rigorosa em mulheres (altamente teratogênico). Controle rigoroso da seco da pele e lábios.' },
+
+  { keys: ['botox','toxina botulinica','botulinum toxin'],
+    nome: 'Toxina Botulínica Tipo A (Botox)',
+    paraQueServe: 'Proteína neurotóxica que bloqueia a liberação de acetilcolina, causando relaxamento muscular temporário. Uso estético: reduz rugas de expressão. Uso terapêutico: enxaqueca crônica, hiperidrose, blefarospasmo, espasticidade.',
+    comoUsar: 'Aplicação exclusivamente por profissional habilitado (médico/enfermeiro) via injeção intramuscular. Efeito inicia em 3–7 dias e dura 3–6 meses. Não realizar atividade física intensa no dia da aplicação.' },
+
+  { keys: ['fungolisina','antifungico creme','antimicótico','miconazol','clotrimazol'],
+    nome: 'Antifúngico Tópico (Fungolisina)',
+    paraQueServe: 'Creme ou solução antifúngica para tratamento de micoses de pele: candidíase cutânea, tinha (frieira, micose de pé/virilha/couro cabeludo), onicomicose superficial.',
+    comoUsar: 'Aplicar fina camada sobre a área afetada 2–3× ao dia após lavar e secar bem. Manter uso por 2–4 semanas após desaparecimento dos sintomas para evitar recidiva. Não usar na mucosa sem orientação.' },
+
+  { keys: ['pomada canabis','pomada cannabis','cbd topico','canabidiol topico'],
+    nome: 'CBD Tópico (Canabidiol)',
+    paraQueServe: 'Extrato de cannabis com canabidiol (CBD) para uso tópico. Ação analgésica, anti-inflamatória e relaxante muscular local. Indicado para dores articulares, musculares, inflamações e dermatites.',
+    comoUsar: 'Aplicar quantidade suficiente na área afetada e massagear até absorver. 2–4× ao dia conforme necessidade. Uso externo apenas. Lavar as mãos após aplicação.' },
+
+  // ── ANABOLIZANTES (esteroides) ────────────
+  { keys: ['dura 10','dura 1ml','durateston','testonat','testosterona mix','test mix','sustanon'],
+    nome: 'Testosterona Mista (Durateston)',
+    paraQueServe: 'Combinação de ésteres de testosterona de diferentes durações de ação (propionato, fenilpropionato, isocaproato e decanoato). Hormônio sexual masculino — indicação médica: hipogonadismo, reposição hormonal masculina.',
+    comoUsar: 'Uso intramuscular exclusivamente. Dose e frequência conforme prescrição médica. Requer acompanhamento endocrinológico. Uso sem prescrição é proibido e pode causar supressão do eixo hormonal, danos cardiovasculares e hepáticos.' },
+
+  { keys: ['enan gold','enan 4ml','enantato','testosterone enantate','test e','testo enan'],
+    nome: 'Testosterona Enantato',
+    paraQueServe: 'Éster de testosterona de ação prolongada (meia-vida ~7 dias). Indicado para reposição hormonal masculina (hipogonadismo). Promove desenvolvimento de características masculinas, libido e massa muscular.',
+    comoUsar: 'Injeção intramuscular. Dose e frequência conforme prescrição médica (geralmente 200–400 mg a cada 7–14 dias para reposição). Uso controlado — requer prescrição médica. Acompanhar hematócrito, PSA e perfil lipídico.' },
+
+  { keys: ['cipio','cipionato','testosterone cypionate','test c','testo cipio'],
+    nome: 'Testosterona Cipionato',
+    paraQueServe: 'Éster de testosterona de ação longa semelhante ao enantato (meia-vida ~8 dias). Usado para reposição hormonal masculina. Perfil de liberação mais estável comparado ao enantato.',
+    comoUsar: 'Injeção intramuscular profunda (glúteo ou vasto lateral). Dose conforme prescrição endocrinológica. Uso exclusivo sob supervisão médica.' },
+
+  { keys: ['propi','propionato','testosterone propionate','test p','testo prop'],
+    nome: 'Testosterona Propionato',
+    paraQueServe: 'Éster de ação curta (meia-vida ~2 dias). Indicado para reposição hormonal quando se deseja controle mais rápido dos níveis. Requer aplicações mais frequentes.',
+    comoUsar: 'Injeção intramuscular a cada 2–3 dias. Dose conforme prescrição médica. Uso controlado — requer prescrição. Pode causar dor local por ser de ação curta.' },
+
+  { keys: ['deca gold','deca 5ml','decanoato','nandrolona decanoato','nandrolone decanoate'],
+    nome: 'Nandrolona Decanoato (Deca-Durabolin)',
+    paraQueServe: 'Anabolizante injetável de ação longa. Uso médico: anemia, osteoporose, caquexia (perda de massa). Alto potencial de síntese proteica e retenção de nitrogênio. Menos androgênico que a testosterona.',
+    comoUsar: 'Injeção intramuscular profunda. Dose e frequência conforme prescrição médica (geralmente 100–200 mg a cada 1–2 semanas para uso terapêutico). Uso exclusivo sob supervisão médica.' },
+
+  { keys: ['npp','nandrolona fenilpropionato','nandrolone phenylpropionate'],
+    nome: 'Nandrolona Fenilpropionato (NPP)',
+    paraQueServe: 'Versão de ação curta da nandrolona (meia-vida ~3–4 dias). Uso médico similar ao decanoato, porém com controle mais rápido dos níveis plasmáticos.',
+    comoUsar: 'Injeção intramuscular a cada 3–4 dias. Dose conforme prescrição médica. Uso controlado — requer prescrição.' },
+
+  { keys: ['bold','boldenona','boldenone','equipoise'],
+    nome: 'Boldenona (Equipoise)',
+    paraQueServe: 'Anabolizante derivado da testosterona com alta anabolização e baixa androgenicidade. Originalmente desenvolvido para uso veterinário. Promove síntese proteica e produção de eritropoetina (aumenta glóbulos vermelhos).',
+    comoUsar: 'Injeção intramuscular. Uso exclusivo sob prescrição médica. Meia-vida longa (~14 dias). Monitorar hematócrito e pressão arterial.' },
+
+  { keys: ['stano 15','stano 30','stano oral','estanozolol','stanozolol','winstrol'],
+    nome: 'Estanozolol (Winstrol)',
+    paraQueServe: 'Anabolizante derivado da dihidrotestosterona, disponível em versões oral e injetável. Uso médico: anemia aplásica, angioedema hereditário. Promove ganho de força e definição muscular com baixa retenção hídrica.',
+    comoUsar: 'Oral: conforme prescrição. Injetável: uso intramuscular conforme prescrição médica. Hepatotóxico na forma oral — monitorar enzimas hepáticas. Uso controlado — requer prescrição.' },
+
+  { keys: ['oxan 10','oxan 5','oxandrolona','oxandrolone','anavar'],
+    nome: 'Oxandrolona (Anavar)',
+    paraQueServe: 'Anabolizante oral de baixa androgenicidade. Uso médico: recuperação de massa muscular pós-cirurgia ou doença crônica, osteoporose, retardo de crescimento. Um dos esteroides orais mais seguros em baixas doses.',
+    comoUsar: 'Oral conforme prescrição médica. Dose terapêutica: 2,5–20 mg ao dia dividida em 2 doses. Uso controlado — requer prescrição. Monitorar perfil lipídico e enzimas hepáticas.' },
+
+  { keys: ['primo inje','primobolan','metenolona','methenolone'],
+    nome: 'Primobolan (Metenolona)',
+    paraQueServe: 'Anabolizante de moderada anabolização e baixa androgenicidade. Disponível em formas oral (acetato) e injetável (enantato). Uso médico: caquexia, desnutrição grave, doenças debilitantes.',
+    comoUsar: 'Injetável: aplicação intramuscular conforme prescrição. Oral: conforme prescrição médica. Uso controlado — requer prescrição.' },
+
+  { keys: ['trembo ace','trembolona acetato','trenbolone acetate','tren a'],
+    nome: 'Trembolona Acetato',
+    paraQueServe: 'Anabolizante veterinário de alta potência (não aprovado para humanos). Éster de ação curta. Forte ação anabólica e androgênica, com alto potencial de efeitos colaterais (cardiovascular, neurológico, hormonal).',
+    comoUsar: 'Uso em humanos não é aprovado por nenhuma agência regulatória. Injeção intramuscular a cada 2–3 dias. Exige monitoramento médico rigoroso se prescrito off-label.' },
+
+  { keys: ['trem ena','trembolona enantato','trenbolone enanthate','tren e'],
+    nome: 'Trembolona Enantato',
+    paraQueServe: 'Éster de ação longa da trembolona. Mesmo perfil de ação do acetato, porém requer aplicações menos frequentes. Não aprovado para uso humano pelas agências regulatórias.',
+    comoUsar: 'Injeção intramuscular a cada 7–10 dias. Exige monitoramento médico rigoroso se prescrito off-label.' },
+
+  { keys: ['master oral','drostanolona','masteron','drostanolone'],
+    nome: 'Drostanolona (Masteron)',
+    paraQueServe: 'Anabolizante derivado da dihidrotestosterona com propriedades anti-estrogênicas. Originalmente desenvolvido para tratamento de câncer de mama. Promove dureza muscular e redução de gordura corporal.',
+    comoUsar: 'Oral ou injetável conforme prescrição médica. Uso controlado — requer prescrição. Monitorar saúde cardiovascular e andrógenos.' },
+
+  { keys: ['androlic','oximetolona','oxymetholone','anadrol'],
+    nome: 'Oximetolona (Anadrol)',
+    paraQueServe: 'Anabolizante oral de alta potência. Uso médico: anemia aplásica, HIV/AIDS com perda muscular grave, osteoporose. Um dos esteroides orais mais potentes, com alta incidência de efeitos colaterais.',
+    comoUsar: 'Oral conforme prescrição médica (geralmente 1–5 mg/kg/dia). Uso controlado — requer prescrição. Altamente hepatotóxico — monitorar enzimas hepáticas rigorosamente. Duração máxima: 6–8 semanas.' },
+
+  { keys: ['diana','dianabol','metandienona','methandrostenolone'],
+    nome: 'Metandrostenolona (Dianabol)',
+    paraQueServe: 'Anabolizante oral clássico. Histórico uso médico para reposição de testosterona e combate à osteoporose. Alta taxa de conversão para estrogênio, podendo causar retenção hídrica.',
+    comoUsar: 'Oral conforme prescrição médica. Uso controlado — requer prescrição. Hepatotóxico — monitorar enzimas hepáticas. Controlar estrogênio se necessário.' },
+
+  { keys: ['clenbuterol','clembuterol'],
+    nome: 'Clenbuterol',
+    paraQueServe: 'Broncodilatador beta-2 agonista originalmente indicado para tratamento de asma e DPOC em veterinária. Possui efeito termogênico (aumenta temperatura corporal e queima de gordura) e leve efeito anabólico.',
+    comoUsar: 'Uso médico: conforme prescrição para condições respiratórias. Dose deve ser iniciada baixa e titulada gradualmente. Monitorar frequência cardíaca e pressão arterial. Pode causar tremores, insônia e taquicardia.' },
+
+  { keys: ['oxitoland','oxitocina','oxytocin'],
+    nome: 'Oxitocina',
+    paraQueServe: 'Hormônio natural envolvido em parto, amamentação, vínculo social e resposta sexual. Uso médico: induzir ou estimular contrações uterinas, controlar hemorragia pós-parto. Uso off-label: disfunção sexual.',
+    comoUsar: 'Uso exclusivamente sob prescrição e supervisão médica. Aplicação injetável (IV/IM) ou nasal conforme indicação.' },
+
+  { keys: ['gh lander','somatropina','growth hormone','hgh'],
+    nome: 'Hormônio do Crescimento (GH / Somatropina)',
+    paraQueServe: 'Hormônio peptídico produzido pela hipófise. Uso médico: deficiência de GH em crianças e adultos, síndrome de Turner, insuficiência renal crônica, HIV com wasting. Promove crescimento ósseo/muscular e queima de gordura.',
+    comoUsar: 'Injeção subcutânea conforme prescrição endocrinológica. Dose individualizada com base em exames (IGF-1). Uso controlado — requer prescrição especial. Monitorar glicemia, IGF-1 e função tireoidiana.' },
+
+  { keys: ['hcg','gonadotrofina','chorionic gonadotropin','hcg 5000'],
+    nome: 'hCG (Gonadotrofina Coriônica Humana)',
+    paraQueServe: 'Hormônio que mimetiza o LH, estimulando a produção de testosterona endógena nos testículos. Uso médico: hipogonadismo, criptorquidia (descida de testículos), fertilização assistida. Utilizado também para restaurar função testicular.',
+    comoUsar: 'Injeção subcutânea ou intramuscular conforme prescrição médica. Dose e frequência individualizadas. Uso controlado — requer prescrição. Monitorar testosterona, estrogênio e estradiol.' },
+
+  { keys: ['cognil','piracetam','nootropico','nootropic','memantine','citicolina','citicoline'],
+    nome: 'Cognil / Nootropico',
+    paraQueServe: 'Medicamento ou suplemento que apoia a cognição, memória, foco e aprendizagem. Cognil (em algumas regiões) é marca de piracetam ou produto similar. Indicado para declínio cognitivo, dificuldade de concentração e suporte neurológico.',
+    comoUsar: 'Conforme prescrição médica ou indicação da embalagem. Geralmente com alimentos. Dose e frequência variam conforme o princípio ativo.' },
+
+  // ── ANALGÉSICOS / ANTI-INFLAMATÓRIOS ─────
+  { keys: ['kitadol','acetaminofen','kit dol'],
+    nome: 'Kitadol (Paracetamol/Ibuprofeno)',
+    paraQueServe: 'Analgésico e antitérmico. Kitadol é uma marca que pode conter paracetamol isolado ou em combinação. Indicado para dores leves a moderadas (dor de cabeça, muscular, dentária) e febre.',
+    comoUsar: 'Conforme instrução da embalagem (geralmente 1 comprimido a cada 6–8 horas com água). Máximo conforme bula. Evitar uso prolongado sem orientação médica.' },
+
+  { keys: ['dolo reumin','rheumazin','reumazin','reumin','reumazine'],
+    nome: 'Anti-inflamatório Reumatismal (Dolo Reumin / Rheumazin)',
+    paraQueServe: 'Anti-inflamatório destinado a condições reumáticas como artrite, artrose e dores articulares crônicas. Geralmente contém AINE associado ou corticoide em baixa dose.',
+    comoUsar: 'Conforme prescrição médica. Tomar com alimento para proteção gástrica. Não usar por longos períodos sem supervisão. Pode interagir com anticoagulantes e outros AINEs.' },
+
+  { keys: ['algilem','algilem gesic','gesic','algilem gesico'],
+    nome: 'Algilem Gesic (Analgésico)',
+    paraQueServe: 'Medicamento analgésico indicado para dores moderadas a intensas. Composição pode incluir analgésico central ou combinação AINE + analgésico.',
+    comoUsar: 'Conforme prescrição médica ou bula do produto. Ingerir com água, preferencialmente com alimento para proteger o estômago.' },
+
+  { keys: ['gastricaim','gastricum','antiácido ibp'],
+    nome: 'Gastricaim (Antiácido / IBP)',
+    paraQueServe: 'Medicamento para tratamento de gastrite, úlcera, refluxo gastroesofágico e proteção da mucosa gástrica. Provavelmente um inibidor da bomba de prótons (IBP) como omeprazol ou pantoprazol em formulação magistral.',
+    comoUsar: 'Conforme prescrição médica. Geralmente 1 cápsula em jejum, 30 min antes do café. Engolir inteiro. Uso prolongado requer acompanhamento médico.' },
+
+  { keys: ['brontel','expectorante','bromexina','bromhexine'],
+    nome: 'Brontel (Expectorante)',
+    paraQueServe: 'Medicamento expectorante que fluidifica e facilita a eliminação de secreções brônquicas. Indicado para tosse produtiva, bronquite, resfriados com congestão e condições respiratórias com secreção espessa.',
+    comoUsar: 'Conforme prescrição ou bula. Geralmente 1–2 comprimidos ou xarope 3× ao dia com água. Beber bastante líquido durante o tratamento para potencializar o efeito.' },
+
+  { keys: ['galentos','galantamina','donepezil','alzheimer'],
+    nome: 'Galentos (Medicamento Cognitivo)',
+    paraQueServe: 'Medicamento possivelmente com galantamina ou similar, indicado para doenças neurodegenerativas como Alzheimer e outras demências. Inibe a acetilcolinesterase, aumentando os níveis de acetilcolina no cérebro.',
+    comoUsar: 'Exclusivamente sob prescrição e supervisão neurológica. Dose conforme orientação médica. Iniciar com dose baixa e aumentar gradualmente.' },
+
+  { keys: ['solax','solifenacina','laxante','laxativo'],
+    nome: 'Solax (Medicamento)',
+    paraQueServe: 'Medicamento de uso específico conforme prescrição médica. Pode ser indicado para bexiga hiperativa, constipação ou outro uso conforme formulação.',
+    comoUsar: 'Seguir rigorosamente a prescrição médica e bula do produto. Não alterar dose ou frequência sem orientação profissional.' },
+
+  { keys: ['z-mol','zmol','zolpidem','zolmitriptan','zonisam'],
+    nome: 'Z-mol (Medicamento Controlado)',
+    paraQueServe: 'Medicamento de uso controlado. Conforme composição pode ser hipnótico para insônia (zolpidem) ou antimigrânoso (zolmitriptana). Indicado exclusivamente conforme prescrição médica.',
+    comoUsar: 'Seguir rigorosamente a prescrição médica. Medicamento controlado — não compartilhar, não alterar dose. Guardar em local seguro fora do alcance de crianças.' },
+
+  // ── ACESSÓRIOS / NÃO MEDICAMENTOS ────────
+  { keys: ['coqueteleira','shaker','coqueteleira god','coqueteleira gpp'],
+    nome: 'Coqueteleira (Shaker)',
+    paraQueServe: 'Recipiente plástico com mola misturadora (ball whisk) para diluição de suplementos em pó (whey, creatina, etc.) sem formação de grumos. Essencial para preparo rápido e conveniente de shakes.',
+    comoUsar: 'Colocar o líquido primeiro, depois o pó. Fechar bem e agitar por 10–20 segundos. Lavar com água e sabão imediatamente após o uso para evitar proliferação bacteriana. Não usar em micro-ondas.' },
+
+  { keys: ['bandeid','bandaid','curativo','band aid'],
+    nome: 'Curativo (Band-Aid)',
+    paraQueServe: 'Curativo adesivo estéril para proteção de pequenos cortes, abrasões e feridas superficiais. Protege contra contaminação, absorve pequenas secreções e facilita a cicatrização.',
+    comoUsar: 'Limpar e secar bem a ferida antes de aplicar. Remover o papel protetor sem tocar na parte absorvente. Trocar diariamente ou sempre que molhar ou sujar. Para feridas profundas ou que não param de sangrar, buscar atendimento médico.' },
+
+  { keys: ['cha','cha verde','cha preto','green tea','chá'],
+    nome: 'Chá',
+    paraQueServe: 'Bebida funcional natural. Conforme a variedade: chá verde (antioxidante, termogênico leve, foco); chá preto (cafeína, energia); chá de hibisco (diurético, antioxidante); chá de camomila (relaxante, digestivo).',
+    comoUsar: 'Infusão em água quente (não fervente — 70–80°C para chás verdes, 95°C para chás pretos) por 2–5 minutos. Consumir sem açúcar para maximizar benefícios. 2–4 xícaras ao dia.' },
+
+  // ── PRÉ-TREINO ────────────────────────────
+  { keys: ['c4 pre','c4 sport','psychotic','no explode','no-xplode','noxplode','explode','psychotic dourado','psychotic rojo'],
+    nome: 'Pré-Treino (C4 / No Xplode / Psychotic)',
+    paraQueServe: 'Fórmula de pré-treino com cafeína, beta-alanina, citrulina e outros ativos para aumentar energia, foco, resistência e pump muscular durante o treino.',
+    comoUsar: '1 dose (conforme embalagem) diluída em 200–300 ml de água, 20–30 min antes do treino. Começar com meia dose para avaliar tolerância. Evitar uso após 16h para não prejudicar o sono. Não exceder a dose diária.' },
+
+  // ── TERMOGÊNICOS / LIPO6 ──────────────────
+  { keys: ['hydroxcut','hydroxycut','advanced cuts','lipo6 black','lipo revolution','lipo-revolution','lipo6 intense','lipo6 hers','lipo hers'],
+    nome: 'Termogênico / Lipo6',
+    paraQueServe: 'Suplemento termogênico que acelera o metabolismo, aumenta o gasto calórico e auxilia na queima de gordura. Contém cafeína, extrato de chá verde, L-carnitina e outros ativos lipolíticos.',
+    comoUsar: '1–2 cápsulas pela manhã ou antes do treino. Não exceder a dose indicada. Evitar uso após 16h (insônia). Contraindicado para hipertensos, cardíacos e gestantes. Manter boa hidratação.' },
 ];
 
 function normalizarNome(str) {
@@ -5245,11 +5530,16 @@ function normalizarNome(str) {
 
 function lookupBula(produtoNome) {
   const n = normalizarNome(produtoNome);
-  // 1. Tenta correspondência exata ou inclusão pelo nome do produto
+  const nWords = n.split(' ').filter(w => w.length >= 4);
   for (const item of BULA_DB) {
     for (const key of item.keys) {
       const k = normalizarNome(key);
+      // 1. Substring match (original)
       if (n === k || n.includes(k) || k.includes(n)) return item;
+      // 2. Word-level: alguma palavra do produto começa com a chave (≥4 chars)
+      //    Ex: chave "whey" bate em produto "whey gold stand 5lb"
+      //    Ex: chave "omega3" bate em produto "omega3 ge 1000mg"
+      if (k.length >= 4 && nWords.some(w => w.startsWith(k))) return item;
     }
   }
   return null;
