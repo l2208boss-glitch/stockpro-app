@@ -5559,7 +5559,8 @@ function lookupBula(produtoNome) {
 function openBula(productId) {
   const p = products.find(x => String(x.id) === String(productId));
   if (!p) return;
-  const info = (p.bula && p.bula.paraQueServe) ? p.bula : lookupBula(p.name);
+  // p.bula===undefined → sem override, usa BULA_DB; p.bula={} → apagado pelo usuário, mostra vazio
+  const info = p.bula !== undefined ? (p.bula.paraQueServe ? p.bula : null) : lookupBula(p.name);
   const titulo = document.getElementById('bulaTitulo');
   const conteudo = document.getElementById('bulaConteudo');
   titulo.textContent = `ℹ️ ${p.name}`;
@@ -5666,7 +5667,7 @@ function renderProducts() {
       : '';
 
     const isFarmacia = currentFilial && currentFilial.id === FARMACIA_ID;
-    const temBula = isFarmacia && !!(p.bula?.paraQueServe || lookupBula(p.name));
+    const temBula = isFarmacia && !!(p.bula !== undefined ? p.bula.paraQueServe : lookupBula(p.name));
     const bulaBtn = isFarmacia
       ? `<button class="btn-bula${temBula ? ' tem-info' : ''}" onclick="openBula('${p.id}')" title="${temBula ? 'Ver informações' : 'Sem informação'}">ℹ️</button>`
       : '';
@@ -6199,12 +6200,13 @@ function openEditProduct(productId) {
     if (isFarmaciaNow) el.classList.add('visivel'); else el.classList.remove('visivel');
   });
   if (isFarmaciaNow) {
-    const bula = productId ? (products.find(x => String(x.id)===String(productId))?.bula || {}) : {};
-    // Pré-popular com BULA_DB se não tiver info customizada
-    const lookup = productId ? lookupBula(products.find(x => String(x.id)===String(productId))?.name || '') : null;
-    document.getElementById('eBulaServe').value = bula.paraQueServe || (lookup ? lookup.paraQueServe : '');
-    document.getElementById('eBulaUsar').value  = bula.comoUsar    || (lookup ? lookup.comoUsar    : '');
-    document.getElementById('eBulaObs').value   = bula.obs         || '';
+    const _editProd = productId ? products.find(x => String(x.id)===String(productId)) : null;
+    const bula = _editProd?.bula; // undefined = nunca customizado; {} = apagado; {paraQueServe,...} = customizado
+    // Pré-popular com BULA_DB APENAS se nunca houve customização (bula === undefined)
+    const lookup = (bula === undefined && _editProd) ? lookupBula(_editProd.name) : null;
+    document.getElementById('eBulaServe').value = bula?.paraQueServe ?? (lookup ? lookup.paraQueServe : '');
+    document.getElementById('eBulaUsar').value  = bula?.comoUsar    ?? (lookup ? lookup.comoUsar    : '');
+    document.getElementById('eBulaObs').value   = bula?.obs         ?? '';
   }
 
   refreshPhotoPreview();
@@ -6258,9 +6260,10 @@ function saveEditProduct() {
   const bulaServe = isFarmaciaEdit ? document.getElementById('eBulaServe').value.trim() : '';
   const bulaUsar  = isFarmaciaEdit ? document.getElementById('eBulaUsar').value.trim()  : '';
   const bulaObs   = isFarmaciaEdit ? document.getElementById('eBulaObs').value.trim()   : '';
+  // null = não salvar bula (produto novo sem bula); {} = usuário apagou intencionalmente
   const bulaObj   = (bulaServe || bulaUsar)
     ? { paraQueServe: bulaServe, comoUsar: bulaUsar, ...(bulaObs ? { obs: bulaObs } : {}) }
-    : null;
+    : (isFarmaciaEdit && editId !== null ? {} : null);
 
   if (editId === null) {
     // Novo produto
