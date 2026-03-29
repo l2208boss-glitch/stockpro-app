@@ -296,6 +296,7 @@
     .card-alert.zero-alert { color: var(--text-3); }
 
     .card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .card-actions:has(.btn-bula) { grid-template-columns: 1fr 1fr auto; }
     .btn-in, .btn-out {
       padding: 9px 4px; border: none; border-radius: var(--radius-sm);
       font-size: 13px; font-weight: 700; cursor: pointer;
@@ -306,6 +307,15 @@
     .btn-in:hover  { background: var(--success); color: #fff; }
     .btn-out:hover { background: var(--danger);  color: #fff; }
     .btn-in:active, .btn-out:active { transform: scale(.95); }
+    .btn-bula {
+      padding: 9px 10px; border: none; border-radius: var(--radius-sm);
+      font-size: 15px; cursor: pointer; background: var(--surface-2);
+      color: var(--text-3); transition: all .18s;
+    }
+    .btn-bula.tem-info { color: var(--accent); background: var(--accent-light, #e8f0fe); }
+    .btn-bula:hover { background: var(--accent); color: #fff; transform: scale(1.08); }
+    .bula-field { display:none; }
+    .bula-field.visivel { display:block; }
 
     .card-admin-bar { padding: 0 16px 14px; display:flex; gap:6px; }
     .btn-edit-prod, .btn-adj-prod {
@@ -1852,6 +1862,20 @@
       <div class="field" style="margin-bottom:20px">
         <label class="modal-label" for="eValidade">Validade (opcional)</label>
         <input class="modal-input" type="date" id="eValidade">
+      </div>
+
+      <!-- Campos de bula — visíveis apenas na Farmácia -->
+      <div class="field bula-field" id="fieldBulaServe">
+        <label class="modal-label" for="eBulaServe">💊 Para que serve</label>
+        <textarea class="modal-input" id="eBulaServe" rows="3" placeholder="Ex: Indicado para ganho de massa muscular, recuperação pós-treino..." style="resize:vertical;font-size:13px"></textarea>
+      </div>
+      <div class="field bula-field" id="fieldBulaUsar">
+        <label class="modal-label" for="eBulaUsar">📋 Como usar / Posologia</label>
+        <textarea class="modal-input" id="eBulaUsar" rows="3" placeholder="Ex: 1 dose (30g) em 200ml de água, após o treino..." style="resize:vertical;font-size:13px"></textarea>
+      </div>
+      <div class="field bula-field" id="fieldBulaObs">
+        <label class="modal-label" for="eBulaObs">⚠️ Observação / Contraindicação (opcional)</label>
+        <textarea class="modal-input" id="eBulaObs" rows="2" placeholder="Ex: Não usar em caso de alergia a proteína do leite..." style="resize:vertical;font-size:13px"></textarea>
       </div>
 
       <div class="photo-section">
@@ -4822,6 +4846,440 @@ function photoHTML(p, size) {
   return `<span style="font-size:${parseInt(size)*0.55}px">${p.emoji}</span>`;
 }
 
+/* ══════════════════════════════════════════
+   BULA DB — Base de conhecimento Farmácia
+══════════════════════════════════════════ */
+const BULA_DB = [
+  // ── PROTEÍNAS ────────────────────────────
+  { keys: ['whey isolado','whey protein isolado','proteína isolada','iso whey'],
+    nome: 'Whey Protein Isolado',
+    paraQueServe: 'Suplemento proteico de alta absorção obtido do soro do leite. Ideal para ganho e manutenção de massa muscular, recuperação pós-treino e em dietas restritivas. Possui baixo teor de gordura e lactose.',
+    comoUsar: 'Misture 1 dose (30 g) em 200–250 ml de água ou leite. Consumir preferencialmente logo após o treino. Pode ser usado também ao acordar ou entre refeições.' },
+
+  { keys: ['whey concentrado','whey protein concentrado','whey protein'],
+    nome: 'Whey Protein Concentrado',
+    paraQueServe: 'Proteína do soro do leite com 70–80% de proteína. Apoia o ganho de massa muscular e a recuperação após exercícios. Contém pequenas quantidades de gordura e carboidratos.',
+    comoUsar: 'Misture 1 dose (30–35 g) em 200–300 ml de água ou leite. Consumir após o treino ou como complemento proteico em qualquer refeição.' },
+
+  { keys: ['whey hidrolisado','hidrolisado proteico'],
+    nome: 'Whey Protein Hidrolisado',
+    paraQueServe: 'Proteína pré-digerida (peptídeos menores) de absorção ultrarrápida. Indicado para recuperação muscular intensa, pessoas com sensibilidade à lactose e atletas de alta performance.',
+    comoUsar: '1 dose (25–30 g) diluída em água imediatamente após o treino. Por ser de rápida absorção, deve ser consumido sem demora.' },
+
+  { keys: ['albumina'],
+    nome: 'Albumina',
+    paraQueServe: 'Proteína de ovo de absorção lenta. Fornece aminoácidos de forma contínua ao longo do dia. Ótima para manutenção muscular durante jejuns prolongados, antes de dormir e entre refeições.',
+    comoUsar: 'Misture 1–2 colheres (20–30 g) em água ou suco. Ideal antes de dormir ou em longos intervalos entre refeições.' },
+
+  { keys: ['caseína','caseina','proteína caseína'],
+    nome: 'Caseína',
+    paraQueServe: 'Proteína do leite de digestão lenta (6–8 h), que libera aminoácidos gradualmente. Excelente para o período noturno, evitando o catabolismo muscular durante o sono.',
+    comoUsar: '1 dose (30–40 g) em água ou leite. Consumir preferencialmente antes de dormir.' },
+
+  { keys: ['proteína vegetal','vegan protein','proteína vegan','proteína de ervilha','proteína de arroz'],
+    nome: 'Proteína Vegetal',
+    paraQueServe: 'Fonte proteica plant-based (ervilha, arroz, soja ou combinações). Indicada para veganos, vegetarianos ou pessoas com intolerância à lactose. Apoia a construção muscular e a saciedade.',
+    comoUsar: '1 dose (30 g) em 250 ml de água ou bebida vegetal. Pode ser usada após o treino ou como complemento proteico nas refeições.' },
+
+  // ── AMINOÁCIDOS ──────────────────────────
+  { keys: ['bcaa','aminoácidos ramificados','aminoacidos ramificados'],
+    nome: 'BCAA (Aminoácidos de Cadeia Ramificada)',
+    paraQueServe: 'Trio de aminoácidos essenciais (Leucina, Isoleucina e Valina) que o organismo não produz. Reduzem o catabolismo muscular, fadiga durante o treino e auxiliam na recuperação.',
+    comoUsar: '5–10 g diluídos em água, consumidos antes, durante ou após o treino. Na versão cápsula, seguir a dose indicada na embalagem (geralmente 2–4 cápsulas).' },
+
+  { keys: ['glutamina','l-glutamina'],
+    nome: 'Glutamina',
+    paraQueServe: 'Aminoácido mais abundante nos músculos. Fortalece o sistema imunológico, melhora a recuperação muscular, auxilia na saúde intestinal e reduz o catabolismo em treinos intensos.',
+    comoUsar: '5 g (1 colher rasa) em água, suco ou shake. Pode ser tomada em jejum, após o treino ou antes de dormir. Não misturar com bebidas quentes.' },
+
+  { keys: ['creatina','creatina monohidratada','creatina mono'],
+    nome: 'Creatina Monohidratada',
+    paraQueServe: 'Um dos suplementos mais estudados e eficazes. Aumenta os estoques de fosfocreatina nos músculos, melhorando força, potência e desempenho em exercícios de alta intensidade. Pode promover ganho de massa.',
+    comoUsar: '3–5 g por dia em água ou suco, preferencialmente após o treino. Fase de saturação opcional: 20 g/dia por 5–7 dias divididos em 4 doses, depois 3–5 g/dia de manutenção.' },
+
+  { keys: ['arginina','l-arginina'],
+    nome: 'L-Arginina',
+    paraQueServe: 'Aminoácido que estimula a produção de óxido nítrico (NO), melhorando o fluxo sanguíneo muscular, o "pump", e podendo auxiliar na função cardiovascular e imunológica.',
+    comoUsar: '2–6 g em água ou suco, 30–60 minutos antes do treino. Pode ser combinada com citrulina para efeito potencializado.' },
+
+  { keys: ['taurina','l-taurina'],
+    nome: 'Taurina',
+    paraQueServe: 'Aminoácido com função antioxidante e neuroprotetora. Melhora o desempenho físico, reduz cãibras, auxilia na função cardíaca e no foco mental. Presente em bebidas energéticas.',
+    comoUsar: '500 mg a 2 g em água, antes do treino ou conforme orientação. Geralmente combinada com cafeína em pré-treinos.' },
+
+  { keys: ['beta-alanina','betaalanina','beta alanina'],
+    nome: 'Beta-Alanina',
+    paraQueServe: 'Aminoácido que aumenta os níveis de carnosina muscular, retardando a acidose (queimação) durante exercícios de alta intensidade. Melhora a resistência e o tempo até a exaustão.',
+    comoUsar: '2–5 g antes do treino. É normal sentir formigamento/coceira na pele (parestesia) — efeito inofensivo que diminui com o uso contínuo. Pode-se dividir em doses menores.' },
+
+  { keys: ['citrulina','l-citrulina','citrulina malato'],
+    nome: 'Citrulina Malato',
+    paraQueServe: 'Precursor da arginina com melhor absorção. Aumenta o fluxo sanguíneo, melhora o pump muscular, reduz a fadiga e dores musculares pós-treino.',
+    comoUsar: '6–8 g em água, 30–60 minutos antes do treino. Geralmente usada em combinação com outros pré-treinos.' },
+
+  { keys: ['lisina','l-lisina'],
+    nome: 'L-Lisina',
+    paraQueServe: 'Aminoácido essencial importante para a síntese de colágeno, absorção de cálcio, produção de anticorpos e metabolismo de gorduras. Auxilia no tratamento de herpes labial.',
+    comoUsar: '500 mg a 1 g ao dia com as refeições. Em casos de herpes, podem ser usados 1–3 g/dia conforme orientação profissional.' },
+
+  // ── PRÉ-TREINO / ENERGIA ─────────────────
+  { keys: ['pré-treino','pre-treino','pre treino'],
+    nome: 'Pré-Treino',
+    paraQueServe: 'Fórmula combinada (geralmente cafeína, beta-alanina, citrulina e outros) que aumenta energia, foco, resistência e pump durante o treino.',
+    comoUsar: '1 dose (conforme embalagem) diluída em 200–300 ml de água, 20–30 min antes do treino. Evitar uso após 16h para não prejudicar o sono. Não exceder a dose diária.' },
+
+  { keys: ['cafeína','cafe em capsula','cafeina'],
+    nome: 'Cafeína',
+    paraQueServe: 'Estimulante do sistema nervoso central. Aumenta o estado de alerta, concentração, reduz a percepção de fadiga e melhora o desempenho físico e mental.',
+    comoUsar: '100–200 mg (1 cápsula) 30–60 min antes da atividade física ou quando precisar de foco. Dose máxima recomendada: 400 mg/dia. Evitar uso próximo ao horário de dormir.' },
+
+  { keys: ['termogênico','termogenico','fat burner'],
+    nome: 'Termogênico',
+    paraQueServe: 'Fórmula que eleva a temperatura corporal e acelera o metabolismo, aumentando o gasto calórico. Auxilia no processo de emagrecimento quando combinado com dieta e exercícios.',
+    comoUsar: '1–2 cápsulas antes do treino ou pela manhã. Não exceder a dose indicada. Contraindicado para hipertensos, cardíacos e gestantes. Evitar uso à noite.' },
+
+  { keys: ['l-carnitina','carnitina'],
+    nome: 'L-Carnitina',
+    paraQueServe: 'Transporta ácidos graxos para dentro das mitocôndrias para serem queimados como energia. Auxilia na queima de gordura, especialmente durante exercícios aeróbicos, e melhora a recuperação muscular.',
+    comoUsar: '1–3 g em água ou suco, 30–60 minutos antes do exercício aeróbico. Pode ser tomada em jejum para potencializar a utilização de gordura.' },
+
+  // ── VITAMINAS ────────────────────────────
+  { keys: ['vitamina c','vitamina c 1000','ácido ascórbico','acido ascorbico'],
+    nome: 'Vitamina C (Ácido Ascórbico)',
+    paraQueServe: 'Potente antioxidante essencial para o sistema imunológico, síntese de colágeno, absorção de ferro não-heme e proteção celular. Ajuda na prevenção e redução da duração de resfriados.',
+    comoUsar: '500 mg a 1 g ao dia, preferencialmente durante as refeições para melhor absorção e menor irritação gástrica. Doses acima de 2 g/dia podem causar diarreia.' },
+
+  { keys: ['vitamina d','vitamina d3','colecalciferol','vitamina d 2000','vitamina d 5000'],
+    nome: 'Vitamina D3 (Colecalciferol)',
+    paraQueServe: 'Essencial para absorção de cálcio e saúde óssea, função imunológica, humor e saúde muscular. A deficiência é muito comum em populações com pouca exposição solar.',
+    comoUsar: '1.000–2.000 UI ao dia junto a uma refeição contendo gordura (melhora a absorção). Doses maiores devem ser orientadas por exame laboratorial e profissional de saúde.' },
+
+  { keys: ['vitamina e','tocoferol','vitamina e 400'],
+    nome: 'Vitamina E (Tocoferol)',
+    paraQueServe: 'Antioxidante lipossolúvel que protege as células do dano oxidativo. Apoia a saúde da pele, sistema imunológico e função cardiovascular.',
+    comoUsar: '1 cápsula (400 UI) ao dia junto a uma refeição contendo gordura. Doses acima de 1.000 UI/dia não são recomendadas sem orientação médica.' },
+
+  { keys: ['vitamina b12','cobalamina','cianocobalamina','vitamina b 12'],
+    nome: 'Vitamina B12 (Cobalamina)',
+    paraQueServe: 'Fundamental para a formação de glóbulos vermelhos, função neurológica e síntese de DNA. Deficiência causa anemia, fadiga intensa, formigamentos e problemas neurológicos. Veganos têm risco elevado de deficiência.',
+    comoUsar: '1 comprimido ou cápsula (500 mcg a 1.000 mcg) ao dia, preferencialmente junto a uma refeição. Sublingual tem absorção superior.' },
+
+  { keys: ['complexo b','vitamina b complex','complex b','vitaminas do complexo b'],
+    nome: 'Complexo B',
+    paraQueServe: 'Conjunto de vitaminas B (B1, B2, B3, B5, B6, B7, B9, B12) essenciais para metabolismo energético, função neurológica, saúde da pele, cabelo e unhas. Reduz fadiga e estresse.',
+    comoUsar: '1 cápsula/comprimido ao dia, preferencialmente pela manhã junto a uma refeição (as vitaminas B dão energia e podem dificultar o sono se tomadas à noite).' },
+
+  { keys: ['vitamina a','retinol','vitamina a 10000'],
+    nome: 'Vitamina A (Retinol)',
+    paraQueServe: 'Essencial para a visão (especialmente noturna), saúde da pele, sistema imunológico e crescimento celular. Antioxidante importante.',
+    comoUsar: '1 cápsula ao dia (1.000–5.000 UI) junto a uma refeição com gordura. Não exceder a dose sem orientação — vitamina A é lipossolúvel e pode acumular em excesso.' },
+
+  { keys: ['vitamina k','vitamina k2','mk7','menaquinona'],
+    nome: 'Vitamina K2',
+    paraQueServe: 'Direciona o cálcio para os ossos e dentes, prevenindo calcificação nas artérias. Frequentemente usada em conjunto com Vitamina D3 para maximizar saúde óssea e cardiovascular.',
+    comoUsar: '100–200 mcg ao dia junto a uma refeição com gordura. Frequentemente combinada com Vitamina D3 na mesma cápsula.' },
+
+  // ── MINERAIS ─────────────────────────────
+  { keys: ['ômega 3','omega 3','óleo de peixe','oleo de peixe','fish oil'],
+    nome: 'Ômega 3 (Óleo de Peixe)',
+    paraQueServe: 'Ácidos graxos essenciais EPA e DHA. Reduzem inflamação, triglicerídeos, risco cardiovascular, melhoram função cerebral, humor, articulações e visão.',
+    comoUsar: '1–2 cápsulas (1–2 g) ao dia junto às refeições para evitar sabor de peixe. Dose terapêutica (para triglicerídeos): até 4 g/dia sob orientação médica.' },
+
+  { keys: ['zinco','sulfato de zinco','gluconato de zinco','zinco quelado'],
+    nome: 'Zinco',
+    paraQueServe: 'Mineral essencial para imunidade, síntese de testosterona, cicatrização, metabolismo e sentidos do paladar e olfato. A deficiência é comum e compromete a imunidade.',
+    comoUsar: '15–30 mg ao dia, preferencialmente junto a uma refeição (pode causar náusea em jejum). Não tomar com cálcio ou ferro ao mesmo tempo — competem pela absorção.' },
+
+  { keys: ['magnésio','magnesio','cloreto de magnesio','magnésio quelado','mg'],
+    nome: 'Magnésio',
+    paraQueServe: 'Participa de mais de 300 reações enzimáticas. Essencial para contrações musculares, qualidade do sono, redução de cãibras, saúde óssea, controle do estresse e metabolismo de energia.',
+    comoUsar: '200–400 mg ao dia, preferencialmente à noite (tem leve efeito relaxante). Quelatos (bisglicinato, treonato) têm melhor absorção e menos efeitos laxantes que o óxido de magnésio.' },
+
+  { keys: ['cálcio','calcio','carbonato de cálcio','citrato de cálcio'],
+    nome: 'Cálcio',
+    paraQueServe: 'Mineral fundamental para ossos e dentes, contração muscular (incluindo o coração), coagulação sanguínea e função nervosa.',
+    comoUsar: '500–1.000 mg ao dia divididos em 2 doses (o organismo absorve melhor em doses menores). Citrato de cálcio pode ser tomado com ou sem comida; carbonato de cálcio deve ser tomado com refeição.' },
+
+  { keys: ['ferro','sulfato ferroso','quelato de ferro','fumarato ferroso'],
+    nome: 'Ferro',
+    paraQueServe: 'Essencial para a formação de hemoglobina (transporta oxigênio no sangue). Indicado para anemia ferropriva, fadiga intensa, mulheres em idade fértil e vegetarianos.',
+    comoUsar: '1 comprimido ao dia, preferencialmente em jejum ou com vitamina C (que melhora a absorção). Evitar com cálcio, café, chá e leite (reduzem a absorção). Pode escurecer as fezes — é normal.' },
+
+  { keys: ['selênio','selenio','selenometionina'],
+    nome: 'Selênio',
+    paraQueServe: 'Antioxidante que protege as células do dano oxidativo. Importante para a função da tireoide, sistema imunológico e fertilidade masculina.',
+    comoUsar: '55–200 mcg ao dia junto a uma refeição. Doses acima de 400 mcg/dia podem ser tóxicas. Castanha-do-pará é fonte natural (1–2 unidades/dia).' },
+
+  { keys: ['potássio','cloreto de potássio'],
+    nome: 'Potássio',
+    paraQueServe: 'Eletrólito essencial para função cardíaca, contrações musculares, equilíbrio hídrico e pressão arterial. Ajuda a reduzir cãibras e câimbras musculares.',
+    comoUsar: '99–200 mg ao dia junto a uma refeição. Pessoas com doença renal ou usando certos medicamentos devem consultar médico antes de suplementar.' },
+
+  { keys: ['cromo','picolinato de cromo'],
+    nome: 'Picolinato de Cromo',
+    paraQueServe: 'Mineral que melhora a sensibilidade à insulina, controla a glicemia, reduz a vontade de comer doces e carboidratos e auxilia no gerenciamento do peso.',
+    comoUsar: '200–400 mcg ao dia junto a uma refeição. Especialmente indicado para pessoas com resistência à insulina ou compulsão por carboidratos.' },
+
+  // ── COLÁGENO / ARTICULAÇÕES ──────────────
+  { keys: ['colágeno','colageno','colágeno hidrolisado','colágeno tipo 2','colageno tipo ii'],
+    nome: 'Colágeno Hidrolisado',
+    paraQueServe: 'Proteína estrutural que compõe pele, cartilagens, tendões e ossos. A suplementação melhora a elasticidade da pele, reduz rugas, alivia dores articulares e fortalece unhas e cabelos.',
+    comoUsar: '10 g ao dia (colágeno tipo I/III) diluídos em suco ou água com vitamina C para potencializar a síntese. Colágeno tipo II (undenatured): 40 mg/dia antes das refeições.' },
+
+  { keys: ['glucosamina'],
+    nome: 'Glucosamina',
+    paraQueServe: 'Componente natural da cartilagem. Auxilia na regeneração e manutenção da cartilagem articular, reduzindo a dor e rigidez em artrites e artrose.',
+    comoUsar: '1.500 mg ao dia (geralmente 500 mg 3× ao dia ou 1.500 mg em dose única) junto às refeições. Efeito começa a aparecer após 4–8 semanas de uso contínuo.' },
+
+  { keys: ['condroitina','sulfato de condroitina'],
+    nome: 'Condroitina',
+    paraQueServe: 'Componente da matriz cartilaginosa que retém água na cartilagem, mantendo-a hidratada e elástica. Frequentemente usada com glucosamina para saúde articular.',
+    comoUsar: '800–1.200 mg ao dia com refeição. Geralmente combinada com glucosamina para efeito sinérgico. Requer uso por pelo menos 3 meses para avaliar os resultados.' },
+
+  // ── SONO / RELAXAMENTO ───────────────────
+  { keys: ['melatonina'],
+    nome: 'Melatonina',
+    paraQueServe: 'Hormônio natural do sono produzido pela glândula pineal. Regula o ciclo circadiano, melhora a qualidade e o início do sono, combate o jet lag e insônia leve.',
+    comoUsar: '0,5–3 mg de 30 a 60 minutos antes de dormir. Comece com a menor dose efetiva. Não é um sedativo forte — ajuda a "sinalizar" o sono ao organismo.' },
+
+  { keys: ['ashwagandha','withania somnifera'],
+    nome: 'Ashwagandha',
+    paraQueServe: 'Adaptógeno que reduz cortisol (hormônio do estresse), melhora a qualidade do sono, aumenta a energia, libido e testosterona, e apoia a função cognitiva.',
+    comoUsar: '300–600 mg de extrato padronizado (KSM-66 ou Sensoril) ao dia, geralmente à noite ou dividido em 2 doses. Efeitos percebidos após 2–4 semanas de uso.' },
+
+  { keys: ['triptofano','l-triptofano','triptofano 500'],
+    nome: 'L-Triptofano',
+    paraQueServe: 'Aminoácido precursor da serotonina e melatonina. Melhora o humor, reduz ansiedade e melhora a qualidade do sono.',
+    comoUsar: '500 mg a 1 g, 30–60 minutos antes de dormir, com estômago relativamente vazio. Evitar junto a proteínas (competem pela absorção).' },
+
+  { keys: ['5-htp','5 htp','hidroxitriptofano'],
+    nome: '5-HTP',
+    paraQueServe: 'Precursor direto da serotonina e melatonina, com melhor passagem pela barreira hematoencefálica que o triptofano. Melhora humor, reduz ansiedade, compulsão alimentar e auxilia no sono.',
+    comoUsar: '50–100 mg de 30 a 60 minutos antes de dormir ou com as refeições. Não combinar com antidepressivos (ISRS/IMAO) sem orientação médica — risco de síndrome serotonérgica.' },
+
+  { keys: ['valeriana','extrato de valeriana'],
+    nome: 'Valeriana',
+    paraQueServe: 'Planta com efeito ansiolítico e sedativo leve. Melhora a qualidade do sono, reduz o tempo para adormecer e alivia ansiedade e nervosismo.',
+    comoUsar: '300–600 mg de extrato, 30–60 minutos antes de dormir. Efeito mais evidente após uso contínuo por 2–4 semanas. Não misturar com álcool ou sedativos.' },
+
+  // ── IMUNIDADE / ANTIOXIDANTES ────────────
+  { keys: ['probiótico','probiotico','lactobacillus','bifidobacterium'],
+    nome: 'Probiótico',
+    paraQueServe: 'Microrganismos vivos (bactérias benéficas) que colonizam o intestino. Equilibram a flora intestinal, melhoram a digestão, imunidade, reduzem inflamação e auxiliam em problemas como diarreia, constipação e intolerâncias.',
+    comoUsar: '1 cápsula (de acordo com a concentração de UFC) ao dia, preferencialmente em jejum ou 30 min antes das refeições. Conservar em local fresco. Algumas fórmulas precisam de refrigeração.' },
+
+  { keys: ['prebiótico','prebiotico','inulina','fos'],
+    nome: 'Prebiótico',
+    paraQueServe: 'Fibras que alimentam as bactérias benéficas do intestino, potencializando o efeito dos probióticos. Melhora a motilidade intestinal, saciedade e saúde da microbiota.',
+    comoUsar: '3–5 g ao dia misturados em água, suco ou iogurte. Aumentar a ingestão gradualmente para evitar gases. Pode ser usado junto ao probiótico (simbiótico).' },
+
+  { keys: ['cla','ácido linoleico conjugado','acido linoleico'],
+    nome: 'CLA (Ácido Linoleico Conjugado)',
+    paraQueServe: 'Ácido graxo que auxilia na redução da gordura corporal, preservação da massa muscular e pode ter propriedades anticancerígenas e anti-inflamatórias.',
+    comoUsar: '3–4 g ao dia (1–2 cápsulas junto a cada refeição principal). Resultados visíveis geralmente após 3–6 meses de uso contínuo.' },
+
+  { keys: ['coenzima q10','coq10','ubiquinol','ubiquinona'],
+    nome: 'Coenzima Q10 (CoQ10)',
+    paraQueServe: 'Antioxidante produzido pelo corpo que decai com a idade. Essencial para produção de energia celular (mitocôndrias), saúde cardiovascular e combate ao estresse oxidativo. Importante para quem usa estatinas (que reduzem CoQ10).',
+    comoUsar: '100–300 mg ao dia junto a uma refeição com gordura. Ubiquinol tem melhor absorção que ubiquinona, especialmente em maiores de 40 anos.' },
+
+  { keys: ['spirulina','espirulina'],
+    nome: 'Spirulina',
+    paraQueServe: 'Microalga rica em proteínas (60–70%), vitaminas, minerais e antioxidantes (ficocianina). Reforça o sistema imunológico, tem ação anti-inflamatória, desintoxicante e pode melhorar o desempenho físico.',
+    comoUsar: '1–3 g ao dia (comprimidos ou pó). Pó pode ser adicionado a sucos, vitaminas ou água. Iniciar com doses baixas para adaptar o organismo.' },
+
+  { keys: ['maca peruana','maca','lepidium meyenii'],
+    nome: 'Maca Peruana',
+    paraQueServe: 'Raiz adaptógena que melhora a energia, libido, fertilidade masculina e feminina, equilíbrio hormonal e resistência física. Não é um estimulante, mas um modulador hormonal natural.',
+    comoUsar: '1.500–3.000 mg ao dia (cápsulas ou pó). Pode ser adicionada a sucos ou shakes. Preferir consumo pela manhã ou antes do treino.' },
+
+  { keys: ['tribulus','tribulus terrestris'],
+    nome: 'Tribulus Terrestris',
+    paraQueServe: 'Planta que pode estimular a produção de LH, auxiliando no aumento da testosterona endógena, libido, desempenho sexual e força muscular (efeitos variáveis entre indivíduos).',
+    comoUsar: '500–1.500 mg ao dia, preferencialmente antes do treino ou com refeições. Ciclos de 8 semanas com pausa de 4 semanas são frequentemente recomendados.' },
+
+  { keys: ['biotina','vitamina h','biotina 10000','vitamina b7'],
+    nome: 'Biotina (Vitamina B7/H)',
+    paraQueServe: 'Vitamina do complexo B essencial para o metabolismo de carboidratos, gorduras e proteínas. Muito usada para fortalecer cabelos e unhas frágeis e promover crescimento capilar.',
+    comoUsar: '1 cápsula (2.500–10.000 mcg) ao dia, com ou sem alimentos. Efeitos nos cabelos e unhas são percebidos após 3–6 meses de uso contínuo.' },
+
+  // ── MEDICAMENTOS COMUNS ──────────────────
+  { keys: ['paracetamol','acetaminofeno','tylenol'],
+    nome: 'Paracetamol (Acetaminofeno)',
+    paraQueServe: 'Analgésico e antitérmico. Indicado para dores leves a moderadas (cabeça, dente, músculo, menstrual) e febre.',
+    comoUsar: 'Adultos: 500–1.000 mg a cada 6 horas (máximo 4 g/dia). Crianças: dose por peso corporal (conforme pediatra). Tomar com água; pode ser com ou sem alimento. Evitar uso prolongado e não combinar com álcool — risco de toxicidade hepática.' },
+
+  { keys: ['ibuprofeno','advil','motrin'],
+    nome: 'Ibuprofeno',
+    paraQueServe: 'Anti-inflamatório não esteroidal (AINE). Alivia dor, febre e inflamação. Indicado para dores musculares, articulares, menstruais, de cabeça, dente e febre.',
+    comoUsar: 'Adultos: 400–600 mg a cada 6–8 horas com alimento (para proteger o estômago). Máximo: 1.200 mg/dia (venda livre) ou 2.400 mg/dia com prescrição. Evitar se tiver úlcera, doença renal ou durante a gravidez.' },
+
+  { keys: ['dipirona','novalgina','metamizol'],
+    nome: 'Dipirona (Metamizol)',
+    paraQueServe: 'Analgésico e antitérmico potente. Muito eficaz para febre alta, cólicas (renal, intestinal, menstrual) e dores em geral. Amplamente usado no Brasil.',
+    comoUsar: 'Adultos: 500–1.000 mg (1–2 comprimidos de 500 mg) a cada 6 horas. Máximo: 4 g/dia. Gotas: 20–40 gotas em água. Pode ser tomada com ou sem alimento. Contraindicada para menores de 3 meses.' },
+
+  { keys: ['omeprazol','prilosec','losec'],
+    nome: 'Omeprazol',
+    paraQueServe: 'Inibidor da bomba de prótons. Reduz a produção de ácido gástrico. Indicado para gastrite, úlcera péptica, refluxo gastroesofágico (GERD) e proteção gástrica com uso de AINEs.',
+    comoUsar: '20–40 mg em jejum, 30 minutos antes do café da manhã. Engolir inteiro, sem mastigar. Uso prolongado (>8 semanas) somente com orientação médica.' },
+
+  { keys: ['loratadina','claritin','loradin'],
+    nome: 'Loratadina',
+    paraQueServe: 'Anti-histamínico de 2ª geração (não causa sonolência). Indicado para rinite alérgica, urticária, alergias de pele e conjuntivite alérgica.',
+    comoUsar: '10 mg (1 comprimido) uma vez ao dia, com ou sem alimentos. Pode ser tomado pela manhã ou à noite.' },
+
+  { keys: ['cetirizina','zyrtec','zirtec'],
+    nome: 'Cetirizina',
+    paraQueServe: 'Anti-histamínico de 2ª geração. Eficaz para rinite alérgica, urticária, coceira e reações alérgicas. Pode causar leve sonolência em algumas pessoas.',
+    comoUsar: '10 mg (1 comprimido) uma vez ao dia, preferencialmente à noite se houver sonolência. Com ou sem alimentos.' },
+
+  { keys: ['diclofenaco','voltaren','diclofen'],
+    nome: 'Diclofenaco',
+    paraQueServe: 'Anti-inflamatório não esteroidal potente. Usado para dores musculares, articulares (artrite, artrose), lesões esportivas, dores pós-cirúrgicas e menstruais.',
+    comoUsar: 'Oral: 50 mg 2–3× ao dia com alimento. Gel (tópico): aplicar 2–4× ao dia na área afetada. Uso oral prolongado requer proteção gástrica (omeprazol). Contraindicado com insuficiência renal ou cardíaca grave.' },
+
+  { keys: ['nimesulida','nimesil','nimesulide'],
+    nome: 'Nimesulida',
+    paraQueServe: 'Anti-inflamatório preferencial para COX-2. Indicado para dores agudas, inflamações musculares e articulares, dismenorreia (cólica menstrual) e febre.',
+    comoUsar: '100 mg 2× ao dia (manhã e noite) após refeição. Máximo 15 dias de uso contínuo. Evitar em menores de 12 anos, grávidas e pessoas com problemas hepáticos.' },
+
+  { keys: ['amoxicilina','amoxil','amoxicillin'],
+    nome: 'Amoxicilina',
+    paraQueServe: 'Antibiótico beta-lactâmico de amplo espectro. Indicado para infecções bacterianas: amigdalite, sinusite, otite, pneumonia, infecções urinárias e dentárias.',
+    comoUsar: '500 mg a 1 g a cada 8 horas (conforme prescrição médica), por 7–10 dias. IMPORTANTE: Completar todo o tratamento mesmo após melhora dos sintomas para evitar resistência bacteriana. Antibiótico só sob prescrição médica.' },
+
+  { keys: ['azitromicina','zithromax','azitro'],
+    nome: 'Azitromicina',
+    paraQueServe: 'Antibiótico macrolídeo de dose única diária. Indicado para infecções respiratórias, faringite, sinusite, pneumonia e infecções sexualmente transmissíveis (clamídia).',
+    comoUsar: '500 mg 1× ao dia por 3–5 dias (conforme prescrição médica). Tomar preferencialmente 1 hora antes ou 2 horas após refeição. Completar todo o tratamento. Uso somente com prescrição médica.' },
+
+  { keys: ['metronidazol','flagyl','metronidazole'],
+    nome: 'Metronidazol',
+    paraQueServe: 'Antibiótico e antiparasitário. Indicado para infecções por bactérias anaeróbias (periodontite, vaginose bacteriana, abscessos), giardíase, amebíase e tricomoníase.',
+    comoUsar: '250–500 mg a cada 8–12 horas com refeição, por 5–10 dias (conforme prescrição). PROIBIDO consumir álcool durante o tratamento e 24–48h após (reação antabuse grave). Uso somente com prescrição.' },
+
+  { keys: ['fluconazol','diflucan','fluconazole'],
+    nome: 'Fluconazol',
+    paraQueServe: 'Antifúngico oral. Indicado para candidíase (oral, vaginal, esofageal), infecções fúngicas da pele e unhas (onicomicose).',
+    comoUsar: 'Candidíase vaginal: dose única de 150 mg. Outras infecções: 150–200 mg/dia conforme prescrição. Pode ser tomado com ou sem alimento.' },
+
+  { keys: ['naproxeno','naproxen','flanax'],
+    nome: 'Naproxeno',
+    paraQueServe: 'Anti-inflamatório não esteroidal de longa duração (12 h). Indicado para artrite, dor muscular, enxaqueca, cólicas menstruais e dores agudas.',
+    comoUsar: '250–500 mg a cada 12 horas com alimento. Máximo: 1.000 mg/dia. Sempre tomar com alimento para proteção gástrica.' },
+
+  { keys: ['ranitidina','zantac'],
+    nome: 'Ranitidina',
+    paraQueServe: 'Antagonista H2 que reduz a produção de ácido gástrico. Indicado para gastrite, úlcera péptica e refluxo. (Verificar disponibilidade — algumas formulações foram retiradas do mercado.)',
+    comoUsar: '150 mg 2× ao dia ou 300 mg à noite, com ou sem alimento. Alternativas mais modernas incluem o omeprazol.' },
+
+  { keys: ['dexametasona','decadron'],
+    nome: 'Dexametasona',
+    paraQueServe: 'Corticosteroide potente com forte ação anti-inflamatória e imunossupressora. Usado em alergias graves, inflamações, doenças autoimunes e edema.',
+    comoUsar: 'Apenas sob prescrição médica. Dose e duração variam conforme a condição. Nunca interromper abruptamente (reduzir dose gradualmente). Uso prolongado tem efeitos colaterais sérios.' },
+
+  { keys: ['prednisona','predsim'],
+    nome: 'Prednisona',
+    paraQueServe: 'Corticosteroide oral. Indicado para inflamações, reações alérgicas graves, doenças autoimunes (lúpus, artrite reumatoide) e asma.',
+    comoUsar: 'Apenas sob prescrição médica. Tomar pela manhã com alimento para minimizar irritação gástrica e simular o ritmo natural do cortisol. Não interromper abruptamente.' },
+
+  { keys: ['metformina','glifage','glucophage'],
+    nome: 'Metformina',
+    paraQueServe: 'Antidiabético oral. Reduz a produção hepática de glicose e melhora a sensibilidade à insulina. Medicamento de 1ª linha para diabetes tipo 2.',
+    comoUsar: 'Conforme prescrição médica. Geralmente 500–850 mg 2–3× ao dia junto às refeições para reduzir náusea. Iniciar com dose baixa e aumentar gradualmente.' },
+
+  { keys: ['losartana','cozaar','losartan'],
+    nome: 'Losartana',
+    paraQueServe: 'Bloqueador dos receptores de angiotensina (BRA). Indicado para hipertensão arterial, proteção renal em diabéticos e insuficiência cardíaca.',
+    comoUsar: '25–100 mg 1× ao dia, com ou sem alimento. Tomar no mesmo horário todos os dias. Não interromper sem orientação médica mesmo que a pressão normalize.' },
+
+  { keys: ['atorvastatina','lipitor','atorvastatin'],
+    nome: 'Atorvastatina',
+    paraQueServe: 'Estatina para redução do colesterol LDL ("ruim") e triglicerídeos, e aumento do HDL ("bom"). Previne doenças cardiovasculares.',
+    comoUsar: '10–80 mg 1× ao dia, com ou sem alimento (preferencialmente à noite, pois o fígado produz mais colesterol nesse período). Evitar suco de grapefruit.' },
+
+  { keys: ['levotiroxina','puran','synthroid','euthyrox'],
+    nome: 'Levotiroxina (T4)',
+    paraQueServe: 'Hormônio tireoidiano sintético para tratamento do hipotireoidismo. Normaliza o metabolismo, energia, peso e função dos órgãos.',
+    comoUsar: 'Tomar em jejum absoluto (30–60 min antes do café), sempre no mesmo horário. Não tomar com cálcio, ferro, antiácidos ou fibras (interferem na absorção). Dose conforme prescrição médica.' },
+
+  { keys: ['clonazepam','rivotril','klonopin'],
+    nome: 'Clonazepam',
+    paraQueServe: 'Benzodiazepínico com ação ansiolítica e anticonvulsivante. Indicado para ansiedade, pânico, epilepsia e espasmos musculares.',
+    comoUsar: 'Apenas sob prescrição médica controlada. Dose conforme orientação do médico. Não interromper abruptamente (risco de síndrome de abstinência). Causa dependência com uso prolongado.' },
+
+  // ── SUPLEMENTOS ESPECÍFICOS ──────────────
+  { keys: ['dextrose','malto','maltodextrina'],
+    nome: 'Dextrose / Maltodextrina',
+    paraQueServe: 'Carboidratos de rápida absorção para reposição de glicogênio muscular. Usados para ganho de peso, pós-treino e como "janela de oportunidade" para potencializar a absorção da creatina e whey.',
+    comoUsar: '30–60 g imediatamente após o treino, misturados com whey protein e/ou creatina em água. Para ganho de peso, pode ser adicionado a shakes nas refeições.' },
+
+  { keys: ['hipercalórico','mass gainer','hipercalorico','mass'],
+    nome: 'Hipercalórico (Mass Gainer)',
+    paraQueServe: 'Suplemento com alto teor de carboidratos e proteínas. Voltado para o ganho de peso e massa muscular em pessoas com dificuldade de ingestão calórica (hardgainer).',
+    comoUsar: '1 dose (conforme embalagem, geralmente 100–300 g) em água ou leite, após o treino ou entre refeições. Cuidado com o excesso — o excesso calórico pode virar gordura se não houver treino adequado.' },
+
+  { keys: ['multivitamínico','multivitaminico','polivitamínico','polivitaminico','centrum','apisate'],
+    nome: 'Multivitamínico / Polivitamínico',
+    paraQueServe: 'Combinação de vitaminas e minerais essenciais que preenche lacunas da dieta. Apoia energia, imunidade, saúde geral e metabolismo.',
+    comoUsar: '1 comprimido/cápsula ao dia, geralmente pela manhã junto ao café da manhã (as vitaminas B dão energia). Não tomar em jejum se causar náusea.' },
+
+  { keys: ['albumina desnatada','ovo em pó','clara em pó'],
+    nome: 'Clara de Ovo em Pó (Albumina Desnatada)',
+    paraQueServe: 'Proteína de alto valor biológico de absorção intermediária. Alternativa ao whey para quem tem intolerância ao leite. Boa relação custo-benefício proteico.',
+    comoUsar: '2–3 colheres (20–30 g) em água, suco ou leite. Pode ser consumida a qualquer momento do dia — pré-treino, pós-treino ou antes de dormir.' },
+
+  { keys: ['vitamina c efervescente','vitamina c lipossomal','vitamina c mastigavel'],
+    nome: 'Vitamina C (formas especiais)',
+    paraQueServe: 'Formulações de maior absorção ou conveniência da vitamina C. A forma lipossomal tem biodisponibilidade superior. Efervescente garante hidratação junto. Mesmas indicações da vitamina C tradicional.',
+    comoUsar: 'Efervescente: 1 comprimido dissolvido em 200 ml de água. Lipossomal: conforme embalagem. 1× ao dia preferencialmente com refeição.' },
+];
+
+function normalizarNome(str) {
+  return str.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function lookupBula(produtoNome) {
+  const n = normalizarNome(produtoNome);
+  // 1. Tenta correspondência exata ou inclusão pelo nome do produto
+  for (const item of BULA_DB) {
+    for (const key of item.keys) {
+      const k = normalizarNome(key);
+      if (n === k || n.includes(k) || k.includes(n)) return item;
+    }
+  }
+  return null;
+}
+
+function openBula(productId) {
+  const p = products.find(x => String(x.id) === String(productId));
+  if (!p) return;
+  const info = (p.bula && p.bula.paraQueServe) ? p.bula : lookupBula(p.name);
+  const titulo = document.getElementById('bulaTitulo');
+  const conteudo = document.getElementById('bulaConteudo');
+  titulo.textContent = `ℹ️ ${p.name}`;
+  if (!info) {
+    conteudo.innerHTML = `<p style="color:var(--text-2);text-align:center;padding:20px 0">Nenhuma informação cadastrada para este produto.</p>`;
+  } else {
+    conteudo.innerHTML = `
+      <div style="margin-bottom:18px">
+        <div style="font-weight:700;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">💊 Para que serve</div>
+        <p style="margin:0;color:var(--text-1);font-size:14px">${info.paraQueServe}</p>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-weight:700;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Como usar</div>
+        <p style="margin:0;color:var(--text-1);font-size:14px">${info.comoUsar}</p>
+      </div>
+      ${p.bula && p.bula.obs ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;font-size:12px;color:var(--text-2)">⚠️ ${p.bula.obs}</div>` : ''}
+    `;
+  }
+  document.getElementById('bulaOverlay').classList.add('on');
+}
+
 function renderProducts() {
   const isAdmin = user && user.role === 'admin';
   const q = (document.getElementById('prodSearch')?.value || '').toLowerCase().trim();
@@ -4906,6 +5364,12 @@ function renderProducts() {
          </div>`
       : '';
 
+    const isFarmacia = currentFilial && currentFilial.id === FARMACIA_ID;
+    const temBula = isFarmacia && !!(p.bula?.paraQueServe || lookupBula(p.name));
+    const bulaBtn = isFarmacia
+      ? `<button class="btn-bula${temBula ? ' tem-info' : ''}" onclick="openBula('${p.id}')" title="${temBula ? 'Ver informações' : 'Sem informação'}">ℹ️</button>`
+      : '';
+
     return `
       <div class="card ${cls}">
         <div class="card-photo">${photoArea}${overlay}</div>
@@ -4918,6 +5382,7 @@ function renderProducts() {
           <div class="card-actions">
             <button class="btn-in"  onclick="openMov('${p.id}','entrada')">＋ Entrada</button>
             <button class="btn-out" onclick="openMov('${p.id}','saida')">－ Saída</button>
+            ${bulaBtn}
           </div>
         </div>
         ${pricingBar}
@@ -5426,6 +5891,21 @@ function openEditProduct(productId) {
     document.getElementById('editModalTitle').textContent = '✏️ Novo Produto';
   }
   document.getElementById('fieldQtyInicial').style.display = productId ? 'none' : '';
+
+  // Campos de bula — visíveis apenas na Farmácia
+  const isFarmaciaNow = currentFilial && currentFilial.id === FARMACIA_ID;
+  document.querySelectorAll('.bula-field').forEach(el => {
+    if (isFarmaciaNow) el.classList.add('visivel'); else el.classList.remove('visivel');
+  });
+  if (isFarmaciaNow) {
+    const bula = productId ? (products.find(x => String(x.id)===String(productId))?.bula || {}) : {};
+    // Pré-popular com BULA_DB se não tiver info customizada
+    const lookup = productId ? lookupBula(products.find(x => String(x.id)===String(productId))?.name || '') : null;
+    document.getElementById('eBulaServe').value = bula.paraQueServe || (lookup ? lookup.paraQueServe : '');
+    document.getElementById('eBulaUsar').value  = bula.comoUsar    || (lookup ? lookup.comoUsar    : '');
+    document.getElementById('eBulaObs').value   = bula.obs         || '';
+  }
+
   refreshPhotoPreview();
   document.getElementById('editOverlay').classList.add('on');
   setTimeout(() => document.getElementById('eName').focus(), 120);
@@ -5473,6 +5953,14 @@ function saveEditProduct() {
   const validade = document.getElementById('eValidade').value || null;
   if (!name) { toast('Informe o nome do produto', 'error'); return; }
 
+  const isFarmaciaEdit = currentFilial && currentFilial.id === FARMACIA_ID;
+  const bulaServe = isFarmaciaEdit ? document.getElementById('eBulaServe').value.trim() : '';
+  const bulaUsar  = isFarmaciaEdit ? document.getElementById('eBulaUsar').value.trim()  : '';
+  const bulaObs   = isFarmaciaEdit ? document.getElementById('eBulaObs').value.trim()   : '';
+  const bulaObj   = (bulaServe || bulaUsar)
+    ? { paraQueServe: bulaServe, comoUsar: bulaUsar, ...(bulaObs ? { obs: bulaObs } : {}) }
+    : null;
+
   if (editId === null) {
     // Novo produto
     const newId = Date.now();
@@ -5486,6 +5974,7 @@ function saveEditProduct() {
       venda:    parseFloat(document.getElementById('eVenda').value) || 0,
       qty:      parseFloat(document.getElementById('eQtyInicial').value) || 0,
       validade,
+      ...(bulaObj ? { bula: bulaObj } : {}),
     };
     if (editPhotoTemp) photos[newId] = editPhotoTemp;
     products.push(p);
@@ -5512,6 +6001,7 @@ function saveEditProduct() {
   p.custo    = parseFloat(document.getElementById('eCusto').value) || 0;
   p.venda    = parseFloat(document.getElementById('eVenda').value) || 0;
   p.validade = validade;
+  if (bulaObj) p.bula = bulaObj; else delete p.bula;
   if (editPhotoTemp) photos[editId] = editPhotoTemp;
   else               delete photos[editId];
   renderAll(); closeOverlay('editOverlay');
@@ -7390,5 +7880,21 @@ function flashConfirm(tipo) {
   setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 1600);
 }
 </script>
+
+<!-- ══════════ MODAL — BULA / INFO DO PRODUTO (Farmácia) ══════════ -->
+<div class="overlay" id="bulaOverlay" onclick="overlayClick(event,'bulaOverlay')">
+  <div class="modal wide" style="max-width:500px">
+    <div class="modal-hd">
+      <span class="modal-title" id="bulaTitulo" style="font-size:16px">ℹ️ Informações do Produto</span>
+      <button class="btn-x" onclick="closeOverlay('bulaOverlay')">✕</button>
+    </div>
+    <div class="modal-bd" id="bulaConteudo" style="padding:20px 22px;line-height:1.6">
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('bulaOverlay')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
