@@ -4857,10 +4857,15 @@ const BULA_DB = [
     paraQueServe: 'Suplemento proteico de alta absorção obtido do soro do leite. Ideal para ganho e manutenção de massa muscular, recuperação pós-treino e em dietas restritivas. Possui baixo teor de gordura e lactose.',
     comoUsar: 'Misture 1 dose (30 g) em 200–250 ml de água ou leite. Consumir preferencialmente logo após o treino. Pode ser usado também ao acordar ou entre refeições.' },
 
-  { keys: ['whey concentrado','whey protein concentrado','whey protein','whey','syntrax','coke whey','goldstand','gold stand','anabolhardcore','muscletech','womens prote','whey shake','whey premium'],
+  { keys: ['whey concentrado','whey protein concentrado','whey protein','whey','syntrax','coke whey','goldstand','gold stand','womens prote','whey shake','whey premium'],
     nome: 'Whey Protein Concentrado',
     paraQueServe: 'Proteína do soro do leite com 70–80% de proteína. Apoia o ganho de massa muscular e a recuperação após exercícios. Contém pequenas quantidades de gordura e carboidratos.',
     comoUsar: 'Misture 1 dose (30–35 g) em 200–300 ml de água ou leite. Consumir após o treino ou como complemento proteico em qualquer refeição.' },
+
+  { keys: ['anabolhardcore nutrex','anabol hardcore','anabolic activator nutrex'],
+    nome: 'Anabol Hardcore Nutrex (Ativador Anabólico Natural)',
+    paraQueServe: 'Suplemento estimulador de testosterona natural da Nutrex Research. Contém extratos vegetais (fenugreek/trigonela, tribulus) ricos em protodioscinas e saponinas que apoiam os níveis de testosterona endógena. Indicado para homens que buscam ganho de força, massa muscular e libido sem uso de esteroides. Produto legal, sem substâncias controladas.',
+    comoUsar: 'Seguir a recomendação do fabricante (geralmente 1 cápsula 2× ao dia com refeições). Fazer ciclos de 8 semanas com pausa de 4 semanas. Não substitui alimentação equilibrada e treino. Contraindicado para menores de 18 anos.' },
 
   { keys: ['whey hidrolisado','hidrolisado proteico'],
     nome: 'Whey Protein Hidrolisado',
@@ -4934,7 +4939,7 @@ const BULA_DB = [
     paraQueServe: 'Estimulante do sistema nervoso central. Aumenta o estado de alerta, concentração, reduz a percepção de fadiga e melhora o desempenho físico e mental.',
     comoUsar: '100–200 mg (1 cápsula) 30–60 min antes da atividade física ou quando precisar de foco. Dose máxima recomendada: 400 mg/dia. Evitar uso próximo ao horário de dormir.' },
 
-  { keys: ['termogênico','termogenico','fat burner','hydroxcut','hydroxycut','advanced cuts','lipo6 black','lipo revolution','lipo-revolution','lipo6 intense','lipo6 hers','lipo hers'],
+  { keys: ['termogênico','termogenico','fat burner','hydroxcut','hydroxycut','muscletech','advanced cuts','lipo6 black','lipo revolution','lipo-revolution','lipo6 intense','lipo6 hers','lipo hers'],
     nome: 'Termogênico',
     paraQueServe: 'Fórmula que eleva a temperatura corporal e acelera o metabolismo, aumentando o gasto calórico. Auxilia no processo de emagrecimento quando combinado com dieta e exercícios.',
     comoUsar: '1–2 cápsulas antes do treino ou pela manhã. Não exceder a dose indicada. Contraindicado para hipertensos, cardíacos e gestantes. Evitar uso à noite.' },
@@ -5312,11 +5317,17 @@ const BULA_DB = [
     paraQueServe: 'Combinação para tratamento de anemias — ferropriva (falta de ferro) e megaloblástica (falta de B12). Essencial para formação de hemoglobina e glóbulos vermelhos, combatendo fadiga, fraqueza e palidez.',
     comoUsar: '1 comprimido ao dia em jejum (ou com vitamina C para melhorar absorção do ferro). Evitar junto a cálcio, leite, chá ou café. Pode escurecer as fezes — é normal.' },
 
-  // ── MEDICAMENTOS PARA EMAGRECER (controlados) ──
-  { keys: ['lipolees','lipoland','reta synedica','tiezec','tg 5','tg 10','tg 12','tg 15'],
-    nome: 'Medicamento para Emagrecimento (Controlado)',
-    paraQueServe: 'Medicamento de uso controlado prescrito para tratamento de obesidade. Age no sistema nervoso central reduzindo o apetite e/ou aumentando a saciedade. Indicado apenas para IMC ≥ 30 (ou ≥ 27 com comorbidades) sob estrita supervisão médica.',
-    comoUsar: 'Dose conforme prescrição médica individual. Tomar pela manhã para minimizar insônia. Não combinar com outros estimulantes. Exige receituário de controle especial para dispensação. Contraindicado para cardíacos, hipertensos não controlados e gestantes.' },
+  // ── TIRZEPATIDA (GLP-1 / GIP) ──
+  { keys: ['lipolees','lipoland','tiezec','tg 5','tg 10','tg 12','tg 15','tirzepatida','tirzepatide'],
+    nome: 'Tirzepatida (GLP-1 / GIP — Emagrecimento)',
+    paraQueServe: 'Agonista duplo GLP-1 e GIP injetável semanal. Indicado para obesidade (IMC ≥ 30) ou sobrepeso (IMC ≥ 27) com comorbidades, e diabetes tipo 2. Age reduzindo apetite, aumentando saciedade e melhorando controle glicêmico. Produz perda de peso significativa (15–25% do peso corporal em estudos clínicos).',
+    comoUsar: 'Injeção subcutânea semanal (mesma dia da semana). Iniciar com 2,5 mg/semana e titular a cada 4 semanas: 2,5 → 5 → 7,5 → 10 → 12,5 → 15 mg. Aplicar no abdômen, coxa ou braço. Guardar refrigerado (2–8 °C). Exige prescrição médica.' },
+
+  // ── RETATRUTIDA (GLP-1 / GIP / Glucagon) ──
+  { keys: ['reta synedica','retatrutida','retatrutide'],
+    nome: 'Retatrutida (GLP-1 / GIP / Glucagon — Emagrecimento Avançado)',
+    paraQueServe: 'Agonista triativo de GLP-1, GIP e glucagon injetável semanal. Medicamento de geração mais recente para tratamento de obesidade, com perda de peso ainda maior que a tirzepatida em estudos clínicos. Reduz apetite, aumenta gasto energético e melhora metabolismo lipídico.',
+    comoUsar: 'Injeção subcutânea semanal conforme prescrição médica. Dose titulada progressivamente. Guardar refrigerado (2–8 °C). Exige prescrição médica. Produto importado — verificar disponibilidade e regulamentação local.' },
 
   // ── DISFUNÇÃO ERÉTIL ──────────────────────
   { keys: ['tadala','36h tadala','digram tadala','erectalis','tadalafil','cialis'],
@@ -5431,10 +5442,10 @@ const BULA_DB = [
     paraQueServe: 'Broncodilatador beta-2 agonista originalmente indicado para tratamento de asma e DPOC em veterinária. Possui efeito termogênico (aumenta temperatura corporal e queima de gordura) e leve efeito anabólico.',
     comoUsar: 'Uso médico: conforme prescrição para condições respiratórias. Dose deve ser iniciada baixa e titulada gradualmente. Monitorar frequência cardíaca e pressão arterial. Pode causar tremores, insônia e taquicardia.' },
 
-  { keys: ['oxitoland','oxitocina','oxytocin'],
-    nome: 'Oxitocina',
-    paraQueServe: 'Hormônio natural envolvido em parto, amamentação, vínculo social e resposta sexual. Uso médico: induzir ou estimular contrações uterinas, controlar hemorragia pós-parto. Uso off-label: disfunção sexual.',
-    comoUsar: 'Uso exclusivamente sob prescrição e supervisão médica. Aplicação injetável (IV/IM) ou nasal conforme indicação.' },
+  { keys: ['oxitoland','oximetolona','oxymetholone','anadrol'],
+    nome: 'Oxitoland — Oximetolona (Esteroide Anabolizante)',
+    paraQueServe: 'Esteroide anabolizante androgênico oral à base de oximetolona (Anadrol). Uso médico: anemia aplástica, osteoporose, HIV-wasting. Muito utilizado no fisiculturismo para ganho rápido de massa e força muscular. Produto de uso controlado.',
+    comoUsar: 'Uso exclusivamente sob prescrição médica. Dose típica: 1–2 mg/kg/dia (adultos: 50–100 mg/dia). Ciclos curtos (4–6 semanas). Hepatotóxico — monitorar enzimas hepáticas. Não usar em mulheres grávidas ou com histórico de câncer de próstata/mama.' },
 
   { keys: ['gh lander','somatropina','growth hormone','hgh'],
     nome: 'Hormônio do Crescimento (GH / Somatropina)',
@@ -5446,10 +5457,10 @@ const BULA_DB = [
     paraQueServe: 'Hormônio que mimetiza o LH, estimulando a produção de testosterona endógena nos testículos. Uso médico: hipogonadismo, criptorquidia (descida de testículos), fertilização assistida. Utilizado também para restaurar função testicular.',
     comoUsar: 'Injeção subcutânea ou intramuscular conforme prescrição médica. Dose e frequência individualizadas. Uso controlado — requer prescrição. Monitorar testosterona, estrogênio e estradiol.' },
 
-  { keys: ['cognil','piracetam','nootropico','nootropic','memantine','citicolina','citicoline'],
-    nome: 'Cognil / Nootropico',
-    paraQueServe: 'Medicamento ou suplemento que apoia a cognição, memória, foco e aprendizagem. Cognil (em algumas regiões) é marca de piracetam ou produto similar. Indicado para declínio cognitivo, dificuldade de concentração e suporte neurológico.',
-    comoUsar: 'Conforme prescrição médica ou indicação da embalagem. Geralmente com alimentos. Dose e frequência variam conforme o princípio ativo.' },
+  { keys: ['cognil','metilfenidato','methylphenidate','ritalina','ritalin','tdah','adhd'],
+    nome: 'Cognil — Metilfenidato 20 mg (TDAH)',
+    paraQueServe: 'Medicamento psicoestimulante de uso controlado à base de metilfenidato (princípio ativo do Ritalina). Indicado para Transtorno de Déficit de Atenção e Hiperatividade (TDAH) em crianças, adolescentes e adultos, e para narcolepsia. Melhora concentração, controle de impulsos e desempenho cognitivo.',
+    comoUsar: 'Uso exclusivamente sob prescrição médica com receituário de controle especial (azul). Dose adultos: 20–60 mg/dia divididos em 2–3 tomadas. Tomar pela manhã e ao meio-dia (evitar à tarde/noite para não prejudicar o sono). Não partir ou mastigar comprimidos de liberação prolongada.' },
 
   // ── ANALGÉSICOS / ANTI-INFLAMATÓRIOS ─────
   { keys: ['kitadol','acetaminofen','kit dol'],
@@ -5482,15 +5493,15 @@ const BULA_DB = [
     paraQueServe: 'Medicamento possivelmente com galantamina ou similar, indicado para doenças neurodegenerativas como Alzheimer e outras demências. Inibe a acetilcolinesterase, aumentando os níveis de acetilcolina no cérebro.',
     comoUsar: 'Exclusivamente sob prescrição e supervisão neurológica. Dose conforme orientação médica. Iniciar com dose baixa e aumentar gradualmente.' },
 
-  { keys: ['solax','solifenacina','laxante','laxativo'],
-    nome: 'Solax (Medicamento)',
-    paraQueServe: 'Medicamento de uso específico conforme prescrição médica. Pode ser indicado para bexiga hiperativa, constipação ou outro uso conforme formulação.',
-    comoUsar: 'Seguir rigorosamente a prescrição médica e bula do produto. Não alterar dose ou frequência sem orientação profissional.' },
+  { keys: ['solax','furosemida','furosemide','furosem'],
+    nome: 'Solax — Furosemida (Diurético)',
+    paraQueServe: 'Diurético de alça potente à base de furosemida. Indicado para edema causado por insuficiência cardíaca, hepática ou renal, hipertensão arterial, e síndrome nefrótica. Age bloqueando a reabsorção de sódio e água nos rins, aumentando o volume de urina.',
+    comoUsar: 'Conforme prescrição médica. Dose usual: 20–80 mg/dia (oral) ou conforme formulação. Tomar pela manhã para evitar urinar à noite. Monitorar potássio (pode causar hipocalemia). Ingestão de alimentos ricos em potássio (banana, laranja) recomendada.' },
 
-  { keys: ['z-mol','zmol','zolpidem','zolmitriptan','zonisam'],
-    nome: 'Z-mol (Medicamento Controlado)',
-    paraQueServe: 'Medicamento de uso controlado. Conforme composição pode ser hipnótico para insônia (zolpidem) ou antimigrânoso (zolmitriptana). Indicado exclusivamente conforme prescrição médica.',
-    comoUsar: 'Seguir rigorosamente a prescrição médica. Medicamento controlado — não compartilhar, não alterar dose. Guardar em local seguro fora do alcance de crianças.' },
+  { keys: ['z-mol','zmol'],
+    nome: 'Z-mol (Paracetamol)',
+    paraQueServe: 'Analgésico e antitérmico à base de paracetamol. Indicado para alívio de dores leves a moderadas (cabeça, dentes, musculares, cólicas) e redução de febre.',
+    comoUsar: 'Adultos: 500 mg a 1 g por dose, a cada 4–6 horas conforme necessidade. Não ultrapassar 4 g por dia. Tomar com água, com ou sem alimentos. Evitar uso prolongado sem acompanhamento médico.' },
 
   // ── ACESSÓRIOS / NÃO MEDICAMENTOS ────────
   { keys: ['coqueteleira','shaker','coqueteleira god','coqueteleira gpp'],
