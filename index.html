@@ -3341,8 +3341,8 @@ function calculateCartMargin() {
     return { marginPct: null, effectiveMax: adminMax, hasAllCosts: false };
   }
   const marginPct = ((totalVenda - totalCusto) / totalVenda) * 100;
-  // Limite saudável = 50% da margem, mas nunca acima do teto do admin
-  const effectiveMax = Math.min(adminMax, marginPct * 0.5);
+  // adminMax >= 100 = sem restrição (modo promoção)
+  const effectiveMax = adminMax >= 100 ? adminMax : Math.min(adminMax, marginPct * 0.5);
   return { marginPct, effectiveMax, hasAllCosts: true };
 }
 
