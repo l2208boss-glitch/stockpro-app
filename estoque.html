@@ -1169,7 +1169,7 @@
     <div class="sec-hd" style="padding:0 0 16px">
       <div>
         <div class="sec-title">📋 Histórico de Vendas</div>
-        <div class="sec-sub">Todas as vendas registradas nesta filial</div>
+        <div class="sec-sub">Todas as vendas registradas nesta filial &nbsp;<span id="vendasTotalInfo" style="font-size:11px;color:var(--text-3)"></span></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="vendasFiltro" onchange="atualizarFiltroVendas()" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
@@ -2914,24 +2914,29 @@ function _setupVendasListener() {
   const filtro = document.getElementById('vendasFiltro')?.value || 'hoje';
   const dateInput = document.getElementById('vendasDataEspecifica');
   const now = new Date();
-  // Sem orderBy no servidor — evita exigir índice composto; ordenamos client-side
-  let query = col('vendas');
+  let query;
   if (filtro === 'hoje') {
     const today = now.toISOString().slice(0,10);
-    query = query.where('ts','>=',today).where('ts','<=',today+'T￿');
+    query = col('vendas').where('ts','>=',today).orderBy('ts','desc');
   } else if (filtro === '7') {
-    query = query.where('ts','>=',new Date(now - 7*864e5).toISOString());
+    query = col('vendas').where('ts','>=',new Date(now - 7*864e5).toISOString()).orderBy('ts','desc');
   } else if (filtro === '30') {
-    query = query.where('ts','>=',new Date(now - 30*864e5).toISOString());
+    query = col('vendas').where('ts','>=',new Date(now - 30*864e5).toISOString()).orderBy('ts','desc');
   } else if (filtro === 'data' && dateInput?.value) {
     const d = dateInput.value;
-    query = query.where('ts','>=',d).where('ts','<=',d+'T￿');
+    query = col('vendas').where('ts','>=',d).where('ts','<',d+'U').orderBy('ts','desc');
+  } else {
+    // 'todos' e 'data' sem valor — sem limite, tudo
+    query = col('vendas').orderBy('ts','desc');
   }
-  // 'todos' — sem where, busca tudo
   unsubVendas = query.onSnapshot(snap => {
-    vendas = snap.docs.map(d => d.data()).sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
+    vendas = snap.docs.map(d => d.data());
     renderVendas();
-  }, console.error);
+  }, err => {
+    console.error('[vendas]', err);
+    // fallback: busca tudo sem orderBy
+    col('vendas').get().then(s => { vendas = s.docs.map(d => d.data()).sort((a,b)=>(b.ts||'').localeCompare(a.ts||'')); renderVendas(); });
+  });
 }
 
 function atualizarFiltroVendas() {
@@ -3471,6 +3476,10 @@ function renderVendas() {
   // Mostrar/ocultar seletor de data específica
   const dateInput = document.getElementById('vendasDataEspecifica');
   if (dateInput) dateInput.style.display = filtro === 'data' ? '' : 'none';
+
+  // Contador de debug — mostra total carregado do Firestore
+  const infoEl = document.getElementById('vendasTotalInfo');
+  if (infoEl) infoEl.textContent = vendas.length > 0 ? `(${vendas.length} registros no Firestore)` : '';
 
   // Filtrar por período
   const now   = new Date();
