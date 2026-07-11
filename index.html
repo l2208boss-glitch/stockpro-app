@@ -3802,12 +3802,16 @@ function imprimirNota() {
       </div>
     </div>`;
 
-  document.getElementById('notaPrintArea').innerHTML = notaHtml;
   closeOverlay('notaModal');
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => { document.getElementById('notaPrintArea').innerHTML = ''; }, 1500);
-  }, 120);
+  const win = window.open('', '_blank', 'width=420,height=700');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#111;padding:10mm}
+    @media print{@page{margin:0;size:A5} body{padding:10mm} .no-print{display:none}}
+  </style></head><body>${notaHtml}<script>
+    window.onload=function(){window.focus();window.print();setTimeout(()=>window.close(),800);}
+  </script></body></html>`);
+  win.document.close();
 }
 
 /* ══════════════════════════════════════════
