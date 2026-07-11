@@ -3713,71 +3713,91 @@ function imprimirNota() {
   const semValor = document.getElementById('notaSemValor').checked;
   const fiado    = document.getElementById('notaFiado').checked;
   const emReais  = document.getElementById('notaMoeda').checked;
-  const dt = new Date(v.ts).toLocaleString('pt-BR');
-  const filialNome = currentFilial?.nome || currentFilial?.name || '';
 
-  // Taxa BRL para converter USD
+  const dtObj = new Date(v.ts);
+  const dtStr = dtObj.toLocaleDateString('pt-BR') + ' ' + dtObj.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
   const taxaBRL = v.cotacaoBRL || cotacao.brl || 0;
 
-  const fmtUSD = (usd) => `$${Number(usd).toFixed(2)}`;
   const fmtVal = (usd) => (emReais && taxaBRL > 0)
     ? `R$ ${(Number(usd) * taxaBRL).toFixed(2)}`
-    : fmtUSD(usd);
+    : `$ ${Number(usd).toFixed(2)}`;
 
   const itensRows = v.items.map(i => {
-    const precoCell = semValor ? '' : `<td style="text-align:right;padding:4px 8px">${fmtVal(i.precoUSD)}</td><td style="text-align:right;padding:4px 8px;font-weight:700">${fmtVal(i.subtotalUSD)}</td>`;
-    return `<tr style="border-bottom:1px solid #eee">
-      <td style="padding:4px 8px">${i.emoji} ${i.name}</td>
-      <td style="text-align:center;padding:4px 8px">×${i.qty}</td>
-      ${precoCell}
+    if (semValor) {
+      return `<tr>
+        <td style="padding:7px 0;border-bottom:1px solid #f0f0f0">${i.emoji} <b>${i.name}</b></td>
+        <td style="text-align:center;padding:7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${i.qty} ${i.unit||'un'}</td>
+      </tr>`;
+    }
+    return `<tr>
+      <td style="padding:7px 0;border-bottom:1px solid #f0f0f0">${i.emoji} <b>${i.name}</b></td>
+      <td style="text-align:center;padding:7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${i.qty} ${i.unit||'un'}</td>
+      <td style="text-align:right;padding:7px 0 7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${fmtVal(i.precoUSD)}</td>
+      <td style="text-align:right;padding:7px 0 7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap;font-weight:700">${fmtVal(i.subtotalUSD)}</td>
     </tr>`;
   }).join('');
 
-  const headerPagamento = semValor ? '' : (() => {
+  let totalSection = '';
+  if (!semValor) {
     const pags = (v.pagamentos && v.pagamentos.length)
       ? v.pagamentos.filter(p => p.valor > 0).map(p => {
-          if (p.moeda === 'USD') return `USD $${Number(p.valor).toFixed(2)}`;
-          if (p.moeda === 'BRL' || p.moeda === 'PIX') return `${p.moeda} R$ ${Number(p.valor).toFixed(2)}`;
-          if (p.moeda === 'PYG') return `PYG ₲ ${Math.round(p.valor).toLocaleString('pt-BR')}`;
+          if (p.moeda === 'USD') return `Dólar $${Number(p.valor).toFixed(2)}`;
+          if (p.moeda === 'BRL') return `Dinheiro R$ ${Number(p.valor).toFixed(2)}`;
+          if (p.moeda === 'PIX') return `PIX R$ ${Number(p.valor).toFixed(2)}`;
+          if (p.moeda === 'PYG') return `Guarani ₲ ${Math.round(p.valor).toLocaleString('pt-BR')}`;
           return `${p.moeda} ${p.valor}`;
-        }).join(' + ')
+        }).join('<br>')
       : '';
-    const totalLine = `<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:15px;font-weight:700">
-      <span>TOTAL</span><span>${fmtVal(v.totalUSD)}</span>
-    </div>`;
-    const pagLine = pags ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px"><span>Pagamento:</span><span>${pags}</span></div>` : '';
-    return totalLine + pagLine;
-  })();
+    totalSection = `
+      <div style="margin-top:12px;padding-top:10px;border-top:2px solid #000">
+        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;letter-spacing:.5px">
+          <span>TOTAL</span><span>${fmtVal(v.totalUSD)}</span>
+        </div>
+        ${pags ? `<div style="margin-top:8px;font-size:11px;color:#555;line-height:1.8"><b>Forma de pagamento:</b><br>${pags}</div>` : ''}
+      </div>`;
+  }
 
-  const statusLabel = fiado
-    ? `<div style="text-align:center;margin:14px 0;padding:8px;border:2px dashed #cc0000;border-radius:6px;font-size:16px;font-weight:900;color:#cc0000;letter-spacing:2px">⚠️ À PAGAR — FIADO</div>`
-    : (semValor ? '' : `<div style="text-align:center;margin:14px 0;padding:6px;border:1px solid #22c55e;border-radius:6px;font-size:13px;font-weight:700;color:#16a34a">✅ PAGO</div>`);
+  const statusBlock = fiado
+    ? `<div style="margin:16px 0;padding:10px 14px;border:2px dashed #c00;text-align:center;font-size:15px;font-weight:900;color:#c00;letter-spacing:1px">⚠️ À PAGAR — FIADO</div>`
+    : (!semValor ? `<div style="margin:16px 0;padding:8px 14px;background:#f0fdf4;border:1px solid #86efac;text-align:center;font-size:13px;font-weight:700;color:#16a34a">✔ PAGO</div>` : '');
 
-  const clienteLine = cliente
-    ? `<div style="margin-top:10px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px"><b>Cliente:</b> ${cliente}</div>`
+  const clienteBlock = cliente
+    ? `<div style="margin:12px 0;padding:8px 12px;background:#f8f8f8;border-left:3px solid #555;font-size:13px"><b>Cliente:</b> ${cliente}</div>`
+    : '';
+
+  const assinaturaBlock = fiado
+    ? `<div style="margin-top:28px;padding-top:8px;border-top:1px dashed #aaa;font-size:11px;color:#777;text-align:center">Assinatura do cliente: ___________________________</div>`
     : '';
 
   const notaHtml = `
-    <div style="font-family:Arial,sans-serif;font-size:13px;color:#000;max-width:320px;margin:0 auto">
-      <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:12px">
-        <div style="font-size:20px;font-weight:900">${filialNome || 'Nota de Venda'}</div>
-        <div style="font-size:11px;color:#555;margin-top:3px">${dt}</div>
-        <div style="font-size:11px;color:#555">Op: ${v.user || ''}</div>
+    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#111;max-width:340px;margin:0 auto;padding:4px">
+      <!-- Cabeçalho -->
+      <div style="text-align:center;padding-bottom:14px;border-bottom:3px solid #111;margin-bottom:14px">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:4px">NOTA DE VENDA</div>
+        <div style="font-size:22px;font-weight:900;letter-spacing:.5px">Farmácia Londrina</div>
+        <div style="font-size:11px;color:#666;margin-top:6px">${dtStr} &nbsp;·&nbsp; Op: ${v.user || ''}</div>
       </div>
-      ${clienteLine}
-      <table style="width:100%;border-collapse:collapse;margin:10px 0">
+
+      ${clienteBlock}
+
+      <!-- Itens -->
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
-          <tr style="border-bottom:1px solid #000;font-size:11px;color:#444">
-            <th style="text-align:left;padding:4px 8px">Produto</th>
-            <th style="text-align:center;padding:4px 8px">Qtd</th>
-            ${semValor ? '' : '<th style="text-align:right;padding:4px 8px">Preço</th><th style="text-align:right;padding:4px 8px">Subtotal</th>'}
+          <tr style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;border-bottom:1px solid #ccc">
+            <th style="text-align:left;padding:4px 0;font-weight:600">Produto</th>
+            <th style="text-align:center;padding:4px 8px;font-weight:600">Qtd</th>
+            ${semValor ? '' : '<th style="text-align:right;padding:4px 0;font-weight:600">Preço</th><th style="text-align:right;padding:4px 0 4px 8px;font-weight:600">Total</th>'}
           </tr>
         </thead>
         <tbody>${itensRows}</tbody>
       </table>
-      ${headerPagamento}
-      ${statusLabel}
-      <div style="text-align:center;font-size:10px;color:#999;margin-top:16px;border-top:1px solid #eee;padding-top:8px">
+
+      ${totalSection}
+      ${statusBlock}
+      ${assinaturaBlock}
+
+      <!-- Rodapé -->
+      <div style="margin-top:20px;padding-top:10px;border-top:1px solid #ddd;text-align:center;font-size:10px;color:#aaa;letter-spacing:.5px">
         Obrigado pela preferência!
       </div>
     </div>`;
@@ -3786,9 +3806,8 @@ function imprimirNota() {
   closeOverlay('notaModal');
   setTimeout(() => {
     window.print();
-    // Limpa a área após impressão
-    setTimeout(() => { document.getElementById('notaPrintArea').innerHTML = ''; }, 1000);
-  }, 100);
+    setTimeout(() => { document.getElementById('notaPrintArea').innerHTML = ''; }, 1500);
+  }, 120);
 }
 
 /* ══════════════════════════════════════════
