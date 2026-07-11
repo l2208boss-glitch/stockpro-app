@@ -3461,9 +3461,10 @@ async function confirmPayment() {
   renderCart();
   renderCaixaProducts();
   toast(`✅ Venda registrada! Total: $${total.toFixed(2)}`, 'success');
-  if (currentFilial && currentFilial.id === FARMACIA_ID) mostrarFacturaBanner(venda);
-  // Banner rápido para imprimir nota
-  setTimeout(() => abrirNotaOpcional(venda), 400);
+  if (currentFilial && currentFilial.id === FARMACIA_ID) {
+    mostrarFacturaBanner(venda);
+    setTimeout(() => abrirNotaOpcional(venda), 400);
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -3605,7 +3606,10 @@ function renderVendas() {
     const facturaBtn = isFarmaciaCol
       ? `<td style="text-align:center">${cancelada ? '' : `<button onclick="abrirFacturaVenda('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Gerar fatura">🧾</button>`}</td>`
       : '';
-    const notaBtn = `<td style="text-align:center"><button onclick="abrirNota('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Imprimir nota">🖨️</button></td>`;
+    const isFarmNota = !!(currentFilial && currentFilial.id === FARMACIA_ID);
+    const notaBtn = isFarmNota
+      ? `<td style="text-align:center"><button onclick="abrirNota('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Imprimir nota">🖨️</button></td>`
+      : `<td></td>`;
     const cancelBtn = cancelada
       ? `<td style="text-align:center"><span style="color:var(--danger);font-size:11px;font-weight:700">CANCELADA</span></td>`
       : `<td style="text-align:center"><button onclick="cancelarVenda('${v.id}')" style="background:none;border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:13px;color:#dc2626" title="Cancelar venda e devolver estoque">🚫</button></td>`;
