@@ -1204,6 +1204,7 @@
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Pagamento</th>
             <th style="padding:12px;text-align:right;font-size:12px;color:var(--text-2)">Troco</th>
             <th style="padding:12px;text-align:left;font-size:12px;color:var(--text-2)">Operador</th>
+            <th style="padding:12px;text-align:center;font-size:12px;color:var(--text-2)">Nota</th>
             <th id="thFactura" style="padding:12px;text-align:center;font-size:12px;color:var(--text-2);display:none">Fatura</th>
             <th style="padding:12px;text-align:center;font-size:12px;color:var(--text-2)"></th>
           </tr>
@@ -3461,6 +3462,8 @@ async function confirmPayment() {
   renderCaixaProducts();
   toast(`✅ Venda registrada! Total: $${total.toFixed(2)}`, 'success');
   if (currentFilial && currentFilial.id === FARMACIA_ID) mostrarFacturaBanner(venda);
+  // Banner rápido para imprimir nota
+  setTimeout(() => abrirNotaOpcional(venda), 400);
 }
 
 /* ══════════════════════════════════════════
@@ -3602,6 +3605,7 @@ function renderVendas() {
     const facturaBtn = isFarmaciaCol
       ? `<td style="text-align:center">${cancelada ? '' : `<button onclick="abrirFacturaVenda('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Gerar fatura">🧾</button>`}</td>`
       : '';
+    const notaBtn = `<td style="text-align:center"><button onclick="abrirNota('${v.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:14px" title="Imprimir nota">🖨️</button></td>`;
     const cancelBtn = cancelada
       ? `<td style="text-align:center"><span style="color:var(--danger);font-size:11px;font-weight:700">CANCELADA</span></td>`
       : `<td style="text-align:center"><button onclick="cancelarVenda('${v.id}')" style="background:none;border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:13px;color:#dc2626" title="Cancelar venda e devolver estoque">🚫</button></td>`;
@@ -3613,6 +3617,7 @@ function renderVendas() {
       <td style="font-size:12px;line-height:1.8">${pagCell}</td>
       <td style="text-align:right">${trocoCell}</td>
       <td>${v.user}</td>
+      ${notaBtn}
       ${facturaBtn}
       ${cancelBtn}
     </tr>`;
@@ -3661,6 +3666,125 @@ async function cancelarVenda(vendaId) {
     console.error(e);
     toast('Erro ao cancelar venda', 'error');
   }
+}
+
+/* ══════════════════════════════════════════
+   NOTA DE VENDA (IMPRESSÃO)
+══════════════════════════════════════════ */
+let _notaVenda = null;
+
+function abrirNota(vendaId) {
+  _notaVenda = vendas.find(v => String(v.id) === String(vendaId));
+  if (!_notaVenda) { toast('Venda não encontrada', 'error'); return; }
+  document.getElementById('notaCliente').value = '';
+  document.getElementById('notaSemValor').checked = false;
+  document.getElementById('notaFiado').checked = false;
+  document.getElementById('notaMoeda').checked = true;
+  document.getElementById('notaModal').classList.add('on');
+  setTimeout(() => document.getElementById('notaCliente').focus(), 150);
+}
+
+function abrirNotaOpcional(venda) {
+  // Banner flutuante pós-venda com opção de imprimir nota
+  _notaVenda = venda;
+  const banner = document.createElement('div');
+  banner.id = 'notaBanner';
+  banner.style.cssText = 'position:fixed;bottom:80px;right:24px;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;box-shadow:0 4px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:12px;animation:slideUp .3s ease';
+  banner.innerHTML = `
+    <span style="font-size:22px">🖨️</span>
+    <div>
+      <div style="font-weight:700;font-size:14px">Imprimir nota?</div>
+      <div style="font-size:12px;color:var(--text-3)">Para o cliente ou fiado</div>
+    </div>
+    <button onclick="document.getElementById('notaBanner').remove();abrirNota('${venda.id}')" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600">Sim</button>
+    <button onclick="document.getElementById('notaBanner').remove()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px">Não</button>`;
+  document.body.appendChild(banner);
+  setTimeout(() => banner.remove(), 12000);
+}
+
+function imprimirNota() {
+  const v = _notaVenda;
+  if (!v) return;
+  const cliente  = document.getElementById('notaCliente').value.trim();
+  const semValor = document.getElementById('notaSemValor').checked;
+  const fiado    = document.getElementById('notaFiado').checked;
+  const emReais  = document.getElementById('notaMoeda').checked;
+  const dt = new Date(v.ts).toLocaleString('pt-BR');
+  const filialNome = currentFilial?.nome || currentFilial?.name || '';
+
+  // Taxa BRL para converter USD
+  const taxaBRL = v.cotacaoBRL || cotacao.brl || 0;
+
+  const fmtUSD = (usd) => `$${Number(usd).toFixed(2)}`;
+  const fmtVal = (usd) => (emReais && taxaBRL > 0)
+    ? `R$ ${(Number(usd) * taxaBRL).toFixed(2)}`
+    : fmtUSD(usd);
+
+  const itensRows = v.items.map(i => {
+    const precoCell = semValor ? '' : `<td style="text-align:right;padding:4px 8px">${fmtVal(i.precoUSD)}</td><td style="text-align:right;padding:4px 8px;font-weight:700">${fmtVal(i.subtotalUSD)}</td>`;
+    return `<tr style="border-bottom:1px solid #eee">
+      <td style="padding:4px 8px">${i.emoji} ${i.name}</td>
+      <td style="text-align:center;padding:4px 8px">×${i.qty}</td>
+      ${precoCell}
+    </tr>`;
+  }).join('');
+
+  const headerPagamento = semValor ? '' : (() => {
+    const pags = (v.pagamentos && v.pagamentos.length)
+      ? v.pagamentos.filter(p => p.valor > 0).map(p => {
+          if (p.moeda === 'USD') return `USD $${Number(p.valor).toFixed(2)}`;
+          if (p.moeda === 'BRL' || p.moeda === 'PIX') return `${p.moeda} R$ ${Number(p.valor).toFixed(2)}`;
+          if (p.moeda === 'PYG') return `PYG ₲ ${Math.round(p.valor).toLocaleString('pt-BR')}`;
+          return `${p.moeda} ${p.valor}`;
+        }).join(' + ')
+      : '';
+    const totalLine = `<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:15px;font-weight:700">
+      <span>TOTAL</span><span>${fmtVal(v.totalUSD)}</span>
+    </div>`;
+    const pagLine = pags ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px"><span>Pagamento:</span><span>${pags}</span></div>` : '';
+    return totalLine + pagLine;
+  })();
+
+  const statusLabel = fiado
+    ? `<div style="text-align:center;margin:14px 0;padding:8px;border:2px dashed #cc0000;border-radius:6px;font-size:16px;font-weight:900;color:#cc0000;letter-spacing:2px">⚠️ À PAGAR — FIADO</div>`
+    : (semValor ? '' : `<div style="text-align:center;margin:14px 0;padding:6px;border:1px solid #22c55e;border-radius:6px;font-size:13px;font-weight:700;color:#16a34a">✅ PAGO</div>`);
+
+  const clienteLine = cliente
+    ? `<div style="margin-top:10px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px"><b>Cliente:</b> ${cliente}</div>`
+    : '';
+
+  const notaHtml = `
+    <div style="font-family:Arial,sans-serif;font-size:13px;color:#000;max-width:320px;margin:0 auto">
+      <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:12px">
+        <div style="font-size:20px;font-weight:900">${filialNome || 'Nota de Venda'}</div>
+        <div style="font-size:11px;color:#555;margin-top:3px">${dt}</div>
+        <div style="font-size:11px;color:#555">Op: ${v.user || ''}</div>
+      </div>
+      ${clienteLine}
+      <table style="width:100%;border-collapse:collapse;margin:10px 0">
+        <thead>
+          <tr style="border-bottom:1px solid #000;font-size:11px;color:#444">
+            <th style="text-align:left;padding:4px 8px">Produto</th>
+            <th style="text-align:center;padding:4px 8px">Qtd</th>
+            ${semValor ? '' : '<th style="text-align:right;padding:4px 8px">Preço</th><th style="text-align:right;padding:4px 8px">Subtotal</th>'}
+          </tr>
+        </thead>
+        <tbody>${itensRows}</tbody>
+      </table>
+      ${headerPagamento}
+      ${statusLabel}
+      <div style="text-align:center;font-size:10px;color:#999;margin-top:16px;border-top:1px solid #eee;padding-top:8px">
+        Obrigado pela preferência!
+      </div>
+    </div>`;
+
+  document.getElementById('notaPrintArea').innerHTML = notaHtml;
+  closeOverlay('notaModal');
+  setTimeout(() => {
+    window.print();
+    // Limpa a área após impressão
+    setTimeout(() => { document.getElementById('notaPrintArea').innerHTML = ''; }, 1000);
+  }, 100);
 }
 
 /* ══════════════════════════════════════════
@@ -8238,6 +8362,60 @@ function flashConfirm(tipo) {
     </div>
   </div>
 </div>
+
+<!-- ══════════ MODAL — NOTA DE VENDA ══════════ -->
+<div class="overlay" id="notaModal" onclick="overlayClick(event,'notaModal')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd">
+      <span class="modal-title edit">🖨️ Nota de Venda</span>
+      <button class="btn-x" onclick="closeOverlay('notaModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="field">
+        <label class="modal-label">Cliente / Nome (opcional)</label>
+        <input class="modal-input" id="notaCliente" type="text" placeholder="Ex: João Silva">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="notaSemValor" style="width:16px;height:16px">
+          <span><b>Sem valor</b> — ocultar preços na nota</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="notaFiado" style="width:16px;height:16px">
+          <span><b>Fiado</b> — mostrar "À PAGAR" em vez de "PAGO"</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="notaMoeda" style="width:16px;height:16px" checked>
+          <span><b>Mostrar em reais</b> (BRL) quando disponível</span>
+        </label>
+      </div>
+      <div style="background:var(--surface-2,#f8f9fa);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-3)">
+        💡 Após clicar em Imprimir, use <b>Salvar como PDF</b> no diálogo para guardar o arquivo.
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('notaModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="imprimirNota()">🖨️ Imprimir / PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Área de impressão — visível só no @media print -->
+<div id="notaPrintArea" style="display:none"></div>
+
+<style id="notaPrintStyle">
+@media print {
+  body > *:not(#notaPrintArea) { display: none !important; }
+  #notaPrintArea {
+    display: block !important;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    color: #000;
+    padding: 12mm;
+  }
+  @page { margin: 8mm; size: A5; }
+}
+</style>
 
 </body>
 </html>
