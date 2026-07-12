@@ -761,6 +761,8 @@
 
     /* ─── VENDAS HISTORY ─── */
     .vendas-block { margin-top:28px; padding:0 24px 24px; }
+    .atd-chip { padding:9px 16px; border:2px solid var(--border); border-radius:99px; background:var(--surface); font-size:14px; font-weight:700; cursor:pointer; color:var(--text-2); transition:all .15s; }
+    .atd-chip.on { border-color:var(--primary); background:var(--primary-light); color:var(--primary-dark); }
     /* ── Fechamento de Caixa ── */
     .fech-section { display:grid; gap:10px; margin-bottom:18px; }
     .fech-row { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--bg); border-radius:var(--radius-sm); border:1px solid var(--border); }
@@ -1181,6 +1183,7 @@
         </select>
         <input type="date" id="vendasDataEspecifica" onchange="atualizarFiltroVendas()" style="display:none;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface)">
         <button class="btn-fechar-caixa" id="btnFechaCaixa" onclick="openFechamentoCaixa()" style="display:none">🔒 Fechar Caixa</button>
+        <button class="btn-clr" onclick="openAtendentesModal()" title="Configurar atendentes do caixa" style="background:var(--primary-light);color:var(--primary-dark)">👤</button>
         <button class="btn-clr" onclick="clearVendas()" title="Limpar histórico de vendas">🗑</button>
       </div>
     </div>
@@ -1596,6 +1599,11 @@
         <div class="pay-total-val" id="payTotalUSD">$0.00</div>
         <div id="payTotalBRL" style="font-size:15px;font-weight:700;color:var(--primary-dark);margin-top:4px;opacity:.85"></div>
       </div>
+      <!-- Quem atendeu (aparece se houver atendentes configurados) -->
+      <div id="atendenteBox" style="display:none;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:7px">👤 Quem atendeu?</div>
+        <div id="atendenteChips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
       <!-- Linhas de pagamento (geradas por JS) -->
       <div id="splitPaymentRows"></div>
       <button class="btn-add-pay" type="button" onclick="addPaymentRow()">+ Adicionar forma de pagamento</button>
@@ -1615,6 +1623,24 @@
     <div class="modal-ft">
       <button class="btn-cancel" onclick="closeOverlay('paymentModal')">Cancelar</button>
       <button class="btn-confirm save" id="btnConfirmPayment" onclick="confirmPayment()" disabled>✅ Confirmar Venda</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — ATENDENTES DO CAIXA (admin) ══════════ -->
+<div class="overlay" id="atendentesModal" onclick="overlayClick(event,'atendentesModal')">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-hd">
+      <span class="modal-title edit">👤 Atendentes do Caixa</span>
+      <button class="btn-x" onclick="closeOverlay('atendentesModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:10px">Um nome por linha. Com a lista preenchida, toda venda pergunta <strong>quem atendeu</strong> antes de confirmar. Deixe vazio para desativar.</p>
+      <textarea id="atendentesInput" rows="6" placeholder="Ana&#10;João&#10;Maria" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('atendentesModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="saveAtendentes()">💾 Salvar</button>
     </div>
   </div>
 </div>
@@ -2195,6 +2221,9 @@ let sangrias = [];   // [{id, tipo, moeda, valor, motivo, user, ts, date}]
 let unsubSangrias = null;
 let cotacao  = { brl: 0, pyg: 0, date: '' };
 let vendas   = [];
+let atendentes = [];        // nomes configurados para o caixa desta filial
+let atendenteSel = '';      // quem atendeu a venda atual
+let unsubAtendentes = null;
 let currentMode = null;  // 'estoque' | 'caixa'
 
 // Produção state
@@ -2594,7 +2623,9 @@ function backToModeSelect() {
   if (unsubFacturas)   { unsubFacturas();   unsubFacturas   = null; }
   if (unsubFatCompras) { unsubFatCompras(); unsubFatCompras = null; }
   if (unsubSangrias) { unsubSangrias(); unsubSangrias = null; }
+  if (unsubAtendentes) { unsubAtendentes(); unsubAtendentes = null; }
   cart = []; vendas = []; sangrias = []; fatCompras = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
+  atendentes = []; atendenteSel = '';
   if (unsubCompras) { unsubCompras(); unsubCompras = null; }
   compras = [];
   document.getElementById('caixaApp').style.display = 'none';
@@ -2863,6 +2894,12 @@ function setupCaixaListeners() {
   if (unsubVendas)     { unsubVendas();     unsubVendas     = null; }
   if (unsubFacturas)   { unsubFacturas();   unsubFacturas   = null; }
   if (unsubFatCompras) { unsubFatCompras(); unsubFatCompras = null; }
+
+  if (unsubAtendentes) { unsubAtendentes(); unsubAtendentes = null; }
+  unsubAtendentes = col('config').doc('atendentes').onSnapshot(snap => {
+    atendentes = (snap.exists && Array.isArray(snap.data().nomes)) ? snap.data().nomes : [];
+    renderAtendenteChips();
+  }, console.error);
 
   const today = new Date().toISOString().slice(0,10);
   unsubCotacao = col('cotacao').doc('atual').onSnapshot(snap => {
@@ -3394,6 +3431,8 @@ function openPaymentModal() {
   // Inicializa na moeda mais usada da filial (PIX > BRL > USD)
   const defaultMoeda = cotacao.pix > 0 ? 'PIX' : (cotacao.brl > 0 ? 'BRL' : 'USD');
   splitPayRows = [{ moeda: defaultMoeda, valor: 0 }];
+  atendenteSel = '';           // sem pré-seleção: cada venda exige escolha explícita
+  renderAtendenteChips();
   renderSplitRows();
   updateSplitCalc(); // mostra total na moeda selecionada desde o início
   document.getElementById('paymentModal').classList.add('on');
@@ -3403,7 +3442,38 @@ function openPaymentModal() {
 // updatePaymentCalc é mantido como alias para updateSplitCalc (compatibilidade)
 function updatePaymentCalc() { updateSplitCalc(); }
 
+/* ── Atendentes: quem fez a venda ── */
+function renderAtendenteChips() {
+  const box  = document.getElementById('atendenteBox');
+  const wrap = document.getElementById('atendenteChips');
+  if (!box || !wrap) return;
+  if (!atendentes.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  wrap.innerHTML = atendentes.map(n => {
+    const safe = String(n).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return `<button type="button" class="atd-chip${n === atendenteSel ? ' on' : ''}" onclick="selAtendente('${safe}')">${n}</button>`;
+  }).join('');
+}
+function selAtendente(n) {
+  atendenteSel = n;
+  renderAtendenteChips();
+}
+function openAtendentesModal() {
+  document.getElementById('atendentesInput').value = atendentes.join('\n');
+  document.getElementById('atendentesModal').classList.add('on');
+}
+async function saveAtendentes() {
+  const nomes = document.getElementById('atendentesInput').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  try {
+    await col('config').doc('atendentes').set({ nomes, updatedBy: user.name, ts: new Date().toISOString() });
+    closeOverlay('atendentesModal');
+    toast(nomes.length ? `👤 ${nomes.length} atendente(s) salvos` : '👤 Lista de atendentes desativada');
+  } catch(e) { console.error(e); toast('⚠️ Erro ao salvar atendentes', 'error'); }
+}
+
 async function confirmPayment() {
+  if (atendentes.length && !atendenteSel) { toast('👤 Selecione quem atendeu a venda', 'error'); return; }
   const total = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
 
   // Montar array de pagamentos
@@ -3442,7 +3512,8 @@ async function confirmPayment() {
     valorPago: +totalPagoUSD.toFixed(2),
     troco: +trocoUSD.toFixed(2),
     descontoPct,
-    user: user.name
+    user: user.name,
+    atendente: atendenteSel || null
   };
   col('vendas').doc(String(vendaId)).set(venda).catch(console.error);
 
@@ -3558,6 +3629,24 @@ function renderVendas() {
     + (trocoUSD > 0 ? statCard('💸','Troco USD', `$${trocoUSD.toFixed(2)}`, 'var(--danger)') : '')
     + (recBRL  > 0 ? statCard('💰','Líquido no Caixa', `R$ ${liquidoBRL.toFixed(2)}`, liquidoBRL >= 0 ? 'var(--success)' : 'var(--danger)', 'Dinheiro recebido − troco dado') : '');
 
+  // Resumo por atendente (lucro bruto = recebido − custo dos itens)
+  const porAtd = {};
+  ativas.forEach(v => {
+    if (!v.atendente) return;
+    const a = porAtd[v.atendente] || (porAtd[v.atendente] = { tx: 0, rev: 0, lucro: 0 });
+    a.tx++;
+    const receb = v.totalUSD + (Number(v.troco) < 0 ? Number(v.troco) : 0);
+    let cogs = 0;
+    (v.items || []).forEach(it => {
+      const p = products.find(x => String(x.id) === String(it.productId));
+      if (p && p.custo > 0) cogs += it.qty * p.custo;
+    });
+    a.rev += receb; a.lucro += receb - cogs;
+  });
+  resumo.innerHTML += Object.entries(porAtd).sort((x,y) => y[1].lucro - x[1].lucro).map(([n,a]) =>
+    statCard('👤', n, `$${a.lucro.toFixed(2)}`, 'var(--primary-dark)', `lucro bruto · ${a.tx} venda(s) · $${a.rev.toFixed(2)} vendidos`)
+  ).join('');
+
   const isFarmaciaCol = !!(currentFilial && currentFilial.id === FARMACIA_ID);
   const thFact = document.getElementById('thFactura');
   if (thFact) thFact.style.display = isFarmaciaCol ? '' : 'none';
@@ -3620,7 +3709,7 @@ function renderVendas() {
       <td style="text-align:right;font-weight:700">$${Number(v.totalUSD).toFixed(2)}</td>
       <td style="font-size:12px;line-height:1.8">${pagCell}</td>
       <td style="text-align:right">${trocoCell}</td>
-      <td>${v.user}</td>
+      <td>${v.atendente ? `<b>👤 ${v.atendente}</b>` : v.user}</td>
       ${notaBtn}
       ${facturaBtn}
       ${cancelBtn}
