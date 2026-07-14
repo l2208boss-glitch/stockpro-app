@@ -3814,89 +3814,68 @@ function imprimirNota() {
   const dtObj = new Date(v.ts);
   const dtStr = dtObj.toLocaleDateString('pt-BR') + ' ' + dtObj.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
   const taxaBRL = v.cotacaoBRL || cotacao.brl || 0;
-
   const fmtVal = (usd) => (emReais && taxaBRL > 0)
-    ? `R$ ${(Number(usd) * taxaBRL).toFixed(2)}`
-    : `$ ${Number(usd).toFixed(2)}`;
+    ? 'R$ ' + (Number(usd) * taxaBRL).toFixed(2)
+    : '$ ' + Number(usd).toFixed(2);
 
+  // Sem emoji — imprime borrado em térmica
   const itensRows = v.items.map(i => {
-    if (semValor) {
-      return `<tr>
-        <td style="padding:8px 0;border-bottom:1px solid #ddd;font-size:15px"><b>${i.name}</b></td>
-        <td style="text-align:right;padding:8px 0;border-bottom:1px solid #ddd;font-size:15px;white-space:nowrap">${i.qty} ${i.unit||'un'}</td>
-      </tr>`;
-    }
-    return `<tr>
-      <td style="padding:8px 0;border-bottom:1px solid #ddd;font-size:14px"><b>${i.name}</b></td>
-      <td style="text-align:center;padding:8px 4px;border-bottom:1px solid #ddd;font-size:14px;white-space:nowrap">${i.qty}${i.unit||'un'}</td>
-      <td style="text-align:right;padding:8px 0;border-bottom:1px solid #ddd;font-size:14px;white-space:nowrap">${fmtVal(i.subtotalUSD)}</td>
-    </tr>`;
+    if (semValor) return '<tr>'
+      + '<td style="padding:9px 0;border-bottom:1px solid #000;font-size:16px;font-weight:bold">' + i.name + '</td>'
+      + '<td style="text-align:right;padding:9px 0;border-bottom:1px solid #000;font-size:16px;font-weight:bold;white-space:nowrap">' + i.qty + ' ' + (i.unit||'un') + '</td>'
+      + '</tr>';
+    return '<tr>'
+      + '<td style="padding:9px 0;border-bottom:1px solid #000;font-size:15px;font-weight:bold">' + i.name + '</td>'
+      + '<td style="text-align:center;padding:9px 4px;border-bottom:1px solid #000;font-size:15px;font-weight:bold;white-space:nowrap">' + i.qty + (i.unit||'un') + '</td>'
+      + '<td style="text-align:right;padding:9px 0;border-bottom:1px solid #000;font-size:15px;font-weight:bold;white-space:nowrap">' + fmtVal(i.subtotalUSD) + '</td>'
+      + '</tr>';
   }).join('');
 
   let totalSection = '';
   if (!semValor) {
     const pags = (v.pagamentos && v.pagamentos.length)
       ? v.pagamentos.filter(p => p.valor > 0).map(p => {
-          if (p.moeda === 'USD') return `Dólar $${Number(p.valor).toFixed(2)}`;
-          if (p.moeda === 'BRL') return `Dinheiro R$ ${Number(p.valor).toFixed(2)}`;
-          if (p.moeda === 'PIX') return `PIX R$ ${Number(p.valor).toFixed(2)}`;
-          if (p.moeda === 'PYG') return `Guarani ₲ ${Math.round(p.valor).toLocaleString('pt-BR')}`;
-          return `${p.moeda} ${p.valor}`;
-        }).join('<br>')
-      : '';
-    totalSection = `
-      <div style="margin-top:12px;padding-top:10px;border-top:2px solid #000">
-        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;letter-spacing:.5px">
-          <span>TOTAL</span><span>${fmtVal(v.totalUSD)}</span>
-        </div>
-        ${pags ? `<div style="margin-top:8px;font-size:11px;color:#555;line-height:1.8"><b>Forma de pagamento:</b><br>${pags}</div>` : ''}
-      </div>`;
+          if (p.moeda === 'USD') return 'Dolar $' + Number(p.valor).toFixed(2);
+          if (p.moeda === 'BRL') return 'Dinheiro R$ ' + Number(p.valor).toFixed(2);
+          if (p.moeda === 'PIX') return 'PIX R$ ' + Number(p.valor).toFixed(2);
+          if (p.moeda === 'PYG') return 'Guarani G$ ' + Math.round(p.valor).toLocaleString('pt-BR');
+          return p.moeda + ' ' + p.valor;
+        }).join(' | ') : '';
+    totalSection = '<div style="margin-top:10px;padding-top:8px;border-top:3px solid #000">'
+      + '<div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900">'
+      + '<span>TOTAL</span><span>' + fmtVal(v.totalUSD) + '</span></div>'
+      + (pags ? '<div style="margin-top:6px;font-size:13px;font-weight:bold">' + pags + '</div>' : '')
+      + '</div>';
   }
 
   const statusBlock = fiado
-    ? `<div style="margin:16px 0;padding:10px 14px;border:2px dashed #c00;text-align:center;font-size:15px;font-weight:900;color:#c00;letter-spacing:1px">⚠️ À PAGAR — FIADO</div>`
-    : (!semValor ? `<div style="margin:16px 0;padding:8px 14px;background:#f0fdf4;border:1px solid #86efac;text-align:center;font-size:13px;font-weight:700;color:#16a34a">✔ PAGO</div>` : '');
+    ? '<div style="margin:14px 0;padding:10px;border:3px solid #000;text-align:center;font-size:18px;font-weight:900;letter-spacing:2px">*** A PAGAR - FIADO ***</div>'
+    + '<div style="margin-top:30px;border-top:1px solid #000;font-size:13px;font-weight:bold;text-align:center;padding-top:6px">Assinatura: _______________________</div>'
+    : (!semValor ? '<div style="margin:14px 0;padding:8px;border:2px solid #000;text-align:center;font-size:16px;font-weight:900">** PAGO **</div>' : '');
 
   const clienteBlock = cliente
-    ? `<div style="margin:10px 0 6px;padding:7px 10px;border:1px solid #ccc;border-radius:3px;font-size:15px;font-weight:700">👤 ${cliente}</div>`
+    ? '<div style="margin:10px 0;padding:8px;border:2px solid #000;font-size:17px;font-weight:900;text-align:center">Cliente: ' + cliente + '</div>'
     : '';
 
-  const assinaturaBlock = fiado
-    ? `<div style="margin-top:28px;padding-top:8px;border-top:1px dashed #aaa;font-size:11px;color:#777;text-align:center">Assinatura do cliente: ___________________________</div>`
-    : '';
-
-  const notaHtml = `
-    <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#111;max-width:340px;margin:0 auto;padding:4px">
-      <!-- Cabeçalho -->
-      <div style="text-align:center;padding-bottom:14px;border-bottom:3px solid #111;margin-bottom:14px">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:4px">NOTA DE VENDA</div>
-        <div style="font-size:22px;font-weight:900;letter-spacing:.5px">Farmácia Londrina</div>
-        <div style="font-size:11px;color:#666;margin-top:6px">${dtStr} &nbsp;·&nbsp; Op: ${v.user || ''}</div>
-      </div>
-
-      ${clienteBlock}
-
-      <!-- Itens -->
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead>
-          <tr style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;border-bottom:1px solid #ccc">
-            <th style="text-align:left;padding:4px 0;font-weight:600">Produto</th>
-            <th style="text-align:center;padding:4px 8px;font-weight:600">Qtd</th>
-            ${semValor ? '' : '<th style="text-align:right;padding:4px 0 4px 8px;font-weight:600">Total</th>'}
-          </tr>
-        </thead>
-        <tbody>${itensRows}</tbody>
-      </table>
-
-      ${totalSection}
-      ${statusBlock}
-      ${assinaturaBlock}
-
-      <!-- Rodapé -->
-      <div style="margin-top:20px;padding-top:10px;border-top:1px solid #ddd;text-align:center;font-size:10px;color:#aaa;letter-spacing:.5px">
-        Obrigado pela preferência!
-      </div>
-    </div>`;
+  const notaHtml = '<div style="font-family:Arial,sans-serif;color:#000;width:100%">'
+    + '<div style="text-align:center;border-bottom:3px solid #000;padding-bottom:10px;margin-bottom:10px">'
+    + '<div style="font-size:11px;font-weight:bold;letter-spacing:3px">NOTA DE VENDA</div>'
+    + '<div style="font-size:24px;font-weight:900">Farmacia Londrina</div>'
+    + '<div style="font-size:12px;font-weight:bold;margin-top:4px">' + dtStr + ' | Op: ' + (v.user||'') + '</div>'
+    + '</div>'
+    + clienteBlock
+    + '<table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr style="border-bottom:2px solid #000;font-size:12px;font-weight:900">'
+    + '<th style="text-align:left;padding:5px 0">PRODUTO</th>'
+    + '<th style="text-align:center;padding:5px 4px">QTD</th>'
+    + (semValor ? '' : '<th style="text-align:right;padding:5px 0">TOTAL</th>')
+    + '</tr></thead>'
+    + '<tbody>' + itensRows + '</tbody>'
+    + '</table>'
+    + totalSection
+    + statusBlock
+    + '<div style="margin-top:16px;border-top:1px solid #000;text-align:center;font-size:12px;font-weight:bold;padding-top:8px">Obrigado pela preferencia!</div>'
+    + '</div>';
 
   closeOverlay('notaModal');
   // Blob URL — carrega no iframe como src real, onload dispara corretamente
