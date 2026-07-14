@@ -3818,21 +3818,22 @@ function imprimirNota() {
     ? 'R$ ' + (Number(usd) * taxaBRL).toFixed(2)
     : '$ ' + Number(usd).toFixed(2);
 
-  const linha = '<div style="border-top:1px solid #000;margin:6px 0"></div>';
-  const linhaGrossa = '<div style="border-top:3px solid #000;margin:6px 0"></div>';
+  const hr1 = '<hr style="border:none;border-top:1px solid #000;margin:5px 0">';
+  const hr3 = '<hr style="border:none;border-top:3px solid #000;margin:5px 0">';
 
-  const itensLinhas = v.items.map(i => {
-    const nomeLinha = '<div style="font-size:19px;font-weight:900;text-align:center">' + i.name + '</div>';
-    if (semValor) return '<div style="padding:8px 0;border-bottom:1px solid #000">'
-      + nomeLinha
-      + '<div style="font-size:17px;font-weight:bold;text-align:center">' + i.qty + ' ' + (i.unit||'un') + '</div>'
+  const itensLinhas = (v.items || []).map(i => {
+    if (semValor) return ''
+      + '<div style="padding:7px 0;border-bottom:1px solid #000;text-align:center">'
+      + '<div style="font-size:17px;font-weight:900">' + i.name + '</div>'
+      + '<div style="font-size:15px;font-weight:700">' + i.qty + ' ' + (i.unit||'un') + '</div>'
       + '</div>';
-    return '<div style="padding:8px 0;border-bottom:1px solid #000">'
-      + nomeLinha
-      + '<div style="display:flex;justify-content:space-between;font-size:17px;font-weight:bold;margin-top:3px">'
-      + '<span>' + i.qty + ' ' + (i.unit||'un') + '</span>'
-      + '<span>' + fmtVal(i.subtotalUSD) + '</span>'
-      + '</div>'
+    return ''
+      + '<div style="padding:7px 0;border-bottom:1px solid #000">'
+      + '<div style="font-size:17px;font-weight:900;text-align:center">' + i.name + '</div>'
+      + '<table width="100%" style="margin-top:3px"><tr>'
+      + '<td style="font-size:15px;font-weight:700">' + i.qty + ' ' + (i.unit||'un') + '</td>'
+      + '<td style="font-size:15px;font-weight:700;text-align:right">' + fmtVal(i.subtotalUSD) + '</td>'
+      + '</tr></table>'
       + '</div>';
   }).join('');
 
@@ -3846,72 +3847,80 @@ function imprimirNota() {
           if (p.moeda === 'PYG') return 'Guarani G$ ' + Math.round(p.valor).toLocaleString('pt-BR');
           return p.moeda + ' ' + p.valor;
         }).join('  |  ') : '';
-    totalSection = linhaGrossa
-      + '<div style="display:flex;justify-content:space-between;font-size:24px;font-weight:900;padding:4px 0">'
-      + '<span>TOTAL</span><span>' + fmtVal(v.totalUSD) + '</span></div>'
-      + (pags ? '<div style="text-align:center;font-size:16px;font-weight:bold;margin-top:4px">' + pags + '</div>' : '');
+    totalSection = hr3
+      + '<table width="100%" style="margin:4px 0"><tr>'
+      + '<td style="font-size:21px;font-weight:900">TOTAL</td>'
+      + '<td style="font-size:21px;font-weight:900;text-align:right">' + fmtVal(v.totalUSD) + '</td>'
+      + '</tr></table>'
+      + (pags ? '<div style="text-align:center;font-size:14px;font-weight:700;margin-top:3px">' + pags + '</div>' : '');
   }
 
   const statusBlock = fiado
-    ? linhaGrossa
-      + '<div style="text-align:center;font-size:22px;font-weight:900;padding:8px 0;letter-spacing:1px">*** A PAGAR - FIADO ***</div>'
-      + linhaGrossa
-      + '<div style="text-align:center;font-size:15px;font-weight:bold;margin-top:24px">Assinatura:</div>'
-      + '<div style="border-top:1px solid #000;margin-top:30px"></div>'
+    ? hr3
+      + '<div style="text-align:center;font-size:19px;font-weight:900;padding:7px 0">*** A PAGAR - FIADO ***</div>'
+      + hr3
+      + '<div style="font-size:13px;font-weight:700;margin-top:22px">Assinatura: ____________________</div>'
     : (!semValor
-      ? linhaGrossa + '<div style="text-align:center;font-size:22px;font-weight:900;padding:6px 0">** PAGO **</div>' + linhaGrossa
+      ? hr3 + '<div style="text-align:center;font-size:19px;font-weight:900;padding:6px 0">** PAGO **</div>' + hr3
       : '');
 
   const clienteBlock = cliente
-    ? linhaGrossa
-      + '<div style="text-align:center;font-size:22px;font-weight:900;padding:6px 0">Cliente: ' + cliente + '</div>'
-      + linhaGrossa
+    ? hr3
+      + '<div style="text-align:center;font-size:19px;font-weight:900;padding:6px 0">Cliente: ' + cliente + '</div>'
+      + hr3
     : '';
 
-  const notaHtml = '<div style="font-family:Arial,sans-serif;color:#000;width:100%">'
-    + '<div style="text-align:center;padding-bottom:10px">'
-    + '<div style="font-size:13px;font-weight:bold;letter-spacing:2px">NOTA DE VENDA</div>'
-    + '<div style="font-size:30px;font-weight:900">Farmacia Londrina</div>'
-    + '<div style="font-size:15px;font-weight:bold;margin-top:3px">' + dtStr + '</div>'
-    + '<div style="font-size:14px;margin-top:1px">Op: ' + (v.user||'') + '</div>'
+  const corpo = ''
+    + '<div style="text-align:center;padding-bottom:8px">'
+    + '<div style="font-size:11px;font-weight:700;letter-spacing:2px">NOTA DE VENDA</div>'
+    + '<div style="font-size:24px;font-weight:900;line-height:1.2">Farmacia Londrina</div>'
+    + '<div style="font-size:13px;font-weight:700;margin-top:3px">' + dtStr + '</div>'
+    + '<div style="font-size:12px;margin-top:1px">Op: ' + (v.user||'') + '</div>'
     + '</div>'
-    + linhaGrossa
+    + hr3
     + clienteBlock
     + itensLinhas
     + totalSection
     + statusBlock
-    + '<div style="text-align:center;font-size:16px;font-weight:bold;margin-top:14px">Obrigado pela preferencia!</div>'
-    + '<div style="height:60mm"></div>'
-    + '</div>';
+    + '<div style="text-align:center;font-size:13px;font-weight:700;margin-top:14px">Obrigado pela preferencia!</div>'
+    + '<div style="height:50mm"></div>';
+
+  const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+    + '<style>'
+    + '*{box-sizing:border-box;margin:0;padding:0}'
+    + 'body{font-family:Arial,sans-serif;font-size:13px;color:#000;background:#fff;width:72mm;padding:3mm 4mm}'
+    + 'table{border-collapse:collapse;width:100%}'
+    + '@page{size:80mm auto;margin:0}'
+    + '</style>'
+    + '</head><body>' + corpo + '</body></html>';
 
   closeOverlay('notaModal');
-  // Blob URL — carrega no iframe como src real, onload dispara corretamente
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
-    + '*{box-sizing:border-box;margin:0;padding:0}'
-    + 'body{font-family:Arial,sans-serif;font-size:15px;color:#000;background:#fff;width:72mm;padding:3mm 4mm}'
-    + '@page{size:80mm auto;margin:0mm}'
-    + '</style></head><body>' + notaHtml + '</body></html>';
-  const blob = new Blob([html], {type:'text/html'});
-  const blobUrl = URL.createObjectURL(blob);
-  let iframe = document.getElementById('_notaIframe');
-  if (iframe) iframe.remove();
-  iframe = document.createElement('iframe');
-  iframe.id = '_notaIframe';
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none';
-  document.body.appendChild(iframe);
-  iframe.onload = function() {
-    try {
+
+  // Abre popup — o browser renderiza em tamanho real e chama print()
+  const popup = window.open('', '_blank', 'width=500,height=700,toolbar=0,scrollbars=0');
+  if (popup) {
+    popup.document.open();
+    popup.document.write(fullHtml);
+    popup.document.close();
+    popup.focus();
+    setTimeout(function() { popup.print(); }, 400);
+  } else {
+    // Fallback iframe com largura real para o browser fazer layout correto
+    let iframe = document.getElementById('_notaIframe');
+    if (iframe) iframe.remove();
+    iframe = document.createElement('iframe');
+    iframe.id = '_notaIframe';
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:80mm;height:600px;border:none;visibility:hidden';
+    document.body.appendChild(iframe);
+    const blob = new Blob([fullHtml], {type:'text/html'});
+    const blobUrl = URL.createObjectURL(blob);
+    iframe.onload = function() {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
-    } catch(e) {
-      // fallback: popup simples
-      const w = window.open(blobUrl, '_blank', 'width=500,height=700');
-      if (w) { w.onload = function(){ w.print(); }; }
-      else toast('⚠️ Permita popups para imprimir', 'error');
-    }
-    setTimeout(function(){ iframe.remove(); URL.revokeObjectURL(blobUrl); }, 3000);
-  };
-  iframe.src = blobUrl;
+      setTimeout(function(){ iframe.remove(); URL.revokeObjectURL(blobUrl); }, 5000);
+    };
+    iframe.src = blobUrl;
+  }
 }
 
 /* ══════════════════════════════════════════
