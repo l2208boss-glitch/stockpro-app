@@ -3822,15 +3822,14 @@ function imprimirNota() {
   const itensRows = v.items.map(i => {
     if (semValor) {
       return `<tr>
-        <td style="padding:7px 0;border-bottom:1px solid #f0f0f0">${i.emoji} <b>${i.name}</b></td>
-        <td style="text-align:center;padding:7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${i.qty} ${i.unit||'un'}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #ddd;font-size:15px"><b>${i.name}</b></td>
+        <td style="text-align:right;padding:8px 0;border-bottom:1px solid #ddd;font-size:15px;white-space:nowrap">${i.qty} ${i.unit||'un'}</td>
       </tr>`;
     }
     return `<tr>
-      <td style="padding:7px 0;border-bottom:1px solid #f0f0f0">${i.emoji} <b>${i.name}</b></td>
-      <td style="text-align:center;padding:7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${i.qty} ${i.unit||'un'}</td>
-      <td style="text-align:right;padding:7px 0 7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${fmtVal(i.precoUSD)}</td>
-      <td style="text-align:right;padding:7px 0 7px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap;font-weight:700">${fmtVal(i.subtotalUSD)}</td>
+      <td style="padding:8px 0;border-bottom:1px solid #ddd;font-size:14px"><b>${i.name}</b></td>
+      <td style="text-align:center;padding:8px 4px;border-bottom:1px solid #ddd;font-size:14px;white-space:nowrap">${i.qty}${i.unit||'un'}</td>
+      <td style="text-align:right;padding:8px 0;border-bottom:1px solid #ddd;font-size:14px;white-space:nowrap">${fmtVal(i.subtotalUSD)}</td>
     </tr>`;
   }).join('');
 
@@ -3859,7 +3858,7 @@ function imprimirNota() {
     : (!semValor ? `<div style="margin:16px 0;padding:8px 14px;background:#f0fdf4;border:1px solid #86efac;text-align:center;font-size:13px;font-weight:700;color:#16a34a">✔ PAGO</div>` : '');
 
   const clienteBlock = cliente
-    ? `<div style="margin:12px 0;padding:8px 12px;background:#f8f8f8;border-left:3px solid #555;font-size:13px"><b>Cliente:</b> ${cliente}</div>`
+    ? `<div style="margin:10px 0 6px;padding:7px 10px;border:1px solid #ccc;border-radius:3px;font-size:15px;font-weight:700">👤 ${cliente}</div>`
     : '';
 
   const assinaturaBlock = fiado
@@ -3883,7 +3882,7 @@ function imprimirNota() {
           <tr style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;border-bottom:1px solid #ccc">
             <th style="text-align:left;padding:4px 0;font-weight:600">Produto</th>
             <th style="text-align:center;padding:4px 8px;font-weight:600">Qtd</th>
-            ${semValor ? '' : '<th style="text-align:right;padding:4px 0;font-weight:600">Preço</th><th style="text-align:right;padding:4px 0 4px 8px;font-weight:600">Total</th>'}
+            ${semValor ? '' : '<th style="text-align:right;padding:4px 0 4px 8px;font-weight:600">Total</th>'}
           </tr>
         </thead>
         <tbody>${itensRows}</tbody>
@@ -3903,8 +3902,8 @@ function imprimirNota() {
   // Blob URL — carrega no iframe como src real, onload dispara corretamente
   const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
     + '*{box-sizing:border-box;margin:0;padding:0}'
-    + 'body{font-family:Arial,sans-serif;font-size:12px;color:#000;background:#fff;padding:4mm}'
-    + '@media print{@page{size:80mm auto;margin:0}}'
+    + 'body{font-family:Arial,sans-serif;font-size:15px;color:#000;background:#fff;width:72mm;padding:3mm 4mm}'
+    + '@page{size:80mm auto;margin:0mm}'
     + '</style></head><body>' + notaHtml + '</body></html>';
   const blob = new Blob([html], {type:'text/html'});
   const blobUrl = URL.createObjectURL(blob);
