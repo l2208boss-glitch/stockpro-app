@@ -3803,6 +3803,84 @@ function abrirNotaOpcional(venda) {
   setTimeout(() => banner.remove(), 12000);
 }
 
+// Remove acentos/caracteres fora do padrão da impressora térmica
+function _notaAscii(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E]/g, '');
+}
+
+// Gera bytes ESC/POS e envia direto ao RawBT (impressão nativa térmica, sem margens do Android)
+function _imprimirNotaRawBT(v, cliente, semValor, fiado, fmtVal, dtStr) {
+  const ESC = '\x1b', GS = '\x1d';
+  const init    = ESC + '@';
+  const center  = ESC + 'a' + '\x01';
+  const left    = ESC + 'a' + '\x00';
+  const boldOn  = ESC + 'E' + '\x01';
+  const boldOff = ESC + 'E' + '\x00';
+  const big     = GS + '!' + '\x11'; // dobro largura+altura
+  const medio   = GS + '!' + '\x01'; // dobro altura
+  const normal  = GS + '!' + '\x00';
+  const W = 48;  // colunas fonte normal em 80mm
+  const linha  = '-'.repeat(W) + '\n';
+  const linha2 = '='.repeat(W) + '\n';
+  const row2 = (a, b, w) => {
+    w = w || W;
+    a = _notaAscii(a); b = _notaAscii(b);
+    const espacos = Math.max(1, w - a.length - b.length);
+    return a + ' '.repeat(espacos) + b + '\n';
+  };
+
+  let t = init + center;
+  t += normal + 'NOTA DE VENDA\n';
+  t += big + boldOn + 'Farmacia\nLondrina\n' + boldOff + normal;
+  t += _notaAscii(dtStr) + '\n';
+  t += 'Op: ' + _notaAscii(v.user || '') + '\n';
+  t += linha2;
+
+  if (cliente) {
+    t += medio + boldOn + 'Cliente: ' + _notaAscii(cliente) + '\n' + boldOff + normal;
+    t += linha2;
+  }
+
+  (v.items || []).forEach(i => {
+    t += medio + boldOn + _notaAscii(i.name) + '\n' + boldOff + normal;
+    if (semValor) {
+      t += i.qty + ' ' + _notaAscii(i.unit || 'un') + '\n';
+    } else {
+      t += left + row2('  ' + i.qty + ' ' + _notaAscii(i.unit || 'un'), fmtVal(i.subtotalUSD) + '  ') + center;
+    }
+    t += linha;
+  });
+
+  if (!semValor) {
+    const pags = (v.pagamentos && v.pagamentos.length)
+      ? v.pagamentos.filter(p => p.valor > 0).map(p => {
+          if (p.moeda === 'BRL') return 'Dinheiro R$ ' + Number(p.valor).toFixed(2);
+          if (p.moeda === 'PIX') return 'PIX R$ ' + Number(p.valor).toFixed(2);
+          if (p.moeda === 'USD') return 'Dolar $' + Number(p.valor).toFixed(2);
+          if (p.moeda === 'PYG') return 'Guarani G$ ' + Math.round(p.valor).toLocaleString('pt-BR');
+          return p.moeda + ' ' + p.valor;
+        }).join(' | ') : '';
+    t += medio + boldOn + row2('TOTAL', _notaAscii(fmtVal(v.totalUSD)), 24) + boldOff + normal;
+    if (pags) t += _notaAscii(pags) + '\n';
+    t += linha2;
+  }
+
+  if (fiado) {
+    t += medio + boldOn + '*** A PAGAR - FIADO ***\n' + boldOff + normal;
+    t += linha2;
+    t += '\n\n\nAssinatura: ____________________\n';
+  } else if (!semValor) {
+    t += medio + boldOn + '** PAGO **\n' + boldOff + normal;
+    t += linha2;
+  }
+
+  t += '\nObrigado pela preferencia!\n';
+  t += '\n\n\n\n\n';           // avanço de papel
+  t += GS + 'V' + 'B' + '\x00'; // corte (ignorado se a impressora nao tiver guilhotina)
+
+  window.location.href = 'rawbt:base64,' + btoa(t);
+}
+
 function imprimirNota() {
   const v = _notaVenda;
   if (!v) return;
@@ -3817,6 +3895,13 @@ function imprimirNota() {
   const fmtVal = (usd) => (emReais && taxaBRL > 0)
     ? 'R$ ' + (Number(usd) * taxaBRL).toFixed(2)
     : '$ ' + Number(usd).toFixed(2);
+
+  // Android com RawBT: envia ESC/POS direto — sem margens nem deslocamento
+  if (/android/i.test(navigator.userAgent)) {
+    closeOverlay('notaModal');
+    _imprimirNotaRawBT(v, cliente, semValor, fiado, fmtVal, dtStr);
+    return;
+  }
 
   const hr1 = '<hr style="border:none;border-top:1px solid #000;margin:5px 0">';
   const hr3 = '<hr style="border:none;border-top:3px solid #000;margin:5px 0">';
@@ -3883,7 +3968,7 @@ function imprimirNota() {
     + totalSection
     + statusBlock
     + '<div style="text-align:center;font-size:13px;font-weight:700;margin-top:14px">Obrigado pela preferencia!</div>'
-    + '<div style="text-align:center;font-size:9px;margin-top:4px">v97</div>'
+    + '<div style="text-align:center;font-size:9px;margin-top:4px">v98</div>'
     + '<div style="height:50mm"></div>';
 
   const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
