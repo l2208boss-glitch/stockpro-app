@@ -3888,7 +3888,7 @@ function _imprimirNotaRawBT(v, cliente, semValor, fiado, fmtVal, dtStr) {
   }
 }
 
-function imprimirNota() {
+function imprimirNota(viaTermica) {
   const v = _notaVenda;
   if (!v) return;
   const cliente  = document.getElementById('notaCliente').value.trim();
@@ -3903,8 +3903,8 @@ function imprimirNota() {
     ? 'R$ ' + (Number(usd) * taxaBRL).toFixed(2)
     : '$ ' + Number(usd).toFixed(2);
 
-  // Android com RawBT: envia ESC/POS direto — sem margens nem deslocamento
-  if (/android/i.test(navigator.userAgent)) {
+  // Térmica via RawBT: envia ESC/POS direto — sem margens nem deslocamento do Android
+  if (viaTermica) {
     closeOverlay('notaModal');
     _imprimirNotaRawBT(v, cliente, semValor, fiado, fmtVal, dtStr);
     return;
@@ -3975,7 +3975,7 @@ function imprimirNota() {
     + totalSection
     + statusBlock
     + '<div style="text-align:center;font-size:13px;font-weight:700;margin-top:14px">Obrigado pela preferencia!</div>'
-    + '<div style="text-align:center;font-size:9px;margin-top:4px">v99</div>'
+    + '<div style="text-align:center;font-size:9px;margin-top:4px">v100</div>'
     + '<div style="height:50mm"></div>';
 
   const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
@@ -8623,9 +8623,10 @@ function flashConfirm(tipo) {
         💡 Após clicar em Imprimir, use <b>Salvar como PDF</b> no diálogo para guardar o arquivo.
       </div>
     </div>
-    <div class="modal-ft">
+    <div class="modal-ft" style="flex-wrap:wrap;gap:8px">
       <button class="btn-cancel" onclick="closeOverlay('notaModal')">Cancelar</button>
-      <button class="btn-confirm save" onclick="imprimirNota()">🖨️ Imprimir / PDF</button>
+      <button class="btn-cancel" onclick="imprimirNota(false)">🖨️ Navegador / PDF</button>
+      <button class="btn-confirm save" onclick="imprimirNota(true)">🖨️ Imprimir Térmica</button>
     </div>
   </div>
 </div>
