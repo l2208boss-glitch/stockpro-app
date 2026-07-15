@@ -3878,7 +3878,14 @@ function _imprimirNotaRawBT(v, cliente, semValor, fiado, fmtVal, dtStr) {
   t += '\n\n\n\n\n';           // avanço de papel
   t += GS + 'V' + 'B' + '\x00'; // corte (ignorado se a impressora nao tiver guilhotina)
 
-  window.location.href = 'rawbt:base64,' + btoa(t);
+  const b64 = btoa(t);
+  // intent:// é o formato que o Chrome Android aceita para abrir apps externos
+  const intentUrl = 'intent:base64,' + b64 + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+  try {
+    window.location.href = intentUrl;
+  } catch(e) {
+    window.location.href = 'rawbt:base64,' + b64;
+  }
 }
 
 function imprimirNota() {
@@ -3968,7 +3975,7 @@ function imprimirNota() {
     + totalSection
     + statusBlock
     + '<div style="text-align:center;font-size:13px;font-weight:700;margin-top:14px">Obrigado pela preferencia!</div>'
-    + '<div style="text-align:center;font-size:9px;margin-top:4px">v98</div>'
+    + '<div style="text-align:center;font-size:9px;margin-top:4px">v99</div>'
     + '<div style="height:50mm"></div>';
 
   const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
