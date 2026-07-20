@@ -827,6 +827,13 @@
     .proc-detail-title { font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
     .proc-detail-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px solid var(--border); }
     /* ─── COMPRAS APP ─── */
+    #vonlineApp { display:none; min-height:100vh; background:var(--bg); }
+    #vonlineApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
+    #vonlineApp main { max-width:960px; margin:0 auto; padding:28px 16px 60px; }
+    .von-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px; }
+    .von-card .vc-nome { font-weight:800; font-size:15px; margin-bottom:6px; }
+    .von-card .vc-linha { display:flex; justify-content:space-between; font-size:13px; color:var(--text-2); padding:2px 0; }
+    .von-card .vc-com { color:var(--success); font-weight:800; }
     #comprasApp { display:none; min-height:100vh; background:var(--bg); }
     #comprasApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
     #comprasApp main { max-width:960px; margin:0 auto; padding:28px 16px 60px; }
@@ -1380,6 +1387,112 @@
 </div>
 
 <!-- ══════════ COMPRAS APP ══════════ -->
+<div id="vonlineApp">
+  <header>
+    <a class="brand" href="#"><div class="brand-icon">🌐</div>StockPro</a>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-weight:700;font-size:14px;color:var(--primary)">Vendas Online</span>
+      <span id="vonRoleBadge" class="role-badge admin"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span id="vonHeaderUser" style="font-size:13px;color:var(--text-2)"></span>
+      <button onclick="backToModeSelect()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-2)">← Modos</button>
+    </div>
+  </header>
+  <main>
+    <div class="sec-hd" style="padding:0 0 16px;flex-wrap:wrap;gap:10px">
+      <div class="sec-title">🌐 Vendas Online</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          <button onclick="vonMesNav(-1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;cursor:pointer;font-size:13px">◀</button>
+          <span id="vonMesLabel" style="font-size:13px;font-weight:600;min-width:90px;text-align:center"></span>
+          <button onclick="vonMesNav(1)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;cursor:pointer;font-size:13px">▶</button>
+        </div>
+        <button id="vonBtnProdutos" onclick="openVonTabModal()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600">📋 Tabela de Produtos</button>
+        <button class="btn-add" onclick="openVonVendaModal()" style="padding:7px 16px;font-size:13px">＋ Nova Venda</button>
+      </div>
+    </div>
+    <div id="vonResumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:20px"></div>
+    <div id="vonList"></div>
+  </main>
+</div>
+
+<!-- ══════════ MODAL — NOVA VENDA ONLINE ══════════ -->
+<div class="overlay" id="vonVendaModal" onclick="overlayClick(event,'vonVendaModal')">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hd">
+      <div class="modal-title">🌐 Nova Venda Online</div>
+      <button class="modal-close" onclick="closeOverlay('vonVendaModal')">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field-group">
+          <label class="field-label">Vendedor *</label>
+          <select id="vonVendedorSel" class="field-input"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Data *</label>
+          <input id="vonData" type="date" class="field-input">
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Produto</label>
+        <select id="vonProdSel" class="field-input" onchange="vonProdChanged()"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end">
+        <div class="field-group">
+          <label class="field-label">Qtd</label>
+          <input id="vonQty" type="number" min="1" value="1" class="field-input">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Preço unit. (R$)</label>
+          <input id="vonPreco" type="number" min="0" step="0.01" class="field-input">
+        </div>
+        <button onclick="vonAddItem()" class="btn-add" style="padding:9px 16px;font-size:13px;margin-bottom:14px">＋</button>
+      </div>
+      <div id="vonItensList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;padding:8px 0;border-top:1px solid var(--border)">
+        <span>Total</span><span id="vonTotalLbl">R$ 0.00</span>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('vonVendaModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="saveVonVenda()">✅ Registrar Venda</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL — TABELA DE PRODUTOS ONLINE (ADMIN) ══════════ -->
+<div class="overlay" id="vonTabModal" onclick="overlayClick(event,'vonTabModal')">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hd">
+      <div class="modal-title">📋 Tabela de Produtos Online</div>
+      <button class="modal-close" onclick="closeOverlay('vonTabModal')">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end">
+        <div class="field-group">
+          <label class="field-label">Produto</label>
+          <input id="vonTabNome" class="field-input" placeholder="Nome">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Custo (R$)</label>
+          <input id="vonTabCusto" type="number" min="0" step="0.01" class="field-input">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Venda (R$)</label>
+          <input id="vonTabPreco" type="number" min="0" step="0.01" class="field-input">
+        </div>
+        <button id="vonTabSaveBtn" onclick="saveVonProduto()" class="btn-add" style="padding:9px 14px;font-size:13px;margin-bottom:14px">＋</button>
+      </div>
+      <div id="vonTabList" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('vonTabModal')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="comprasApp">
   <header>
     <a class="brand" href="#"><div class="brand-icon">📦</div>StockPro</a>
@@ -2530,6 +2643,7 @@ function showModeSelectPage() {
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('producaoApp').style.display = 'none';
   document.getElementById('comprasApp').style.display = 'none';
+  document.getElementById('vonlineApp').style.display = 'none';
   const badge = document.getElementById('modeRoleBadge');
   badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
   badge.className = 'role-badge ' + user.role;
@@ -2558,6 +2672,12 @@ function showModeSelectPage() {
     <div class="mode-title">Compras</div>
     <div class="mode-sub">Fornecedores e pagamentos em aberto</div>
   </div>`;
+  const hasVonline = currentFilial && currentFilial.id === FARMACIA_ID;
+  if (hasVonline) cards += `<div class="mode-card" onclick="enterMode('vonline')">
+    <div class="mode-icon">🌐</div>
+    <div class="mode-title">Vendas Online</div>
+    <div class="mode-sub">Registrar vendas dos vendedores online</div>
+  </div>`;
   document.getElementById('modeCardsContainer').innerHTML = cards;
 }
 
@@ -2567,6 +2687,7 @@ function showEstoqueApp() {
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('producaoApp').style.display = 'none';
   document.getElementById('comprasApp').style.display = 'none';
+  document.getElementById('vonlineApp').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('filialNameBadge').textContent = currentFilial.nome;
   const badge = document.getElementById('roleBadge');
@@ -2590,6 +2711,7 @@ function showCaixaApp() {
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('comprasApp').style.display = 'none';
+  document.getElementById('vonlineApp').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'block';
   const badge = document.getElementById('caixaRoleBadge');
   badge.textContent = user.role === 'admin' ? 'Admin' : 'Operador';
@@ -2617,6 +2739,7 @@ function enterMode(mode) {
   else if (mode === 'caixa') showCaixaApp();
   else if (mode === 'producao') showProducaoApp();
   else if (mode === 'compras') showComprasApp();
+  else if (mode === 'vonline') showVonlineApp();
 }
 
 function backToModeSelect() {
@@ -2630,8 +2753,12 @@ function backToModeSelect() {
   atendentes = []; atendenteSel = '';
   if (unsubCompras) { unsubCompras(); unsubCompras = null; }
   compras = [];
+  if (unsubVonVendas) { unsubVonVendas(); unsubVonVendas = null; }
+  if (unsubVonTab)    { unsubVonTab();    unsubVonTab    = null; }
+  vonVendas = []; vonTab = []; vonItems = [];
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('comprasApp').style.display = 'none';
+  document.getElementById('vonlineApp').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   showModeSelectPage();
 }
@@ -2642,6 +2769,7 @@ function showProducaoApp() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('comprasApp').style.display = 'none';
+  document.getElementById('vonlineApp').style.display = 'none';
   document.getElementById('producaoApp').style.display = 'block';
   const isAdmin = user.role === 'admin';
   // Header
@@ -8185,6 +8313,7 @@ function showComprasApp() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
   document.getElementById('producaoApp').style.display = 'none';
+  document.getElementById('vonlineApp').style.display = 'none';
   document.getElementById('comprasApp').style.display = 'block';
   document.getElementById('comprasFilialBadge').textContent = currentFilial.nome;
   document.getElementById('comprasRoleBadge').textContent = 'Admin';
@@ -8200,6 +8329,273 @@ function showComprasApp() {
       renderComprasList();
       renderFatCompra();
     }, console.error);
+}
+
+/* ══════════════════════════════════════════
+   VENDAS ONLINE (comissão sobre lucro)
+══════════════════════════════════════════ */
+let unsubVonVendas = null, unsubVonTab = null;
+let vonVendas = [], vonTab = [], vonVendedores = [], vonMes = '', vonItems = [], vonTabEditId = null;
+
+const fmtR$ = n => 'R$ ' + (Number(n)||0).toFixed(2);
+
+function showVonlineApp() {
+  currentMode = 'vonline';
+  ['modePage','app','caixaApp','producaoApp','comprasApp'].forEach(i => document.getElementById(i).style.display = 'none');
+  document.getElementById('vonlineApp').style.display = 'block';
+  const isAdmin = user.role === 'admin';
+  const badge = document.getElementById('vonRoleBadge');
+  badge.textContent = isAdmin ? 'Admin' : 'Operador';
+  badge.className = 'role-badge ' + user.role;
+  document.getElementById('vonHeaderUser').textContent = '👤 ' + user.name;
+  document.getElementById('vonBtnProdutos').style.display = isAdmin ? '' : 'none';
+  document.getElementById('vonResumo').style.display = isAdmin ? 'grid' : 'none';
+  vonMes = new Date().toISOString().slice(0,7);
+  document.getElementById('vonMesLabel').textContent = vonMes;
+  loadVonVendedores();
+  if (unsubVonTab) unsubVonTab();
+  unsubVonTab = db.collection(`lojas/${FARMACIA_ID}/tabela_online`).orderBy('name')
+    .onSnapshot(s => { vonTab = s.docs.map(d => d.data()); renderVonProdSelect(); renderVonTabList(); }, console.error);
+  if (unsubVonVendas) unsubVonVendas();
+  unsubVonVendas = db.collection(`lojas/${FARMACIA_ID}/vendas_online`).orderBy('ts','desc').limit(500)
+    .onSnapshot(s => { vonVendas = s.docs.map(d => d.data()); renderVonResumo(); renderVonList(); }, console.error);
+}
+
+async function loadVonVendedores() {
+  const ref = db.doc(`lojas/${FARMACIA_ID}/config/vendedoresOnline`);
+  try {
+    const snap = await ref.get();
+    if (snap.exists && Array.isArray(snap.data().lista) && snap.data().lista.length) {
+      vonVendedores = snap.data().lista;
+    } else {
+      vonVendedores = [{nome:'Liz',pct:5},{nome:'Anderson',pct:5},{nome:'Michael',pct:5}];
+      await ref.set({ lista: vonVendedores });
+    }
+  } catch(e) { console.error(e); vonVendedores = [{nome:'Liz',pct:5},{nome:'Anderson',pct:5},{nome:'Michael',pct:5}]; }
+  renderVonVendedorSel();
+  renderVonResumo();
+}
+
+function renderVonVendedorSel() {
+  const sel = document.getElementById('vonVendedorSel');
+  if (sel) sel.innerHTML = '<option value="">Selecione...</option>'
+    + vonVendedores.map(v => `<option value="${v.nome}">${v.nome}</option>`).join('');
+}
+
+function vonMesNav(delta) {
+  const [y, m] = vonMes.split('-').map(Number);
+  vonMes = new Date(y, m - 1 + delta, 1).toISOString().slice(0,7);
+  document.getElementById('vonMesLabel').textContent = vonMes;
+  renderVonResumo();
+  renderVonList();
+}
+
+function vonVendasDoMes() {
+  return vonVendas.filter(v => (v.data||'').slice(0,7) === vonMes);
+}
+
+/* ── Resumo por vendedor (admin) ── */
+function renderVonResumo() {
+  const el = document.getElementById('vonResumo');
+  if (!el || user.role !== 'admin') return;
+  const doMes = vonVendasDoMes();
+  el.innerHTML = vonVendedores.map(vd => {
+    const suas = doMes.filter(v => v.vendedor === vd.nome);
+    const total = suas.reduce((a,v) => a + (v.total||0), 0);
+    const lucro = suas.reduce((a,v) => a + (v.lucro||0), 0);
+    const com = lucro * (vd.pct||0) / 100;
+    return `<div class="von-card" onclick="editVonPct('${vd.nome}')" style="cursor:pointer" title="Clique para alterar o % de comissão">
+      <div class="vc-nome">${vd.nome} <span style="font-size:11px;color:var(--text-3);font-weight:600">(${vd.pct}%)</span></div>
+      <div class="vc-linha"><span>Vendas</span><span>${suas.length}</span></div>
+      <div class="vc-linha"><span>Total vendido</span><span>${fmtR$(total)}</span></div>
+      <div class="vc-linha"><span>Lucro</span><span>${fmtR$(lucro)}</span></div>
+      <div class="vc-linha"><span>Comissão</span><span class="vc-com">${fmtR$(com)}</span></div>
+    </div>`;
+  }).join('');
+}
+
+async function editVonPct(nome) {
+  if (user.role !== 'admin') return;
+  const vd = vonVendedores.find(v => v.nome === nome);
+  if (!vd) return;
+  const novo = prompt(`% de comissão de ${nome} (sobre o lucro):`, vd.pct);
+  if (novo === null) return;
+  const pct = parseFloat(String(novo).replace(',','.'));
+  if (isNaN(pct) || pct < 0 || pct > 100) return toast('Percentual inválido', 'error');
+  vd.pct = pct;
+  await db.doc(`lojas/${FARMACIA_ID}/config/vendedoresOnline`).set({ lista: vonVendedores });
+  renderVonResumo();
+  toast(`Comissão de ${nome}: ${pct}%`);
+}
+
+/* ── Lista de vendas do mês ── */
+function renderVonList() {
+  const el = document.getElementById('vonList');
+  if (!el) return;
+  const isAdmin = user.role === 'admin';
+  const doMes = vonVendasDoMes();
+  if (!doMes.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:40px 0">Nenhuma venda online em ' + vonMes + '</div>'; return; }
+  el.innerHTML = doMes.map(v => {
+    const itens = (v.items||[]).map(i => `${i.qty}x ${i.name}`).join(', ');
+    const dt = (v.data||'').split('-').reverse().join('/');
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:700;font-size:14px">${v.vendedor} <span style="font-weight:400;color:var(--text-3);font-size:12px">· ${dt}</span></div>
+        <div style="font-size:13px;color:var(--text-2);margin-top:2px">${itens}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:800;font-size:14px">${fmtR$(v.total)}</div>
+        ${isAdmin ? `<div style="font-size:12px;color:var(--success);font-weight:700">Lucro: ${fmtR$(v.lucro)}</div>` : ''}
+      </div>
+      ${isAdmin ? `<button onclick="deleteVonVenda('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.5" title="Excluir">🗑</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function deleteVonVenda(id) {
+  if (user.role !== 'admin') return;
+  if (!confirm('Excluir esta venda online?')) return;
+  await db.doc(`lojas/${FARMACIA_ID}/vendas_online/${id}`).delete();
+  toast('Venda excluída');
+}
+
+/* ── Nova venda ── */
+function openVonVendaModal() {
+  vonItems = [];
+  renderVonVendedorSel();
+  renderVonProdSelect();
+  renderVonItens();
+  document.getElementById('vonData').value = new Date().toISOString().slice(0,10);
+  document.getElementById('vonQty').value = 1;
+  document.getElementById('vonPreco').value = '';
+  document.getElementById('vonVendaModal').classList.add('on');
+}
+
+function renderVonProdSelect() {
+  const sel = document.getElementById('vonProdSel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Selecione o produto...</option>'
+    + vonTab.map(p => `<option value="${p.id}">${p.name} — ${fmtR$(p.preco)}</option>`).join('');
+}
+
+function vonProdChanged() {
+  const p = vonTab.find(x => String(x.id) === String(document.getElementById('vonProdSel').value));
+  document.getElementById('vonPreco').value = p ? p.preco : '';
+}
+
+function vonAddItem() {
+  const prodId = document.getElementById('vonProdSel').value;
+  const p = vonTab.find(x => String(x.id) === String(prodId));
+  if (!p) return toast('Selecione o produto', 'error');
+  const qty = parseInt(document.getElementById('vonQty').value) || 0;
+  if (qty < 1) return toast('Quantidade inválida', 'error');
+  const preco = parseFloat(document.getElementById('vonPreco').value);
+  if (isNaN(preco) || preco <= 0) return toast('Preço inválido', 'error');
+  vonItems.push({ prodId: p.id, name: p.name, qty, preco, custo: Number(p.custo)||0 });
+  document.getElementById('vonProdSel').value = '';
+  document.getElementById('vonQty').value = 1;
+  document.getElementById('vonPreco').value = '';
+  renderVonItens();
+}
+
+function vonRemoveItem(idx) {
+  vonItems.splice(idx, 1);
+  renderVonItens();
+}
+
+function renderVonItens() {
+  const el = document.getElementById('vonItensList');
+  el.innerHTML = vonItems.map((i, idx) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px">
+      <span>${i.qty}x ${i.name}</span>
+      <span style="display:flex;align-items:center;gap:10px"><b>${fmtR$(i.qty * i.preco)}</b>
+      <button onclick="vonRemoveItem(${idx})" style="background:none;border:none;cursor:pointer;opacity:.6">✕</button></span>
+    </div>`).join('');
+  const total = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
+  document.getElementById('vonTotalLbl').textContent = fmtR$(total);
+}
+
+async function saveVonVenda() {
+  const vendedor = document.getElementById('vonVendedorSel').value;
+  if (!vendedor) return toast('Selecione o vendedor', 'error');
+  const data = document.getElementById('vonData').value;
+  if (!data) return toast('Informe a data', 'error');
+  if (!vonItems.length) return toast('Adicione pelo menos 1 produto', 'error');
+  const total = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
+  const custoTotal = vonItems.reduce((a,i) => a + i.qty * i.custo, 0);
+  const venda = {
+    id: 'von' + Date.now(),
+    ts: Date.now(),
+    data, vendedor,
+    items: vonItems,
+    total, custoTotal,
+    lucro: total - custoTotal,
+    user: user.name
+  };
+  await db.doc(`lojas/${FARMACIA_ID}/vendas_online/${venda.id}`).set(venda);
+  closeOverlay('vonVendaModal');
+  toast('✅ Venda online registrada');
+}
+
+/* ── Tabela de produtos online (admin) ── */
+function openVonTabModal() {
+  if (user.role !== 'admin') return;
+  vonTabEditId = null;
+  document.getElementById('vonTabNome').value = '';
+  document.getElementById('vonTabCusto').value = '';
+  document.getElementById('vonTabPreco').value = '';
+  document.getElementById('vonTabSaveBtn').textContent = '＋';
+  renderVonTabList();
+  document.getElementById('vonTabModal').classList.add('on');
+}
+
+async function saveVonProduto() {
+  const name = document.getElementById('vonTabNome').value.trim();
+  const custo = parseFloat(document.getElementById('vonTabCusto').value);
+  const preco = parseFloat(document.getElementById('vonTabPreco').value);
+  if (!name) return toast('Informe o nome', 'error');
+  if (isNaN(custo) || custo < 0) return toast('Custo inválido', 'error');
+  if (isNaN(preco) || preco <= 0) return toast('Preço inválido', 'error');
+  const id = vonTabEditId || ('vt' + Date.now());
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).set({ id, name, custo, preco });
+  vonTabEditId = null;
+  document.getElementById('vonTabNome').value = '';
+  document.getElementById('vonTabCusto').value = '';
+  document.getElementById('vonTabPreco').value = '';
+  document.getElementById('vonTabSaveBtn').textContent = '＋';
+  toast('Produto salvo');
+}
+
+function editVonProduto(id) {
+  const p = vonTab.find(x => String(x.id) === String(id));
+  if (!p) return;
+  vonTabEditId = p.id;
+  document.getElementById('vonTabNome').value = p.name;
+  document.getElementById('vonTabCusto').value = p.custo;
+  document.getElementById('vonTabPreco').value = p.preco;
+  document.getElementById('vonTabSaveBtn').textContent = '💾';
+}
+
+async function deleteVonProduto(id) {
+  if (!confirm('Excluir este produto da tabela online?')) return;
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).delete();
+  toast('Produto excluído');
+}
+
+function renderVonTabList() {
+  const el = document.getElementById('vonTabList');
+  if (!el) return;
+  if (!vonTab.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:20px 0;font-size:13px">Nenhum produto cadastrado ainda</div>'; return; }
+  el.innerHTML = vonTab.map(p => `
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px">
+      <span style="font-weight:600">${p.name}</span>
+      <span style="display:flex;align-items:center;gap:10px">
+        <span style="color:var(--text-3)">Custo ${fmtR$(p.custo)}</span>
+        <b>${fmtR$(p.preco)}</b>
+        <button onclick="editVonProduto('${p.id}')" style="background:none;border:none;cursor:pointer;opacity:.6">✏️</button>
+        <button onclick="deleteVonProduto('${p.id}')" style="background:none;border:none;cursor:pointer;opacity:.6">🗑</button>
+      </span>
+    </div>`).join('');
 }
 
 function fmtMoeda(valor, moeda) {
