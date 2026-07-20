@@ -8676,15 +8676,16 @@ const VON_CUSTOS_USD = {
   'NAD+ 1000 Pen': 80,
 };
 const VON_CUSTOS_COTACAO = 5.30;
+const VON_CUSTOS_FRETE = 1.25; // +25% de frete sobre o valor da tabela
 
 async function importVonCustos() {
   if (user.role !== 'admin') return;
   const alvos = vonTab.filter(p => VON_CUSTOS_USD[p.name] != null);
   if (!alvos.length) return toast('Nenhum produto da lista de custos encontrado — importe a tabela primeiro', 'error');
-  if (!confirm(`Atualizar o custo de ${alvos.length} produtos (USD x ${VON_CUSTOS_COTACAO})?`)) return;
+  if (!confirm(`Atualizar o custo de ${alvos.length} produtos (USD x ${VON_CUSTOS_COTACAO} + 25% frete)?`)) return;
   const batch = db.batch();
   alvos.forEach(p => {
-    const custo = Math.round(VON_CUSTOS_USD[p.name] * VON_CUSTOS_COTACAO * 100) / 100;
+    const custo = Math.round(VON_CUSTOS_USD[p.name] * VON_CUSTOS_COTACAO * VON_CUSTOS_FRETE * 100) / 100;
     batch.update(db.doc(`lojas/${FARMACIA_ID}/tabela_online/${p.id}`), { custo });
   });
   await batch.commit();
