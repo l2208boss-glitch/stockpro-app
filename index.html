@@ -8363,17 +8363,26 @@ function showVonlineApp() {
     .onSnapshot(s => { vonVendas = s.docs.map(d => d.data()); renderVonResumo(); renderVonList(); }, console.error);
 }
 
+const VON_VENDEDORES_PADRAO = [{nome:'Liz',pct:5},{nome:'Anderson',pct:5},{nome:'Michael',pct:5},{nome:'Saulo',pct:5}];
+
 async function loadVonVendedores() {
   const ref = db.doc(`lojas/${FARMACIA_ID}/config/vendedoresOnline`);
   try {
     const snap = await ref.get();
     if (snap.exists && Array.isArray(snap.data().lista) && snap.data().lista.length) {
       vonVendedores = snap.data().lista;
+      // Garante que os vendedores padrão sempre existam (adiciona os que faltarem)
+      const nomes = new Set(vonVendedores.map(v => v.nome.toLowerCase()));
+      const faltando = VON_VENDEDORES_PADRAO.filter(v => !nomes.has(v.nome.toLowerCase()));
+      if (faltando.length) {
+        vonVendedores = vonVendedores.concat(faltando);
+        await ref.set({ lista: vonVendedores });
+      }
     } else {
-      vonVendedores = [{nome:'Liz',pct:5},{nome:'Anderson',pct:5},{nome:'Michael',pct:5}];
+      vonVendedores = VON_VENDEDORES_PADRAO.slice();
       await ref.set({ lista: vonVendedores });
     }
-  } catch(e) { console.error(e); vonVendedores = [{nome:'Liz',pct:5},{nome:'Anderson',pct:5},{nome:'Michael',pct:5}]; }
+  } catch(e) { console.error(e); vonVendedores = VON_VENDEDORES_PADRAO.slice(); }
   renderVonVendedorSel();
   renderVonResumo();
 }
