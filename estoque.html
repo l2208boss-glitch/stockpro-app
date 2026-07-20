@@ -1488,6 +1488,7 @@
       <div id="vonTabList" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     </div>
     <div class="modal-ft">
+      <button class="btn-cancel" onclick="importVonTabela()" title="Importa a tabela de preços padrão (não duplica)">⬇️ Importar tabela</button>
       <button class="btn-cancel" onclick="closeOverlay('vonTabModal')">Fechar</button>
     </div>
   </div>
@@ -8474,8 +8475,13 @@ function openVonVendaModal() {
 function renderVonProdSelect() {
   const sel = document.getElementById('vonProdSel');
   if (!sel) return;
+  const grupos = {};
+  vonTab.forEach(p => { const c = p.cat || 'Outros'; (grupos[c] = grupos[c] || []).push(p); });
   sel.innerHTML = '<option value="">Selecione o produto...</option>'
-    + vonTab.map(p => `<option value="${p.id}">${p.name} — ${fmtR$(p.preco)}</option>`).join('');
+    + Object.keys(grupos).sort().map(c =>
+        `<optgroup label="${c}">` + grupos[c].map(p =>
+          `<option value="${p.id}">${p.name} — ${fmtR$(p.preco)}</option>`).join('') + '</optgroup>'
+      ).join('');
 }
 
 function vonProdChanged() {
@@ -8580,6 +8586,83 @@ async function deleteVonProduto(id) {
   if (!confirm('Excluir este produto da tabela online?')) return;
   await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).delete();
   toast('Produto excluído');
+}
+
+/* ── Importação da tabela de preços online (seed) ── */
+const VON_TABELA_SEED = [
+  // COOPER / ALPHA PHARMA / GENIC
+  ['Cooper/Alpha/Genic','Enantato Cooper',350],['Cooper/Alpha/Genic','Deca Alpha Pharma',408],
+  ['Cooper/Alpha/Genic','Dura Cooper',350],['Cooper/Alpha/Genic','Primobolan Cooper',900],
+  ['Cooper/Alpha/Genic','Cipionato Cooper',300],['Cooper/Alpha/Genic','Turbolic Cooper',223],
+  ['Cooper/Alpha/Genic','Oxandrolona Cooper',260],['Cooper/Alpha/Genic','Masteron Genic',371],
+  // ZPHC
+  ['ZPHC','Clomid',230],['ZPHC','Halotestin 100comp',638],['ZPHC','HCG 5.000ui',223],
+  ['ZPHC','NPP',215],['ZPHC','Deca Mix (4 tipos de Deca)',282],['ZPHC','Nebido',223],
+  ['ZPHC','Oxandrolona 50mg',519],['ZPHC','Rapid Mix',223],['ZPHC','Roacutan',297],
+  ['ZPHC','Tirze ZPHC 150mg',1595],['ZPHC','Trestolona Acetato 50mg',445],
+  ['ZPHC','ZPHC Reta 200 (Caneta 60mg)',1484],['ZPHC','Tirz 75mg Caneta',1187],
+  ['ZPHC','Trestolone Enan 100mg',742],['ZPHC','TB500 20mg',616],['ZPHC','Testo Prop',126],
+  ['ZPHC','Epithalon',965],['ZPHC','Glow Pro Mix 60mg Kit',928],['ZPHC','HGH Frag 25mg Kit',928],
+  ['ZPHC','HGH Frag 50mg Kit',1373],['ZPHC','RHGH Frag 12,5mg Kit',890],
+  ['ZPHC','AOD 25mg Kit 5 Viales',1039],['ZPHC','AOD 12,5mg Kit 5 Viales',890],
+  ['ZPHC','Mega Mass Mix',965],['ZPHC','Ultra Rehab Mix 50mg',1076],['ZPHC','Ultra Rehab Mix 20mg',742],
+  ['ZPHC','TB500 25mg 5 Vial',890],['ZPHC','BPC157 25mg 5 Viales',631],['ZPHC','BPC157 20mg 1 Vial',482],
+  ['ZPHC','GHK-CU 60mg Kit',705],['ZPHC','Super Slim Mix 55mg',1781],['ZPHC','Super Slim Mix 27,5mg',1781],
+  ['ZPHC','IGF-1 L3 1mg Kit',816],['ZPHC','NAD+ 1000 1 Vial',557],['ZPHC','NAD+ 1000 Pen',594],
+  // LANDERLAN
+  ['Landerlan','Decanoato 10ml Gold',150],['Landerlan','Decanoato 5ml',70],
+  ['Landerlan','Durateston 10ML',150],['Landerlan','Durateston 1ml',25],
+  ['Landerlan','Bolderona',150],['Landerlan','Cipionato',140],['Landerlan','Masteron Inj Gold',180],
+  ['Landerlan','Master Oral',120],['Landerlan','Testonat Enan 4ML',70],
+  ['Landerlan','Testo Enanatato Gold',150],['Landerlan','Oxandrolona 5mg',170],
+  ['Landerlan','Propionato',120],['Landerlan','Androlic Proviron',90],
+  ['Landerlan','Clebuterol Lander',90],['Landerlan','Stano Oral',80],
+  ['Landerlan','Trembo Enan',150],['Landerlan','Trembo Acetato',150],['Landerlan','Hemogenin',80],
+  ['Landerlan','Primobolan',260],['Landerlan','HCG',150],['Landerlan','Stano 15ml',80],
+  ['Landerlan','Stano 30ml',130],['Landerlan','Proviron',90],['Landerlan','Fenil Npp',150],
+  ['Landerlan','Dianabol Lander',80],['Landerlan','GH Lander',1480],
+  // GPP
+  ['GPP','Dura 300mg 5ml',70],['GPP','Dura 300mg 10ml',130],['GPP','Dura 300mg 1ml',20],
+  ['GPP','Enan 300mg 5ml',70],['GPP','Enan 300mg 10ml',130],['GPP','Cipio 200mg 5ml',60],
+  ['GPP','Cipio 200mg 10ml',110],['GPP','Deca 300mg 5ml',70],['GPP','Deca 300mg 10ml',130],
+  ['GPP','Fenil Npp 100mg 10ml',130],['GPP','Propi 100mg 5ml',60],['GPP','Propi 100mg 10ml',100],
+  ['GPP','Primobolan 100mg 10ml',230],['GPP','Enant Trem 200mg 10ml',135],
+  ['GPP','Trembo Ace 100mg 10ml',135],['GPP','Master 100mg 10ml',150],['GPP','Bold 250mg 10ml',130],
+  ['GPP','Shyntex (local) 50ml',100],['GPP','Stano 50mg 15ml',60],['GPP','Stano 50mg 30ml',120],
+  ['GPP','Oxan 10mg 100 capsulas',150],['GPP','Diana 10mg 100 capsulas',60],
+  ['GPP','Stano Oral 10mg 100 capsulas',60],['GPP','Sibu GPP 15mg 30 capsulas',60],
+  ['GPP','Desobesi GPP 25mg 30 capsulas',60],['GPP','Hemogenia 50mg 20 capsulas',60],
+  ['GPP','Propionato de Testo',100],['GPP','Proviron GPP 25mg 20 capsulas',70],
+  ['GPP','Anastrozol GPP 1mg 30 capsulas',100],['GPP','Tamoxifeno 20mg 50 capsulas',60],
+  // TIRZEPATIDA
+  ['Tirzepatida','Tirzec 5mg',460],['Tirzepatida','Tirzec 10mg',550],['Tirzepatida','Tirzec 15mg',600],
+  ['Tirzepatida','TG 5mg',408],['Tirzepatida','TG 10mg',550],['Tirzepatida','TG 12,5mg',650],
+  ['Tirzepatida','TG 15mg',670],['Tirzepatida','Lipoless 2,5mg',408],['Tirzepatida','Lipoless 7,5mg',445],
+  ['Tirzepatida','Lipoless 15mg',631],['Tirzepatida','Lipoless 15 MD',600],
+  ['Tirzepatida','Lipoland 15mg',650],['Tirzepatida','Tirze drall 15mg',640],
+  ['Tirzepatida','Gluconex 15mg',670],['Tirzepatida','Tirzec 4 Ampolas',650],
+  // NOVEXA / SYNEDICA
+  ['Novexa/Synedica','TB-500 10mg Novexa',297],['Novexa/Synedica','BPC-157 10mg Novexa',297],
+  ['Novexa/Synedica','Retatrutide 50mg Novexa',670],['Novexa/Synedica','Retatrutide Caneta 40mg',800],
+];
+
+async function importVonTabela() {
+  if (user.role !== 'admin') return;
+  const existentes = new Set(vonTab.map(p => p.name.toLowerCase()));
+  const novos = VON_TABELA_SEED.filter(([,name]) => !existentes.has(name.toLowerCase()));
+  if (!novos.length) return toast('Todos os produtos da tabela já estão cadastrados');
+  if (!confirm(`Importar ${novos.length} produtos da tabela? (custos ficam em R$ 0 para você preencher depois)`)) return;
+  const base = Date.now();
+  let batch = db.batch(), count = 0;
+  for (let i = 0; i < novos.length; i++) {
+    const [cat, name, preco] = novos[i];
+    const id = 'vt' + (base + i);
+    batch.set(db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`), { id, name, cat, custo: 0, preco });
+    count++;
+    if (count === 400) { await batch.commit(); batch = db.batch(); count = 0; }
+  }
+  if (count) await batch.commit();
+  toast(`✅ ${novos.length} produtos importados`);
 }
 
 function renderVonTabList() {
