@@ -1451,8 +1451,15 @@
         <button onclick="vonAddItem()" class="btn-add" style="padding:9px 16px;font-size:13px;margin-bottom:14px">＋</button>
       </div>
       <div id="vonItensList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div class="field-group" style="margin-bottom:6px">
+        <label class="field-label">Frete (R$) — não entra na comissão</label>
+        <input id="vonFrete" type="number" min="0" step="0.01" value="0" class="field-input" oninput="renderVonItens()" placeholder="0.00">
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-2);padding:2px 0">
+        <span>Produtos</span><span id="vonSubtotalLbl">R$ 0.00</span>
+      </div>
       <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;padding:8px 0;border-top:1px solid var(--border)">
-        <span>Total</span><span id="vonTotalLbl">R$ 0.00</span>
+        <span>Total (c/ frete)</span><span id="vonTotalLbl">R$ 0.00</span>
       </div>
     </div>
     <div class="modal-ft">
@@ -8456,6 +8463,7 @@ function renderVonList() {
       </div>
       <div style="text-align:right">
         <div style="font-weight:800;font-size:14px">${fmtR$(v.total)}</div>
+        ${(v.frete>0) ? `<div style="font-size:11px;color:var(--text-3)">Frete ${fmtR$(v.frete)}</div>` : ''}
         ${isAdmin ? `<div style="font-size:12px;color:var(--success);font-weight:700">Lucro: ${fmtR$(v.lucro)}</div>` : ''}
       </div>
       ${isAdmin ? `<button onclick="deleteVonVenda('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.5" title="Excluir">🗑</button>` : ''}
@@ -8479,6 +8487,7 @@ function openVonVendaModal() {
   document.getElementById('vonData').value = new Date().toISOString().slice(0,10);
   document.getElementById('vonQty').value = 1;
   document.getElementById('vonPreco').value = '';
+  document.getElementById('vonFrete').value = 0;
   document.getElementById('vonVendaModal').classList.add('on');
 }
 
@@ -8527,8 +8536,10 @@ function renderVonItens() {
       <span style="display:flex;align-items:center;gap:10px"><b>${fmtR$(i.qty * i.preco)}</b>
       <button onclick="vonRemoveItem(${idx})" style="background:none;border:none;cursor:pointer;opacity:.6">✕</button></span>
     </div>`).join('');
-  const total = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
-  document.getElementById('vonTotalLbl').textContent = fmtR$(total);
+  const subtotal = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
+  const frete = parseFloat(document.getElementById('vonFrete').value) || 0;
+  document.getElementById('vonSubtotalLbl').textContent = fmtR$(subtotal);
+  document.getElementById('vonTotalLbl').textContent = fmtR$(subtotal + frete);
 }
 
 async function saveVonVenda() {
@@ -8537,15 +8548,19 @@ async function saveVonVenda() {
   const data = document.getElementById('vonData').value;
   if (!data) return toast('Informe a data', 'error');
   if (!vonItems.length) return toast('Adicione pelo menos 1 produto', 'error');
-  const total = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
+  const subtotal = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
   const custoTotal = vonItems.reduce((a,i) => a + i.qty * i.custo, 0);
+  const frete = parseFloat(document.getElementById('vonFrete').value) || 0;
   const venda = {
     id: 'von' + Date.now(),
     ts: Date.now(),
     data, vendedor,
     items: vonItems,
-    total, custoTotal,
-    lucro: total - custoTotal,
+    subtotal,           // produtos, base do lucro
+    frete,              // não entra na comissão
+    total: subtotal + frete,  // o que o cliente pagou
+    custoTotal,
+    lucro: subtotal - custoTotal,  // lucro só dos produtos (sem frete)
     user: user.name
   };
   await db.doc(`lojas/${FARMACIA_ID}/vendas_online/${venda.id}`).set(venda);
