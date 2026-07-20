@@ -1489,6 +1489,7 @@
     </div>
     <div class="modal-ft">
       <button class="btn-cancel" onclick="importVonTabela()" title="Importa a tabela de preços padrão (não duplica)">⬇️ Importar tabela</button>
+      <button class="btn-cancel" onclick="importVonCustos()" title="Aplica os custos em USD convertidos a R$ (cotação 5.30)">💲 Importar custos</button>
       <button class="btn-cancel" onclick="closeOverlay('vonTabModal')">Fechar</button>
     </div>
   </div>
@@ -8645,6 +8646,43 @@ const VON_TABELA_SEED = [
   ['Novexa/Synedica','TB-500 10mg Novexa',297],['Novexa/Synedica','BPC-157 10mg Novexa',297],
   ['Novexa/Synedica','Retatrutide 50mg Novexa',670],['Novexa/Synedica','Retatrutide Caneta 40mg',800],
 ];
+
+// Custos em USD (foto 23-06-26) — convertidos a R$ na cotação 5.30 ao importar
+const VON_CUSTOS_USD = {
+  'Glow Pro Mix 60mg Kit': 125,
+  'HGH Frag 25mg Kit': 125,
+  'HGH Frag 50mg Kit': 185,
+  'RHGH Frag 12,5mg Kit': 120,
+  'AOD 25mg Kit 5 Viales': 140,
+  'AOD 12,5mg Kit 5 Viales': 120,
+  'Mega Mass Mix': 130,
+  'Ultra Rehab Mix 50mg': 145,
+  'Ultra Rehab Mix 20mg': 100,
+  'TB500 25mg 5 Vial': 120,
+  'BPC157 25mg 5 Viales': 85,
+  'BPC157 20mg 1 Vial': 65,
+  'GHK-CU 60mg Kit': 95,
+  'Super Slim Mix 55mg': 240,
+  'Super Slim Mix 27,5mg': 240,
+  'IGF-1 L3 1mg Kit': 110,
+  'NAD+ 1000 1 Vial': 75,
+  'NAD+ 1000 Pen': 80,
+};
+const VON_CUSTOS_COTACAO = 5.30;
+
+async function importVonCustos() {
+  if (user.role !== 'admin') return;
+  const alvos = vonTab.filter(p => VON_CUSTOS_USD[p.name] != null);
+  if (!alvos.length) return toast('Nenhum produto da lista de custos encontrado — importe a tabela primeiro', 'error');
+  if (!confirm(`Atualizar o custo de ${alvos.length} produtos (USD x ${VON_CUSTOS_COTACAO})?`)) return;
+  const batch = db.batch();
+  alvos.forEach(p => {
+    const custo = Math.round(VON_CUSTOS_USD[p.name] * VON_CUSTOS_COTACAO * 100) / 100;
+    batch.update(db.doc(`lojas/${FARMACIA_ID}/tabela_online/${p.id}`), { custo });
+  });
+  await batch.commit();
+  toast(`✅ Custos atualizados em ${alvos.length} produtos`);
+}
 
 async function importVonTabela() {
   if (user.role !== 'admin') return;
