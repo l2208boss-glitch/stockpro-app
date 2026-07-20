@@ -8583,6 +8583,13 @@ function editVonProduto(id) {
   document.getElementById('vonTabSaveBtn').textContent = '💾';
 }
 
+async function updateVonCusto(id, valor) {
+  const custo = parseFloat(String(valor).replace(',','.'));
+  if (isNaN(custo) || custo < 0) return toast('Custo inválido', 'error');
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).update({ custo });
+  toast('Custo salvo');
+}
+
 async function deleteVonProduto(id) {
   if (!confirm('Excluir este produto da tabela online?')) return;
   await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).delete();
@@ -8708,12 +8715,16 @@ function renderVonTabList() {
   if (!el) return;
   if (!vonTab.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:20px 0;font-size:13px">Nenhum produto cadastrado ainda</div>'; return; }
   el.innerHTML = vonTab.map(p => `
-    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px">
-      <span style="font-weight:600">${p.name}</span>
-      <span style="display:flex;align-items:center;gap:10px">
-        <span style="color:var(--text-3)">Custo ${fmtR$(p.custo)}</span>
-        <b>${fmtR$(p.preco)}</b>
-        <button onclick="editVonProduto('${p.id}')" style="background:none;border:none;cursor:pointer;opacity:.6">✏️</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px">
+      <span style="font-weight:600;flex:1;min-width:120px">${p.name}</span>
+      <span style="display:flex;align-items:center;gap:8px;white-space:nowrap">
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px">Custo R$
+          <input type="number" min="0" step="0.01" value="${p.custo || ''}" placeholder="0"
+            onchange="updateVonCusto('${p.id}', this.value)"
+            style="width:80px;padding:4px 6px;border:1px solid ${p.custo ? 'var(--border)' : '#f59e0b'};border-radius:5px;font-size:13px;font-weight:600;text-align:right">
+        </label>
+        <b style="min-width:78px;text-align:right">${fmtR$(p.preco)}</b>
+        <button onclick="editVonProduto('${p.id}')" title="Editar nome/preço" style="background:none;border:none;cursor:pointer;opacity:.6">✏️</button>
         <button onclick="deleteVonProduto('${p.id}')" style="background:none;border:none;cursor:pointer;opacity:.6">🗑</button>
       </span>
     </div>`).join('');
