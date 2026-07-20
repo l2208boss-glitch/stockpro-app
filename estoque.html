@@ -8547,6 +8547,8 @@ async function saveVonVenda() {
   if (!vendedor) return toast('Selecione o vendedor', 'error');
   const data = document.getElementById('vonData').value;
   if (!data) return toast('Informe a data', 'error');
+  // Se tem um produto selecionado mas não foi adicionado com o "+", adiciona agora
+  if (document.getElementById('vonProdSel').value) vonAddItem();
   if (!vonItems.length) return toast('Adicione pelo menos 1 produto', 'error');
   const subtotal = vonItems.reduce((a,i) => a + i.qty * i.preco, 0);
   const custoTotal = vonItems.reduce((a,i) => a + i.qty * i.custo, 0);
