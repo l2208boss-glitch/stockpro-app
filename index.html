@@ -8743,13 +8743,71 @@ async function importVonTabela() {
   toast(`✅ ${novos.length} produtos importados`);
 }
 
+const VON_MARGEM_PISO = 10;   // abaixo disso = vermelho
+const VON_MARGEM_BOA  = 15;   // acima disso = verde
+let vonTabOrdem = 'nome';     // 'nome' | 'margem'
+
+function vonMargem(p) {
+  const preco = Number(p.preco) || 0;
+  const custo = Number(p.custo) || 0;
+  if (!preco) return null;
+  if (!custo) return null;   // sem custo cadastrado — não dá para avaliar
+  return (preco - custo) / preco * 100;
+}
+
+function vonToggleOrdem() {
+  vonTabOrdem = vonTabOrdem === 'nome' ? 'margem' : 'nome';
+  renderVonTabList();
+}
+
 function renderVonTabList() {
   const el = document.getElementById('vonTabList');
   if (!el) return;
   if (!vonTab.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:20px 0;font-size:13px">Nenhum produto cadastrado ainda</div>'; return; }
-  el.innerHTML = vonTab.map(p => `
+
+  // Resumo do pente fino
+  const semCusto = vonTab.filter(p => !Number(p.custo));
+  const comMargem = vonTab.filter(p => vonMargem(p) !== null);
+  const abaixoPiso = comMargem.filter(p => vonMargem(p) < VON_MARGEM_PISO);
+  const negativos  = comMargem.filter(p => vonMargem(p) <= 0);
+  const mediaMargem = comMargem.length
+    ? comMargem.reduce((a,p) => a + vonMargem(p), 0) / comMargem.length : 0;
+
+  const resumo = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:12px">
+    <span style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px">
+      Margem média <b>${mediaMargem.toFixed(1)}%</b></span>
+    ${negativos.length ? `<span style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;color:#991b1b">
+      <b>${negativos.length}</b> com prejuízo</span>` : ''}
+    ${abaixoPiso.length ? `<span style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:5px 10px;color:#92400e">
+      <b>${abaixoPiso.length}</b> abaixo de ${VON_MARGEM_PISO}%</span>` : ''}
+    ${semCusto.length ? `<span style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:5px 10px;color:#92400e">
+      <b>${semCusto.length}</b> sem custo</span>` : ''}
+    <button onclick="vonToggleOrdem()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600">
+      ${vonTabOrdem === 'margem' ? '↕ Ordem: pior margem' : '↕ Ordem: nome'}</button>
+  </div>`;
+
+  const lista = vonTabOrdem === 'margem'
+    ? vonTab.slice().sort((a,b) => {
+        const ma = vonMargem(a), mb = vonMargem(b);
+        if (ma === null && mb === null) return 0;
+        if (ma === null) return -1;   // sem custo aparece primeiro
+        if (mb === null) return 1;
+        return ma - mb;
+      })
+    : vonTab;
+
+  el.innerHTML = resumo + lista.map(p => {
+    const m = vonMargem(p);
+    let mLabel, mCor, mBg;
+    if (!Number(p.custo)) { mLabel = 'sem custo'; mCor = '#92400e'; mBg = '#fef3c7'; }
+    else if (m === null)  { mLabel = '—';         mCor = 'var(--text-3)'; mBg = 'transparent'; }
+    else if (m <= 0)      { mLabel = m.toFixed(1)+'%'; mCor = '#991b1b'; mBg = '#fee2e2'; }
+    else if (m < VON_MARGEM_PISO) { mLabel = m.toFixed(1)+'%'; mCor = '#991b1b'; mBg = '#fee2e2'; }
+    else if (m < VON_MARGEM_BOA)  { mLabel = m.toFixed(1)+'%'; mCor = '#92400e'; mBg = '#fef3c7'; }
+    else                          { mLabel = m.toFixed(1)+'%'; mCor = '#166534'; mBg = '#dcfce7'; }
+    return `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px">
-      <span style="font-weight:600;flex:1;min-width:120px">${p.name}</span>
+      <span style="font-weight:600;flex:1;min-width:110px">${p.name}</span>
       <span style="display:flex;align-items:center;gap:8px;white-space:nowrap">
         <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px">Custo R$
           <input type="number" min="0" step="0.01" value="${p.custo || ''}" placeholder="0"
@@ -8757,10 +8815,12 @@ function renderVonTabList() {
             style="width:80px;padding:4px 6px;border:1px solid ${p.custo ? 'var(--border)' : '#f59e0b'};border-radius:5px;font-size:13px;font-weight:600;text-align:right">
         </label>
         <b style="min-width:78px;text-align:right">${fmtR$(p.preco)}</b>
+        <span style="min-width:64px;text-align:center;background:${mBg};color:${mCor};border-radius:5px;padding:3px 6px;font-size:12px;font-weight:700">${mLabel}</span>
         <button onclick="editVonProduto('${p.id}')" title="Editar nome/preço" style="background:none;border:none;cursor:pointer;opacity:.6">✏️</button>
         <button onclick="deleteVonProduto('${p.id}')" style="background:none;border:none;cursor:pointer;opacity:.6">🗑</button>
       </span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function fmtMoeda(valor, moeda) {
