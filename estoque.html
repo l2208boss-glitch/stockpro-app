@@ -954,6 +954,7 @@
         <button class="btn-clr" id="btnCopiarProdutos" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openCopiarModal()" title="Copiar produtos de outra filial">📋 Copiar de outra filial</button>
         <button class="btn-clr" id="btnImportCSV" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0ea5e9;color:#fff;border:none" onclick="openImportModal()" title="Importar lista de produtos via CSV">📥 Importar CSV</button>
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
+        <button class="btn-clr" id="btnFolhaContagem" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0d9488;color:#fff;border:none;cursor:pointer" onclick="openFolhaContagem()" title="Imprimir planilha para contagem física">🖨️ Folha de Contagem</button>
         <button class="btn-clr" id="btnConfronto" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#7c3aed;color:#fff;border:none;cursor:pointer;position:relative" onclick="openConfronto()">📊 Confronto de Estoque<span id="confrontosBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:18px"></span></button>
       </div>
     </div>
@@ -1277,6 +1278,39 @@
 </div>
 
 <!-- ══════════ MODAL — CONFRONTO DE ESTOQUE ══════════ -->
+<!-- ══════════ MODAL — FOLHA DE CONTAGEM (IMPRESSÃO) ══════════ -->
+<div class="overlay" id="folhaModal" onclick="overlayClick(event,'folhaModal')">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hd">
+      <span class="modal-title edit">🖨️ Folha de Contagem</span>
+      <button class="btn-x" onclick="closeOverlay('folhaModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="field">
+        <label class="modal-label">Categoria</label>
+        <select id="folhaCategoria" class="modal-inp"></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="folhaMostrarQty" style="width:16px;height:16px">
+          <span><b>Mostrar quantidade do sistema</b> — deixe desmarcado para contagem cega</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="folhaIncluirZerados" style="width:16px;height:16px" checked>
+          <span><b>Incluir produtos sem estoque</b></span>
+        </label>
+      </div>
+      <div style="background:var(--surface-2,#f8f9fa);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-3)">
+        💡 Contagem cega (sem mostrar o sistema) é mais confiável — quem conta não se deixa influenciar pelo número esperado.
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('folhaModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="imprimirFolhaContagem()">🖨️ Imprimir</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="confrontoModal" onclick="overlayClick(event,'confrontoModal')">
   <div class="modal" style="max-width:560px">
     <div class="modal-hd">
@@ -4672,6 +4706,102 @@ function _salvarRascunhoConfronto() {
 }
 function _limparRascunhoConfronto() {
   localStorage.removeItem(_confrontoRascunhoKey());
+}
+
+/* ══════════════════════════════════════════
+   FOLHA DE CONTAGEM (planilha para imprimir)
+══════════════════════════════════════════ */
+function openFolhaContagem() {
+  if (!currentFilial) return;
+  const cats = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+  document.getElementById('folhaCategoria').innerHTML =
+    '<option value="">Todas as categorias</option>' +
+    cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  // Operador não vê quantidade do sistema — esconde a opção e força contagem cega
+  const chkQty = document.getElementById('folhaMostrarQty');
+  const isAdmin = user.role === 'admin';
+  chkQty.checked = false;
+  chkQty.closest('label').style.display = isAdmin ? '' : 'none';
+  document.getElementById('folhaModal').classList.add('on');
+}
+
+function imprimirFolhaContagem() {
+  const cat        = document.getElementById('folhaCategoria').value;
+  const mostrarQty = document.getElementById('folhaMostrarQty').checked && user.role === 'admin';
+  const incluirZer = document.getElementById('folhaIncluirZerados').checked;
+
+  let lista = products.slice();
+  if (cat) lista = lista.filter(p => p.category === cat);
+  if (!incluirZer) lista = lista.filter(p => (Number(p.qty) || 0) > 0);
+  if (!lista.length) return toast('Nenhum produto para imprimir', 'error');
+
+  // Agrupa por categoria e ordena
+  const grupos = {};
+  lista.forEach(p => { const c = p.category || 'Sem categoria'; (grupos[c] = grupos[c] || []).push(p); });
+  Object.values(grupos).forEach(arr => arr.sort((a,b) => String(a.name).localeCompare(String(b.name),'pt-BR')));
+
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const colSpan = mostrarQty ? 5 : 4;
+
+  let corpo = '';
+  Object.keys(grupos).sort((a,b) => a.localeCompare(b,'pt-BR')).forEach(c => {
+    const n = grupos[c].length;
+    corpo += `<tr class="cat"><td colspan="${colSpan}">${c} <span class="catn">(${n} ${n === 1 ? 'item' : 'itens'})</span></td></tr>`;
+    grupos[c].forEach(p => {
+      corpo += '<tr>'
+        + `<td class="nome">${p.name}</td>`
+        + `<td class="un">${p.unit || ''}</td>`
+        + (mostrarQty ? `<td class="sis">${p.qty ?? 0}</td>` : '')
+        + '<td class="box"></td>'
+        + '<td class="obs"></td>'
+        + '</tr>';
+    });
+  });
+
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Folha de Contagem</title><style>'
+    + '*{box-sizing:border-box;margin:0;padding:0}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:11pt}'
+    + '@page{size:A4 portrait;margin:10mm}'
+    + '.hd{border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}'
+    + '.hd h1{font-size:15pt;letter-spacing:.5px}'
+    + '.hd .sub{font-size:10pt;margin-top:2px}'
+    + '.meta{display:flex;justify-content:space-between;font-size:10pt;margin-bottom:10px;gap:12px}'
+    + '.meta .lin{flex:1;border-bottom:1px solid #000;min-height:18px}'
+    + 'table{width:100%;border-collapse:collapse}'
+    + 'thead th{border:1px solid #000;background:#e8e8e8;font-size:9.5pt;padding:4px 6px;text-align:left}'
+    + 'td{border:1px solid #000;padding:5px 6px;font-size:10pt}'
+    + 'tr.cat td{background:#f2f2f2;font-weight:bold;font-size:10pt;padding:4px 6px}'
+    + 'tr.cat .catn{font-weight:normal;font-size:8.5pt}'
+    + '.nome{width:auto}'
+    + '.un{width:42px;text-align:center;font-size:9pt}'
+    + '.sis{width:58px;text-align:center;font-weight:bold}'
+    + '.box{width:78px;background:#fafafa}'
+    + '.obs{width:110px}'
+    + 'tr{page-break-inside:avoid}'
+    + 'tr.cat{page-break-after:avoid}'
+    + 'thead{display:table-header-group}'
+    + '.ft{margin-top:14px;font-size:9pt;display:flex;justify-content:space-between;gap:20px}'
+    + '.ft .as{flex:1;border-top:1px solid #000;padding-top:3px;text-align:center}'
+    + '</style></head><body>'
+    + '<div class="hd"><h1>FOLHA DE CONTAGEM DE ESTOQUE</h1>'
+    + `<div class="sub">${currentFilial.nome}${cat ? ' — ' + cat : ''} · ${lista.length} produtos · Emitida em ${hoje}</div></div>`
+    + '<div class="meta"><span>Conferente:</span><span class="lin"></span><span>Data da contagem: ___/___/______</span></div>'
+    + '<table><thead><tr>'
+    + '<th>Produto</th><th style="text-align:center">Un</th>'
+    + (mostrarQty ? '<th style="text-align:center">Sistema</th>' : '')
+    + '<th style="text-align:center">Contagem física</th><th>Observação</th>'
+    + '</tr></thead><tbody>' + corpo + '</tbody></table>'
+    + '<div class="ft"><div class="as">Assinatura do conferente</div><div class="as">Conferido por (responsável)</div></div>'
+    + '</body></html>';
+
+  closeOverlay('folhaModal');
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return toast('⚠️ Permita popups para imprimir', 'error');
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
 }
 
 function openConfronto() {
