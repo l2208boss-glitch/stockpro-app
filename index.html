@@ -8583,7 +8583,9 @@ function openVonTabModal() {
   document.getElementById('vonTabNome').value = '';
   document.getElementById('vonTabCusto').value = '';
   document.getElementById('vonTabPreco').value = '';
-  document.getElementById('vonTabSaveBtn').textContent = '＋';
+  const btn = document.getElementById('vonTabSaveBtn');
+  btn.textContent = '＋';
+  btn.style.background = '';
   renderVonTabList();
   document.getElementById('vonTabModal').classList.add('on');
 }
@@ -8601,7 +8603,9 @@ async function saveVonProduto() {
   document.getElementById('vonTabNome').value = '';
   document.getElementById('vonTabCusto').value = '';
   document.getElementById('vonTabPreco').value = '';
-  document.getElementById('vonTabSaveBtn').textContent = '＋';
+  const btn = document.getElementById('vonTabSaveBtn');
+  btn.textContent = '＋';
+  btn.style.background = '';
   toast('Produto salvo');
 }
 
@@ -8612,7 +8616,11 @@ function editVonProduto(id) {
   document.getElementById('vonTabNome').value = p.name;
   document.getElementById('vonTabCusto').value = p.custo;
   document.getElementById('vonTabPreco').value = p.preco;
-  document.getElementById('vonTabSaveBtn').textContent = '💾';
+  const btn = document.getElementById('vonTabSaveBtn');
+  btn.textContent = '💾 Salvar';
+  btn.style.background = 'var(--warning,#f59e0b)';
+  document.getElementById('vonTabNome').focus();
+  toast('Editando — clique em 💾 Salvar para confirmar');
 }
 
 async function updateVonCusto(id, valor) {
@@ -8620,6 +8628,13 @@ async function updateVonCusto(id, valor) {
   if (isNaN(custo) || custo < 0) return toast('Custo inválido', 'error');
   await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).update({ custo });
   toast('Custo salvo');
+}
+
+async function updateVonPreco(id, valor) {
+  const preco = parseFloat(String(valor).replace(',','.'));
+  if (isNaN(preco) || preco <= 0) return toast('Preço inválido', 'error');
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).update({ preco });
+  toast('Preço salvo');
 }
 
 async function deleteVonProduto(id) {
@@ -8814,7 +8829,11 @@ function renderVonTabList() {
             onchange="updateVonCusto('${p.id}', this.value)"
             style="width:80px;padding:4px 6px;border:1px solid ${p.custo ? 'var(--border)' : '#f59e0b'};border-radius:5px;font-size:13px;font-weight:600;text-align:right">
         </label>
-        <b style="min-width:78px;text-align:right">${fmtR$(p.preco)}</b>
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px">Venda R$
+          <input type="number" min="0" step="0.01" value="${p.preco || ''}" placeholder="0"
+            onchange="updateVonPreco('${p.id}', this.value)"
+            style="width:82px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:800;text-align:right">
+        </label>
         <span style="min-width:64px;text-align:center;background:${mBg};color:${mCor};border-radius:5px;padding:3px 6px;font-size:12px;font-weight:700">${mLabel}</span>
         <button onclick="editVonProduto('${p.id}')" title="Editar nome/preço" style="background:none;border:none;cursor:pointer;opacity:.6">✏️</button>
         <button onclick="deleteVonProduto('${p.id}')" style="background:none;border:none;cursor:pointer;opacity:.6">🗑</button>
