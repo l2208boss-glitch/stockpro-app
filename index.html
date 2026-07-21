@@ -954,7 +954,7 @@
         <button class="btn-clr" id="btnCopiarProdutos" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm)" onclick="openCopiarModal()" title="Copiar produtos de outra filial">📋 Copiar de outra filial</button>
         <button class="btn-clr" id="btnImportCSV" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0ea5e9;color:#fff;border:none" onclick="openImportModal()" title="Importar lista de produtos via CSV">📥 Importar CSV</button>
         <button class="btn-nova-filial" id="btnNovoProduto" style="display:none" onclick="openEditProduct(null)">＋ Novo Produto</button>
-        <button class="btn-clr" id="btnFolhaContagem" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0d9488;color:#fff;border:none;cursor:pointer" onclick="openFolhaContagem()" title="Imprimir planilha para contagem física">🖨️ Folha de Contagem</button>
+        <button class="btn-clr" id="btnFolhaContagem" style="display:none;padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#0d9488;color:#fff;border:none;cursor:pointer" onclick="openFolhaContagem()" title="Imprimir planilha para contagem física">🖨️ Folha de Contagem</button>
         <button class="btn-clr" id="btnConfronto" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-sm);background:#7c3aed;color:#fff;border:none;cursor:pointer;position:relative" onclick="openConfronto()">📊 Confronto de Estoque<span id="confrontosBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:18px"></span></button>
       </div>
     </div>
@@ -2747,6 +2747,9 @@ function showEstoqueApp() {
   document.getElementById('btnImportCSV').style.display       = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnEntradaLote').style.display = '';
   document.getElementById('btnSaidaLote').style.display = '';
+  // Folha de contagem: só na Farmácia
+  document.getElementById('btnFolhaContagem').style.display =
+    (currentFilial && currentFilial.id === FARMACIA_ID) ? '' : 'none';
   const isAdmin = user.role === 'admin';
   document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
   document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
@@ -4712,7 +4715,7 @@ function _limparRascunhoConfronto() {
    FOLHA DE CONTAGEM (planilha para imprimir)
 ══════════════════════════════════════════ */
 function openFolhaContagem() {
-  if (!currentFilial) return;
+  if (!currentFilial || currentFilial.id !== FARMACIA_ID) return;
   const cats = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
   document.getElementById('folhaCategoria').innerHTML =
     '<option value="">Todas as categorias</option>' +
