@@ -1436,6 +1436,10 @@
         </div>
       </div>
       <div class="field-group">
+        <label class="field-label">Cliente (opcional)</label>
+        <input id="vonCliente" class="field-input" placeholder="Nome do cliente" autocomplete="off">
+      </div>
+      <div class="field-group">
         <label class="field-label">Produto</label>
         <select id="vonProdSel" class="field-input" onchange="vonProdChanged()"></select>
       </div>
@@ -8458,7 +8462,7 @@ function renderVonList() {
     const dt = (v.data||'').split('-').reverse().join('/');
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
-        <div style="font-weight:700;font-size:14px">${v.vendedor} <span style="font-weight:400;color:var(--text-3);font-size:12px">· ${dt}</span></div>
+        <div style="font-weight:700;font-size:14px">${v.vendedor} <span style="font-weight:400;color:var(--text-3);font-size:12px">· ${dt}</span>${v.cliente ? ` <span style="font-weight:600;color:var(--primary);font-size:12px">· 👤 ${v.cliente}</span>` : ''}</div>
         <div style="font-size:13px;color:var(--text-2);margin-top:2px">${itens}</div>
       </div>
       <div style="text-align:right">
@@ -8485,6 +8489,7 @@ function openVonVendaModal() {
   renderVonProdSelect();
   renderVonItens();
   document.getElementById('vonData').value = new Date().toISOString().slice(0,10);
+  document.getElementById('vonCliente').value = '';
   document.getElementById('vonQty').value = 1;
   document.getElementById('vonPreco').value = '';
   document.getElementById('vonFrete').value = 0;
@@ -8557,6 +8562,7 @@ async function saveVonVenda() {
     id: 'von' + Date.now(),
     ts: Date.now(),
     data, vendedor,
+    cliente: document.getElementById('vonCliente').value.trim(),
     items: vonItems,
     subtotal,           // produtos, base do lucro
     frete,              // não entra na comissão
