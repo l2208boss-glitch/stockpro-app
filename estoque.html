@@ -827,6 +827,9 @@
     .proc-detail-title { font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
     .proc-detail-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px solid var(--border); }
     /* ─── COMPRAS APP ─── */
+    #vendasAtendentes summary::-webkit-details-marker { display:none; }
+    #vendasAtendentes summary:hover { background:var(--bg); border-radius:var(--radius); }
+    #vendasAtendentes details[open] summary span:last-child::after { content:''; }
     #vonlineApp { display:none; min-height:100vh; background:var(--bg); }
     #vonlineApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
     #vonlineApp main { max-width:960px; margin:0 auto; padding:28px 16px 60px; }
@@ -1198,6 +1201,7 @@
 
     <!-- Resumo do período -->
     <div id="vendasResumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px"></div>
+    <div id="vendasAtendentes" style="margin-bottom:16px"></div>
 
     <!-- Histórico de fechamentos (admin only) -->
     <div id="fechamentosBlock" style="display:none;margin-bottom:20px">
@@ -3829,9 +3833,42 @@ function renderVendas() {
     });
     a.rev += receb; a.lucro += receb - cogs;
   });
-  resumo.innerHTML += Object.entries(porAtd).sort((x,y) => y[1].lucro - x[1].lucro).map(([n,a]) =>
-    statCard('🛍️', n, `$${a.lucro.toFixed(2)}`, 'var(--primary-dark)', `lucro bruto · ${a.tx} venda(s) · $${a.rev.toFixed(2)} vendidos`)
-  ).join('');
+  // Recolhido por padrão — abre ao clicar (evita poluir a tela)
+  const blocoAtd = document.getElementById('vendasAtendentes');
+  if (blocoAtd) {
+    const linhas = Object.entries(porAtd).sort((x,y) => y[1].lucro - x[1].lucro);
+    if (!linhas.length) {
+      blocoAtd.innerHTML = '';
+    } else {
+      const totalLucro = linhas.reduce((s,[,a]) => s + a.lucro, 0);
+      blocoAtd.innerHTML =
+        `<details style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)">
+          <summary style="cursor:pointer;padding:12px 16px;font-size:13px;font-weight:700;color:var(--text-2);list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>🛍️ Lucro bruto por atendente <span style="font-weight:400;color:var(--text-3)">(${linhas.length})</span></span>
+            <span style="font-weight:900;color:var(--primary-dark)">$${totalLucro.toFixed(2)} ▾</span>
+          </summary>
+          <div style="padding:0 16px 12px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.5px">
+                <th style="text-align:left;padding:6px 4px;font-weight:700">Atendente</th>
+                <th style="text-align:right;padding:6px 4px;font-weight:700">Vendas</th>
+                <th style="text-align:right;padding:6px 4px;font-weight:700">Vendido</th>
+                <th style="text-align:right;padding:6px 4px;font-weight:700">Lucro bruto</th>
+              </tr></thead>
+              <tbody>` +
+              linhas.map(([n,a]) =>
+                `<tr style="border-top:1px solid var(--border)">
+                  <td style="padding:7px 4px;font-weight:600">${n}</td>
+                  <td style="padding:7px 4px;text-align:right;color:var(--text-2)">${a.tx}</td>
+                  <td style="padding:7px 4px;text-align:right;color:var(--text-2)">$${a.rev.toFixed(2)}</td>
+                  <td style="padding:7px 4px;text-align:right;font-weight:800;color:var(--primary-dark)">$${a.lucro.toFixed(2)}</td>
+                </tr>`).join('') +
+              `</tbody>
+            </table>
+          </div>
+        </details>`;
+    }
+  }
 
   const isFarmaciaCol = !!(currentFilial && currentFilial.id === FARMACIA_ID);
   const thFact = document.getElementById('thFactura');
