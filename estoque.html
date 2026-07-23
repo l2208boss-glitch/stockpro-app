@@ -2034,7 +2034,7 @@
           <label class="modal-label" for="eEmoji">Emoji (sem foto)</label>
           <input class="modal-input" type="text" id="eEmoji" placeholder="Ex: ☕" maxlength="4">
         </div>
-        <div class="field">
+        <div class="field" id="fieldCusto">
           <label class="modal-label" id="labelCusto" for="eCusto">Custo (R$)</label>
           <input class="modal-input" type="number" id="eCusto" placeholder="0,00" min="0" step="0.01">
         </div>
@@ -2742,7 +2742,7 @@ function showEstoqueApp() {
   badge.className = 'role-badge ' + user.role;
   document.getElementById('headerUser').textContent = '👤 ' + user.name;
   document.getElementById('filialSwitcher').style.display = user.role === 'admin' ? '' : 'none';
-  document.getElementById('btnNovoProduto').style.display    = user.role === 'admin' ? '' : 'none';
+  document.getElementById('btnNovoProduto').style.display    = podeGerenciarProdutos() ? '' : 'none';
   document.getElementById('btnCopiarProdutos').style.display  = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnImportCSV').style.display       = user.role === 'admin' ? '' : 'none';
   document.getElementById('btnEntradaLote').style.display = '';
@@ -6308,7 +6308,8 @@ function renderProducts() {
       ? `<img src="${ph}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover">`
       : `<span class="emoji-fallback">${p.emoji}</span>`;
 
-    const overlay = isAdmin
+    const podeEditarProd = podeGerenciarProdutos();
+    const overlay = podeEditarProd
       ? `<div class="photo-overlay admin-only"><button class="photo-btn edit-btn" onclick="openEditProduct('${p.id}')">✏️ Editar</button></div>`
       : '';
 
@@ -6326,10 +6327,10 @@ function renderProducts() {
         </div>
       </div>` : '';
 
-    const adminBar = isAdmin
+    const adminBar = podeEditarProd
       ? `<div class="card-admin-bar">
            <button class="btn-edit-prod" onclick="openEditProduct('${p.id}')">✏️ Editar</button>
-           <button class="btn-adj-prod"  onclick="openAjuste('${p.id}')">⚖️ Ajustar</button>
+           ${isAdmin ? `<button class="btn-adj-prod"  onclick="openAjuste('${p.id}')">⚖️ Ajustar</button>` : ''}
          </div>`
       : '';
 
@@ -6826,17 +6827,28 @@ function confirmAjuste() {
 /* ══════════════════════════════════════════
    EDIT PRODUCT MODAL
 ══════════════════════════════════════════ */
+// Admin em qualquer filial, ou operador na Farmácia
+function podeGerenciarProdutos() {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return !!(currentFilial && currentFilial.id === FARMACIA_ID);
+}
+
 function openEditProduct(productId) {
-  if (!user || user.role!=='admin') return;
+  if (!podeGerenciarProdutos()) return;
   editId = productId;
   editPhotoTemp = productId ? (photos[productId] || null) : null;
   const isUSD = currentFilial && currentFilial.caixaEnabled;
   document.getElementById('labelCusto').textContent = isUSD ? 'Custo (USD $)' : 'Custo (R$)';
   document.getElementById('labelVenda').textContent = isUSD ? 'Venda (USD $)' : 'Venda (R$)';
+  const _isAdmin = user.role === 'admin';
+  // Operador não vê custo (revelaria a margem) nem pode excluir produto
+  document.getElementById('fieldCusto').style.display = _isAdmin ? '' : 'none';
   const _delBtn = document.getElementById('btnDeleteProduct');
   const _editFt = document.getElementById('editModalFt');
-  _delBtn.style.display = productId ? '' : 'none';
-  if (productId) _editFt.classList.add('has-del'); else _editFt.classList.remove('has-del');
+  const _mostraDel = !!productId && _isAdmin;
+  _delBtn.style.display = _mostraDel ? '' : 'none';
+  if (_mostraDel) _editFt.classList.add('has-del'); else _editFt.classList.remove('has-del');
   if (productId) {
     const p = products.find(x => String(x.id)===String(productId));
     if (!p) return;
@@ -6969,7 +6981,8 @@ function saveEditProduct() {
   p.category = document.getElementById('eCat').value.trim()   || p.category;
   p.unit     = document.getElementById('eUnit').value.trim()  || p.unit;
   p.emoji    = document.getElementById('eEmoji').value.trim() || p.emoji;
-  p.custo    = parseFloat(document.getElementById('eCusto').value) || 0;
+  // Operador não edita custo — preserva o valor já cadastrado
+  if (user.role === 'admin') p.custo = parseFloat(document.getElementById('eCusto').value) || 0;
   p.venda    = parseFloat(document.getElementById('eVenda').value) || 0;
   p.validade = validade;
   if (bulaObj) p.bula = bulaObj; else delete p.bula;
