@@ -1992,7 +1992,11 @@
           Cole a lista de produtos abaixo. Formatos aceitos:<br>
           <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px">20 Deca &nbsp;|&nbsp; Deca x20 &nbsp;|&nbsp; HGH 2x &nbsp;|&nbsp; Trembolona - 5</code>
         </p>
-        <textarea id="loteTxt" rows="10" class="modal-ta" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;resize:vertical" placeholder="Ex:&#10;20 Deca&#10;10 Enantato de testo&#10;HGH 2x&#10;5 Trembolona&#10;Oxandrolona - 30"></textarea>
+        <div id="loteRascunhoBanner" style="display:none;background:#fef9c3;border:1px solid #fbbf24;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:8px;align-items:center;justify-content:space-between;gap:8px">
+          <span>💾 Rascunho restaurado — continue de onde parou.</span>
+          <button onclick="document.getElementById('loteTxt').value='';_limparRascunhoLote(loteState.type);this.parentElement.style.display='none'" style="background:none;border:none;cursor:pointer;font-size:12px;color:#dc2626;font-weight:700;padding:0">✕ Descartar</button>
+        </div>
+        <textarea id="loteTxt" rows="10" class="modal-ta" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;resize:vertical" oninput="_salvarRascunhoLote()" placeholder="Ex:&#10;20 Deca&#10;10 Enantato de testo&#10;HGH 2x&#10;5 Trembolona&#10;Oxandrolona - 30"></textarea>
       </div>
       <div class="modal-ft">
         <button class="btn-cancel" onclick="closeOverlay('loteOverlay')">Cancelar</button>
@@ -6519,13 +6523,32 @@ document.getElementById('mObs').addEventListener('keydown', e => { if(e.key==='E
 /* ══════════════════════════════════════════
    LOTE — ENTRADA / SAÍDA EM LOTE
 ══════════════════════════════════════════ */
+function _loteRascunhoKey(type) {
+  return `lote_rascunho_${currentFilial?.id}_${type}`;
+}
+function _salvarRascunhoLote() {
+  if (!loteState?.type) return;
+  const txt = document.getElementById('loteTxt').value;
+  if (txt.trim()) localStorage.setItem(_loteRascunhoKey(loteState.type), JSON.stringify({ txt, ts: Date.now() }));
+  else localStorage.removeItem(_loteRascunhoKey(loteState.type));
+}
+function _limparRascunhoLote(type) {
+  localStorage.removeItem(_loteRascunhoKey(type));
+}
+
 function openLote(type) {
   loteState = { type, itens: [] };
   const isIn = type === 'entrada';
   const titulo = document.getElementById('loteTitulo');
   titulo.textContent = isIn ? '⚡ Entrada em Lote' : '⚡ Saída em Lote';
   titulo.className   = 'modal-title ' + (isIn ? 'in' : 'out');
-  document.getElementById('loteTxt').value = '';
+  // Restaura rascunho salvo (não perde o que já estava sendo escrito)
+  const raw = localStorage.getItem(_loteRascunhoKey(type));
+  let restaurado = '';
+  if (raw) { try { restaurado = JSON.parse(raw).txt || ''; } catch(e) { localStorage.removeItem(_loteRascunhoKey(type)); } }
+  document.getElementById('loteTxt').value = restaurado;
+  const banner = document.getElementById('loteRascunhoBanner');
+  if (banner) banner.style.display = restaurado ? 'flex' : 'none';
   document.getElementById('loteStep1').style.display = '';
   document.getElementById('loteStep2').style.display = 'none';
   document.getElementById('loteOverlay').classList.add('on');
@@ -6796,6 +6819,7 @@ function confirmarLote() {
       toast('⚠️ Erro ao salvar no servidor. Recarregue a página e verifique.', 'error');
     });
 
+  _limparRascunhoLote(type);
   renderAll();
   closeOverlay('loteOverlay');
   toast(`✅ ${Object.keys(consolidado).length} produto${Object.keys(consolidado).length > 1 ? 's' : ''} processado${Object.keys(consolidado).length > 1 ? 's' : ''}:\n${resumoItens.join('\n')}`, 'success');
