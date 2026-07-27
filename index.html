@@ -5019,7 +5019,7 @@ function verConfronto(id) {
   if (snap.status === 'pendente') {
     ft.innerHTML = `
       <button class="btn-cancel" onclick="closeOverlay('confrontoResultModal')">Cancelar</button>
-      <button onclick="processarConfronto('${snap.id}','rejeitado')" style="padding:10px 18px;border:none;border-radius:var(--radius-sm);background:var(--danger);color:#fff;font-weight:600;cursor:pointer">❌ Rejeitar</button>
+      <button onclick="processarConfronto('${snap.id}','rejeitado')" style="padding:10px 18px;border:none;border-radius:var(--radius-sm);background:var(--danger);color:#fff;font-weight:600;cursor:pointer">❌ Não aceitar (não altera estoque)</button>
       <button onclick="processarConfronto('${snap.id}','aprovado')" style="padding:10px 18px;border:none;border-radius:var(--radius-sm);background:var(--success);color:#fff;font-weight:600;cursor:pointer">✅ Aprovar e Ajustar Estoque</button>`;
   } else {
     ft.innerHTML = `<button class="btn-cancel" onclick="closeOverlay('confrontoResultModal')">Fechar</button>`;
@@ -5030,6 +5030,17 @@ function verConfronto(id) {
 async function processarConfronto(id, status) {
   if (!currentFilial || !_confrontoAtual) return;
   const conf = _confrontoAtual;
+  // Confirmação — aprovar altera o estoque de verdade
+  if (status === 'aprovado') {
+    const nDiv = conf.items.filter(i => Math.abs(i.diff) >= 0.01).length;
+    if (nDiv === 0) {
+      if (!confirm('Nenhuma divergência nesta contagem — o estoque não muda. Marcar como aprovado mesmo assim?')) return;
+    } else if (!confirm(`⚠️ Isto vai ALTERAR o estoque de ${nDiv} produto(s), substituindo pela quantidade contada. Esta ação não tem como desfazer. Confirmar?`)) {
+      return;
+    }
+  } else if (status === 'rejeitado') {
+    if (!confirm('Rejeitar esta contagem? O estoque NÃO será alterado.')) return;
+  }
   try {
     await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id))
       .update({ status, processadoEm: new Date().toISOString(), processadoPor: user.username });
