@@ -6661,7 +6661,13 @@ function interpretarLote() {
 function renderLotePreview() {
   const { type, itens } = loteState;
   const isIn = type === 'entrada';
-  let html = `
+  // Lista compartilhada pelos campos de busca das linhas não reconhecidas.
+  // Sem emoji no começo — senão a busca por digitação não casa.
+  let html = `<datalist id="loteProdutosList">` +
+    products.slice().sort((a, b) => a.name.localeCompare(b.name))
+      .map(p => `<option value="${String(p.name).replace(/"/g, '&quot;')}" label="${p.qty} ${p.unit}">`).join('') +
+    `</datalist>`;
+  html += `
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:4px">
       <thead>
         <tr style="border-bottom:2px solid var(--border);color:var(--text-2)">
@@ -6692,14 +6698,13 @@ function renderLotePreview() {
       celulaProd = `${item.produto.emoji} ${item.produto.name}` +
         (item.aprender ? ` <span style="color:var(--primary);font-size:11px;font-weight:700">🧠 vai aprender</span>` : '');
     } else {
-      const opts = products.slice()
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(p => `<option value="${p.id}">${p.emoji} ${p.name} (${p.qty})</option>`).join('');
+      // Campo com busca: digitar filtra por qualquer pedaço do nome;
+      // clicar na setinha ainda mostra a lista inteira.
       celulaProd = `
-        <select onchange="mapearLoteItem(${i},this.value)"
-          style="width:100%;max-width:230px;padding:3px 4px;border:1px solid #ef4444;border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">
-          <option value="">⚠️ Escolha o produto…</option>${opts}
-        </select>`;
+        <input list="loteProdutosList" placeholder="🔍 digite o produto…"
+          onchange="mapearLoteItemPorNome(${i},this.value)"
+          onfocus="this.select()"
+          style="width:100%;max-width:230px;padding:4px 6px;border:1px solid #ef4444;border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">`;
     }
     html += `
       <tr style="border-bottom:1px solid var(--border);color:${cor};opacity:${item.ativo ? 1 : 0.4}">
@@ -6826,6 +6831,24 @@ function toggleLoteItem(i, checked) {
   renderLotePreview();
 }
 
+/* Recebe o texto digitado no campo de busca e resolve para um produto.
+   Aceita o nome exato ou um pedaço dele, desde que sobre um só candidato. */
+function mapearLoteItemPorNome(i, texto) {
+  const t = normTexto(texto);
+  if (!t) { loteState.itens[i].produto = null; loteState.itens[i].ativo = false; renderLotePreview(); return; }
+  let p = products.find(x => normTexto(x.name) === t);
+  if (!p) {
+    const cand = products.filter(x => normTexto(x.name).includes(t));
+    if (cand.length === 1) p = cand[0];
+    else if (cand.length > 1) {
+      toast(`"${texto}" casa com ${cand.length} produtos (${cand.slice(0,4).map(c=>c.name).join(', ')}${cand.length>4?'…':''}). Digite mais letras.`, 'error');
+      return;
+    }
+  }
+  if (!p) { toast(`Não achei nenhum produto com "${texto}".`, 'error'); return; }
+  mapearLoteItem(i, p.id);
+}
+
 /* Você aponta o produto de uma linha não reconhecida. O texto original
    vira apelido permanente daquele produto ao confirmar o lote — e todas
    as outras linhas iguais do mesmo lote já são resolvidas junto.       */
@@ -6834,9 +6857,11 @@ function mapearLoteItem(i, produtoId) {
   if (!produtoId) { item.produto = null; item.aprender = false; item.ativo = false; renderLotePreview(); return; }
   const p = products.find(x => String(x.id) === String(produtoId));
   if (!p) return;
+  // Aplica a TODAS as linhas com a mesma grafia — inclusive as que já
+  // tinham produto, para que corrigir uma escolha errada corrija todas.
   const alvo = normTexto(item.nome);
   loteState.itens.forEach(outro => {
-    if (outro.produto || normTexto(outro.nome) !== alvo) return;
+    if (normTexto(outro.nome) !== alvo) return;
     outro.produto  = p;
     outro.aprender = true;
     outro.ativo    = true;
