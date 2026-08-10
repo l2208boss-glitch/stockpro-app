@@ -1989,8 +1989,9 @@
     <div id="loteStep1">
       <div class="modal-body">
         <p style="margin:0 0 10px;font-size:13px;color:var(--text-2)">
-          Cole a lista de produtos abaixo. Formatos aceitos:<br>
-          <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px">20 Deca &nbsp;|&nbsp; Deca x20 &nbsp;|&nbsp; HGH 2x &nbsp;|&nbsp; Trembolona - 5</code>
+          Cole os pedidos <strong>inteiros</strong> — nome, CPF, endereço e tudo mais são ignorados automaticamente.<br>
+          <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px">20 Deca &nbsp;|&nbsp; 1x Master GPP &nbsp;|&nbsp; Deca x20 &nbsp;|&nbsp; Trembolona - 5</code><br>
+          <span style="font-size:12px">O que ele não reconhecer aparece na próxima tela com um seletor — você aponta o produto <strong>uma vez</strong> e ele nunca mais pergunta.</span>
         </p>
         <div id="loteRascunhoBanner" style="display:none;background:#fef9c3;border:1px solid #fbbf24;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:8px;align-items:center;justify-content:space-between;gap:8px">
           <span>💾 Rascunho restaurado — continue de onde parou.</span>
@@ -2057,9 +2058,15 @@
         <input class="modal-input" type="number" id="eQtyInicial" placeholder="0" min="0" step="1">
       </div>
 
-      <div class="field" style="margin-bottom:20px">
+      <div class="field">
         <label class="modal-label" for="eValidade">Validade (opcional)</label>
         <input class="modal-input" type="date" id="eValidade">
+      </div>
+
+      <div class="field" style="margin-bottom:20px">
+        <label class="modal-label" for="eAliases">🧠 Apelidos (como os vendedores escrevem)</label>
+        <textarea class="modal-input" id="eAliases" rows="3" placeholder="Um por linha. Ex:&#10;Masteron Lander&#10;master land&#10;Masteron Landerlan" style="resize:vertical;font-size:13px;font-family:monospace"></textarea>
+        <small style="color:var(--text-3);font-size:11px">Cada linha é uma grafia que dá baixa neste produto. Maiúscula, acento e espaço não importam.</small>
       </div>
 
       <!-- Campos de bula — visíveis apenas na Farmácia -->
@@ -6555,65 +6562,81 @@ function openLote(type) {
   setTimeout(() => document.getElementById('loteTxt').focus(), 120);
 }
 
-function parsearListaLote(texto) {
-  const linhas = texto.split('\n').map(l => l.trim()).filter(l => l);
-  return linhas.map(linha => {
-    let nome = linha, qty = 1, m;
-    if ((m = linha.match(/^(\d+)\s+(.+)$/))) {
-      // "145 Master" → qty=145, nome=Master
-      qty = parseInt(m[1]); nome = m[2].trim();
-    } else if ((m = linha.match(/^(.+?)\s+[xX](\d+)$/)) || (m = linha.match(/^(.+?)\s+(\d+)[xX]$/))) {
-      // "Master x145" ou "Master 145x"
-      nome = m[1].trim(); qty = parseInt(m[2]);
-    } else if ((m = linha.match(/^(.+?)\s*[-–]\s*(\d+)$/))) {
-      // "Master - 145" ou "Master–145"
-      nome = m[1].trim(); qty = parseInt(m[2]);
-    } else if ((m = linha.match(/^(.+?)\s+(\d+)$/))) {
-      // "Master 145" (nome seguido de número) — formato sem separador
-      nome = m[1].trim(); qty = parseInt(m[2]);
-    }
-    if (!qty || qty < 1) qty = 1;
-    return { linha, nome, qty };
-  });
+/* ── Normalização agressiva de texto para casar apelidos ──────────────
+   Remove acentos, maiúsculas e TUDO que não é letra/número. Assim
+   "TG 15mg", "tg-15MG" e "Tg15Mg" viram todos "tg15mg", e o espaço
+   fora do lugar de "testenat goldl ander" deixa de importar.        */
+function normTexto(s) {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 
-function encontrarProduto(nome) {
-  const lower = nome.toLowerCase().trim();
-  if (!lower) return null;
+/* Índice { textoNormalizado → produto } montado a partir do nome do
+   produto + seus apelidos. Se dois produtos reivindicam o mesmo termo,
+   ele é REMOVIDO do índice: ambiguidade nunca vira palpite.          */
+function montarIndiceApelidos() {
+  const idx = {}, conflitos = new Set();
+  products.forEach(p => {
+    [p.name, ...(p.aliases || [])].forEach(termo => {
+      const n = normTexto(termo);
+      if (!n) return;
+      if (idx[n] && String(idx[n].id) !== String(p.id)) conflitos.add(n);
+      else idx[n] = p;
+    });
+  });
+  conflitos.forEach(n => delete idx[n]);
+  return idx;
+}
 
-  // 1. Correspondência exata (case-insensitive)
-  let p = products.find(x => x.name.toLowerCase() === lower);
-  if (p) return p;
+function encontrarProduto(nome, idx) {
+  return (idx || montarIndiceApelidos())[normTexto(nome)] || null;
+}
 
-  // 2. Nome do produto CONTÉM o termo buscado — preferir o match MAIS LONGO (mais específico)
-  //    Ex: busca "master" → se há "Master" e "Master Enantato", retorna "Master" (mais curto = match exato melhor)
-  //    Ex: busca "master enan" → "Master Enantato" contém "master enan" → retorna corretamente
-  const matches2 = products.filter(x => x.name.toLowerCase().includes(lower));
-  if (matches2.length === 1) return matches2[0];
-  if (matches2.length > 1) {
-    // Prefere o nome mais curto (mais próximo de match exato)
-    matches2.sort((a, b) => a.name.length - b.name.length);
-    return matches2[0];
-  }
+/* Linhas que são dados do cliente, não produto. */
+const LOTE_RUIDO = /^(nome|cpf|rg|e-?mail|end|endereco|endereço|compl|complemento|bairro|cidade|estado|uf|cep|numero|número|n[ºo°]|tel|telefone|whats|whatsapp|obs|observa|pedido|entrega|cliente|destinat|rua|av|avenida|travessa|trav|alameda|quadra|passagem|estrada|rodovia|praca|praça|conjunto|apto?|apart|bloco|bl|casa|torre|sala|loja|km|setor)\b/i;
 
-  // 3. Termo buscado COMEÇA com o nome do produto — preferir o match MAIS LONGO
-  //    Ex: busca "masteron enantato 200mg" → se há "Masteron" e "Masteron Enantato", retorna "Masteron Enantato"
-  const matches3 = products.filter(x => lower.startsWith(x.name.toLowerCase()) && x.name.length > 3);
-  if (matches3.length === 1) return matches3[0];
-  if (matches3.length > 1) {
-    // Prefere o nome mais longo (match mais específico)
-    matches3.sort((a, b) => b.name.length - a.name.length);
-    return matches3[0];
-  }
+function parsearListaLote(texto) {
+  const out = [];
+  texto.split('\n').forEach(linha => {
+    const bruta = linha.trim();
+    if (!bruta) return;
+    // separadores decorativos (====, ----, ****)
+    if (/^[=\-_*·—–~+#.\s]+$/.test(bruta)) return;
 
-  // 4. Produto COMEÇA com o termo buscado (ex: busca "mast" → acha "Master")
-  const matches4 = products.filter(x => x.name.toLowerCase().startsWith(lower) && lower.length >= 3);
-  if (matches4.length >= 1) {
-    matches4.sort((a, b) => a.name.length - b.name.length);
-    return matches4[0];
-  }
+    // tira emojis e marcadores de início/fim
+    let l = bruta
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+      .replace(/^[\s*_>\-–—•·=)\]]+/, '')
+      .replace(/[\s*_\-–—•·=(\[]+$/, '')
+      .trim();
+    if (!l) return;
 
-  return null;
+    if (LOTE_RUIDO.test(l)) return;      // "Nome:", "CEP:", "Rua ..."
+    if (l.includes('@')) return;          // e-mail
+    if (/pedido/i.test(l)) return;        // "01 · PEDIDO #RWAU"
+    if (/^[\d.\-\/\s]+$/.test(l)) return; // CPF/CEP soltos
+
+    let nome = null, qty = 1, m;
+    if ((m = l.match(/^(\d{1,4})\s*[xX×]?\s*[-–—·).:]?\s*(.+)$/))) {
+      // "2 Master", "1x Gluconex 15mg", "3- TG 15mg", "01. Deca"
+      qty = parseInt(m[1]); nome = m[2];
+    } else if ((m = l.match(/^(.+?)\s*[xX×]\s*(\d{1,4})$/)) ||
+               (m = l.match(/^(.+?)\s*[-–—]\s*(\d{1,4})$/))) {
+      // "Master x20", "Master - 20"
+      nome = m[1]; qty = parseInt(m[2]);
+    } else {
+      return; // não tem forma de item — descarta
+    }
+
+    nome = nome.replace(/\([^)]*\)/g, '').trim(); // "2 (Duas) Enantato" → "Enantato"
+    if (!nome || LOTE_RUIDO.test(nome)) return;   // "145 Apt 701" é endereço
+    if (!/[a-zA-Z]/.test(nome)) return;
+    if (!qty || qty < 1) qty = 1;
+    out.push({ linha: bruta, nome, qty });
+  });
+  return out;
 }
 
 function interpretarLote() {
@@ -6621,11 +6644,15 @@ function interpretarLote() {
   if (!texto) { toast('Cole a lista antes de interpretar.', 'error'); return; }
   const parsed = parsearListaLote(texto);
   if (!parsed.length) { toast('Não encontrei nenhum item na lista.', 'error'); return; }
-  loteState.itens = parsed.map(({ linha, nome, qty }) => ({
-    linha, nome, qty,
-    produto: encontrarProduto(nome),
-    ativo: true
-  }));
+  const idx = montarIndiceApelidos();
+  loteState.itens = parsed.map(({ linha, nome, qty }) => {
+    const produto = encontrarProduto(nome, idx);
+    return {
+      linha, nome, qty, produto,
+      aprender: false,       // true quando o produto veio do dropdown → vira apelido
+      ativo: !!produto       // sem produto → desmarcado até você mapear
+    };
+  });
   renderLotePreview();
   document.getElementById('loteStep1').style.display = 'none';
   document.getElementById('loteStep2').style.display = '';
@@ -6659,14 +6686,28 @@ function renderLotePreview() {
     const totalConsolidado = item.produto ? (totaisPorProduto[String(item.produto.id)] || 0) : 0;
     const semEstoque = !isIn && item.produto && item.ativo && totalConsolidado > item.produto.qty;
     const cor = !encontrou ? '#ef4444' : semEstoque ? '#f59e0b' : 'var(--text-1)';
-    const nomeProd = item.produto ? `${item.produto.emoji} ${item.produto.name}` : '⚠️ Não encontrado';
+    // Não reconhecido → dropdown para você apontar o produto UMA vez.
+    let celulaProd;
+    if (encontrou) {
+      celulaProd = `${item.produto.emoji} ${item.produto.name}` +
+        (item.aprender ? ` <span style="color:var(--primary);font-size:11px;font-weight:700">🧠 vai aprender</span>` : '');
+    } else {
+      const opts = products.slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(p => `<option value="${p.id}">${p.emoji} ${p.name} (${p.qty})</option>`).join('');
+      celulaProd = `
+        <select onchange="mapearLoteItem(${i},this.value)"
+          style="width:100%;max-width:230px;padding:3px 4px;border:1px solid #ef4444;border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">
+          <option value="">⚠️ Escolha o produto…</option>${opts}
+        </select>`;
+    }
     html += `
       <tr style="border-bottom:1px solid var(--border);color:${cor};opacity:${item.ativo ? 1 : 0.4}">
         <td style="padding:5px 4px;text-align:center">
           <input type="checkbox" ${item.ativo ? 'checked' : ''} onchange="toggleLoteItem(${i},this.checked)" ${!encontrou ? 'disabled' : ''}>
         </td>
         <td style="padding:5px 4px">${item.linha}</td>
-        <td style="padding:5px 4px">${nomeProd}</td>
+        <td style="padding:5px 4px">${celulaProd}</td>
         <td style="padding:5px 4px;text-align:center">
           <input type="number" min="1" value="${item.qty}"
             style="width:56px;text-align:center;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px"
@@ -6695,7 +6736,9 @@ function renderLotePreview() {
 
   let resumo = `<div style="margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;font-size:12px">`;
   resumo += `<span style="background:var(--success-light);color:var(--success);padding:4px 10px;border-radius:99px;font-weight:700">✓ ${produtosUnicos} produto${produtosUnicos!==1?'s':''} · ${totalUnidades} unidades no total</span>`;
-  if (naoEncontrados) resumo += `<span style="background:var(--danger-light);color:var(--danger);padding:4px 10px;border-radius:99px;font-weight:700">⚠️ ${naoEncontrados} não encontrado${naoEncontrados!==1?'s':''}</span>`;
+  if (naoEncontrados) resumo += `<span style="background:var(--danger-light);color:var(--danger);padding:4px 10px;border-radius:99px;font-weight:700">⚠️ ${naoEncontrados} para mapear</span>`;
+  const vaiAprender = itens.filter(x => x.aprender && x.ativo).length;
+  if (vaiAprender) resumo += `<span style="background:var(--primary-light,#e0e7ff);color:var(--primary);padding:4px 10px;border-radius:99px;font-weight:700">🧠 ${vaiAprender} apelido${vaiAprender!==1?'s':''} novo${vaiAprender!==1?'s':''} — não pergunto de novo</span>`;
   resumo += `<span style="color:var(--text-3);padding:4px 0">Desmarque os que quiser ignorar.</span></div>`;
 
   // Mostrar resumo consolidado por produto (especialmente quando há linhas duplicadas)
@@ -6718,8 +6761,86 @@ function renderLotePreview() {
   btn.className   = 'btn-confirm ' + (isIn ? 'in' : 'out');
 }
 
+/* Pré-carga única de apelidos (rodar no console: spSeedApelidos()).
+   Só as grafias que mapeiam para UM produto sem ambiguidade — os pares
+   que dependem de você (stan15 vs STANO15 LAND etc) ficam de fora de
+   propósito, pra você resolver no dropdown.                          */
+const SEED_APELIDOS = {
+  'Master':        ['Master 100mg GPP', 'Master GPP'],
+  'Masterland':    ['Masteron Lander', 'master land', 'Masteron Landerlan'],
+  'Mastergenic':   ['Masteron Genic'],
+  'Tremboaceland': ['Trembo Acetatolander', 'Trembo Acetato Lander'],
+  'cipioland':     ['CipionatoLander', 'Cipionato Lander'],
+  'TIRZE4':        ['Tirzec 4 Ampolas'],
+  'Tirzec15':      ['Tirzec 15mg'],
+  'HCG':           ['HCG Lander', 'HCG Landerlan'],
+  'androlic':      ['Androlic landerlan', 'Androlic Lander'],
+  'Oximetolona':   ['Oximetolona LANDERLAN', 'Oximetolona LANDER'],
+  'dianaland':     ['Diana LANDERLAN', 'Diana Lander'],
+  'Diana':         ['Diana GPP'],
+  'Bold':          ['Bold GPP'],
+  'Deca':          ['Deca 300mg GPP', 'Deca GPP'],
+  'Dura':          ['Dura 300mg GPP', 'Dura 3GPP'],
+  'duracooper':    ['Dura Cooper'],
+  'duraplus':      ['Duraplus lander', 'Dura plus Lander'],
+  'Enan':          ['Enan GPP', 'Enan 300mg GPP', 'ENAN 300/10ml gpp'],
+  'enancooper':    ['Enan Cooper'],
+  'Primo':         ['Primobolan GPP'],
+  'primocooper':   ['Primobolan Cooper'],
+  'Provi':         ['Proviron GPP'],
+  'Oxan':          ['Oxan GPP'],
+  'TB500':         ['TB-500 10mg Novexa', 'TB-500 Novexa'],
+  'gluconex':      ['Gluconex 15mg'],
+  'lipoland':      ['Lipoland 15mg'],
+  'Stano':         ['Stano Orallander', 'Stano Oral lander', 'stano oral'],
+  'testenat4':     ['TestEnat Enan 4ML'],
+};
+
+async function spSeedApelidos() {
+  const idx = montarIndiceApelidos();
+  const batch = db.batch();
+  let n = 0, pulados = [];
+  for (const [nomeProd, termos] of Object.entries(SEED_APELIDOS)) {
+    const p = products.find(x => normTexto(x.name) === normTexto(nomeProd));
+    if (!p) { pulados.push(`${nomeProd} (produto não existe nesta filial)`); continue; }
+    const novos = termos.filter(t => {
+      const dono = idx[normTexto(t)];
+      if (dono && String(dono.id) !== String(p.id)) { pulados.push(`"${t}" já é de ${dono.name}`); return false; }
+      return !dono;
+    });
+    if (!novos.length) continue;
+    p.aliases = [...(p.aliases || []), ...novos];
+    batch.update(col('produtos').doc(String(p.id)), {
+      aliases: firebase.firestore.FieldValue.arrayUnion(...novos)
+    });
+    n += novos.length;
+  }
+  await batch.commit();
+  console.log(`[StockPro] ${n} apelidos gravados.`, pulados.length ? { pulados } : '');
+  toast(`🧠 ${n} apelidos pré-carregados.`, 'success');
+  return { gravados: n, pulados };
+}
+
 function toggleLoteItem(i, checked) {
   loteState.itens[i].ativo = checked;
+  renderLotePreview();
+}
+
+/* Você aponta o produto de uma linha não reconhecida. O texto original
+   vira apelido permanente daquele produto ao confirmar o lote — e todas
+   as outras linhas iguais do mesmo lote já são resolvidas junto.       */
+function mapearLoteItem(i, produtoId) {
+  const item = loteState.itens[i];
+  if (!produtoId) { item.produto = null; item.aprender = false; item.ativo = false; renderLotePreview(); return; }
+  const p = products.find(x => String(x.id) === String(produtoId));
+  if (!p) return;
+  const alvo = normTexto(item.nome);
+  loteState.itens.forEach(outro => {
+    if (outro.produto || normTexto(outro.nome) !== alvo) return;
+    outro.produto  = p;
+    outro.aprender = true;
+    outro.ativo    = true;
+  });
   renderLotePreview();
 }
 
@@ -6809,6 +6930,27 @@ function confirmarLote() {
     resumoItens.push(`${p.emoji} ${p.name}: ${isIn ? '+' : '-'}${c.totalQty} (${qtyAntes} → ${p.qty})`);
   });
 
+  // 4b. Aprender apelidos — as grafias que você mapeou na mão viram
+  //     permanentes, no MESMO batch da baixa (ou salva tudo, ou nada).
+  const apelidosNovos = {};
+  itens.filter(x => x.ativo && x.produto && x.aprender).forEach(item => {
+    const pid = String(item.produto.id);
+    (apelidosNovos[pid] = apelidosNovos[pid] || { produto: item.produto, termos: new Set() })
+      .termos.add(item.nome.trim());
+  });
+  let totalApelidos = 0;
+  Object.values(apelidosNovos).forEach(({ produto, termos }) => {
+    const atuais = produto.aliases || [];
+    const jaTem  = new Set(atuais.map(normTexto));
+    const add    = [...termos].filter(t => normTexto(t) && !jaTem.has(normTexto(t)));
+    if (!add.length) return;
+    produto.aliases = [...atuais, ...add];   // estado local
+    totalApelidos += add.length;
+    fbBatch.update(col('produtos').doc(String(produto.id)), {
+      aliases: firebase.firestore.FieldValue.arrayUnion(...add)
+    });
+  });
+
   // 5. Commit atômico — se falhar, NADA é salvo
   fbBatch.commit()
     .then(() => {
@@ -6822,7 +6964,8 @@ function confirmarLote() {
   _limparRascunhoLote(type);
   renderAll();
   closeOverlay('loteOverlay');
-  toast(`✅ ${Object.keys(consolidado).length} produto${Object.keys(consolidado).length > 1 ? 's' : ''} processado${Object.keys(consolidado).length > 1 ? 's' : ''}:\n${resumoItens.join('\n')}`, 'success');
+  const sufixoApelidos = totalApelidos ? `\n🧠 ${totalApelidos} apelido${totalApelidos > 1 ? 's' : ''} aprendido${totalApelidos > 1 ? 's' : ''} — não vou perguntar de novo.` : '';
+  toast(`✅ ${Object.keys(consolidado).length} produto${Object.keys(consolidado).length > 1 ? 's' : ''} processado${Object.keys(consolidado).length > 1 ? 's' : ''}:\n${resumoItens.join('\n')}${sufixoApelidos}`, 'success');
   flashConfirm(type);
 }
 
@@ -6931,6 +7074,7 @@ function openEditProduct(productId) {
     document.getElementById('eCusto').value    = p.custo || '';
     document.getElementById('eVenda').value    = p.venda || '';
     document.getElementById('eValidade').value = p.validade || '';
+    document.getElementById('eAliases').value  = (p.aliases || []).join('\n');
     document.getElementById('editModalTitle').textContent = '✏️ Editar Produto';
   } else {
     document.getElementById('eName').value     = '';
@@ -6940,6 +7084,7 @@ function openEditProduct(productId) {
     document.getElementById('eCusto').value    = '';
     document.getElementById('eVenda').value    = '';
     document.getElementById('eValidade').value = '';
+    document.getElementById('eAliases').value  = '';
     document.getElementById('eQtyInicial').value = '';
     document.getElementById('editModalTitle').textContent = '✏️ Novo Produto';
   }
@@ -7002,10 +7147,34 @@ function handlePhotoUpload(event) {
 
 function removePhoto() { editPhotoTemp = null; refreshPhotoPreview(); }
 
+function lerAliasesInput() {
+  const vistos = new Set();
+  return document.getElementById('eAliases').value
+    .split('\n').map(s => s.trim())
+    .filter(s => {
+      const n = normTexto(s);
+      if (!n || vistos.has(n)) return false;
+      vistos.add(n); return true;
+    });
+}
+
 function saveEditProduct() {
   const name     = document.getElementById('eName').value.trim();
   const validade = document.getElementById('eValidade').value || null;
   if (!name) { toast('Informe o nome do produto', 'error'); return; }
+
+  // Um apelido não pode apontar para dois produtos — senão vira palpite.
+  const aliases = lerAliasesInput();
+  const meusNorm = new Set(aliases.map(normTexto));
+  const choque = products.find(x =>
+    String(x.id) !== String(editId) &&
+    [x.name, ...(x.aliases || [])].some(t => meusNorm.has(normTexto(t)))
+  );
+  if (choque) {
+    const termo = [choque.name, ...(choque.aliases || [])].find(t => meusNorm.has(normTexto(t)));
+    toast(`⚠️ O apelido "${termo}" já pertence a "${choque.name}". Remova de um dos dois.`, 'error');
+    return;
+  }
 
   const isFarmaciaEdit = currentFilial && currentFilial.id === FARMACIA_ID;
   const bulaServe = isFarmaciaEdit ? document.getElementById('eBulaServe').value.trim() : '';
@@ -7029,6 +7198,7 @@ function saveEditProduct() {
       venda:    parseFloat(document.getElementById('eVenda').value) || 0,
       qty:      parseFloat(document.getElementById('eQtyInicial').value) || 0,
       validade,
+      aliases,
       ...(bulaObj ? { bula: bulaObj } : {}),
     };
     if (editPhotoTemp) photos[newId] = editPhotoTemp;
@@ -7057,6 +7227,7 @@ function saveEditProduct() {
   if (user.role === 'admin') p.custo = parseFloat(document.getElementById('eCusto').value) || 0;
   p.venda    = parseFloat(document.getElementById('eVenda').value) || 0;
   p.validade = validade;
+  p.aliases  = aliases;
   if (bulaObj) p.bula = bulaObj; else delete p.bula;
   if (editPhotoTemp) photos[editId] = editPhotoTemp;
   else               delete photos[editId];
