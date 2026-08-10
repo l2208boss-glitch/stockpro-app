@@ -6751,8 +6751,12 @@ function renderLotePreview() {
   resumoProd += `<strong style="color:var(--text-1)">📊 Resumo por produto:</strong>`;
   Object.values(porProduto).forEach(pp => {
     const seta = isIn ? '📈' : '📉';
-    const corQty = !isIn && pp.total > pp.produto.qty ? 'color:#ef4444;font-weight:700' : 'font-weight:700';
-    const estoqueInfo = !isIn ? ` — estoque atual: ${pp.produto.qty} ${pp.produto.unit}` : '';
+    const falta = !isIn && pp.total > pp.produto.qty ? pp.total - pp.produto.qty : 0;
+    const corQty = falta ? 'color:#ef4444;font-weight:700' : 'font-weight:700';
+    const estoqueInfo = !isIn
+      ? ` — estoque atual: ${pp.produto.qty} ${pp.produto.unit}` +
+        (falta ? ` <strong style="color:#ef4444">⚠️ faltam ${falta} → fica ${pp.produto.qty - pp.total}</strong>` : '')
+      : '';
     const dupsInfo = pp.count > 1 ? ` <span style="color:var(--primary)">(${pp.count} linhas somadas)</span>` : '';
     resumoProd += `<div style="margin:3px 0">${seta} ${pp.produto.emoji} ${pp.produto.name}: <span style="${corQty}">${isIn ? '+' : '-'}${pp.total} ${pp.produto.unit}</span>${dupsInfo}${estoqueInfo}</div>`;
   });
@@ -6903,15 +6907,22 @@ function confirmarLote() {
     consolidado[pid].linhas.push({ linha: item.linha, qty: item.qty });
   });
 
-  // 3. Verificar estoque contra totais CONSOLIDADOS (não individuais)
+  // 3. Estoque insuficiente NÃO bloqueia mais — avisa e deixa você decidir.
+  //    O pedido já saiu; travar a baixa só faz o sistema mentir mais que
+  //    um saldo negativo, que pelo menos mostra o que ficou faltando.
   if (!isIn) {
-    const semEstoque = Object.values(consolidado).filter(c => c.totalQty > c.produto.qty);
-    if (semEstoque.length) {
-      const detalhes = semEstoque.map(c =>
-        `${c.produto.emoji} ${c.produto.name}: precisa ${c.totalQty}, tem ${c.produto.qty}`
+    const faltantes = Object.values(consolidado).filter(c => c.totalQty > c.produto.qty);
+    if (faltantes.length) {
+      const detalhes = faltantes.map(c =>
+        `• ${c.produto.name}: saída ${c.totalQty}, estoque ${c.produto.qty} → fica ${c.produto.qty - c.totalQty}`
       ).join('\n');
-      toast(`⚠️ Estoque insuficiente:\n${detalhes}`, 'error');
-      return;
+      const ok = confirm(
+        `⚠️ ${faltantes.length} produto${faltantes.length > 1 ? 's' : ''} sem estoque suficiente:\n\n${detalhes}\n\n` +
+        `Continuar mesmo assim?\n\n` +
+        `OK = dar baixa e deixar o saldo negativo (marca o que faltou no histórico)\n` +
+        `Cancelar = voltar e ajustar as quantidades`
+      );
+      if (!ok) return;
     }
   }
 
@@ -6925,6 +6936,8 @@ function confirmarLote() {
     const p = c.produto;
     const delta = isIn ? c.totalQty : -c.totalQty;
     const qtyAntes = p.qty;
+    // Quanto saiu além do que havia em estoque — fica registrado para reposição
+    const faltou = (!isIn && c.totalQty > qtyAntes) ? c.totalQty - qtyAntes : 0;
 
     // Atualiza qty atomicamente via FieldValue.increment no batch
     const docRef = col('produtos').doc(String(p.id));
@@ -6943,16 +6956,17 @@ function confirmarLote() {
       type,
       qty:         c.totalQty,
       balance:     p.qty,
-      obs:         c.linhas.length > 1
+      obs:         (c.linhas.length > 1
                      ? `Lote (${c.linhas.length} linhas): ${c.linhas.map(l => l.qty).join(' + ')} = ${c.totalQty}`
-                     : `Lote: ${c.linhas[0].linha}`,
+                     : `Lote: ${c.linhas[0].linha}`)
+                   + (faltou ? ` ⚠️ FALTARAM ${faltou} — repor` : ''),
       user:        user.name
     };
     history.push(entry);
     fbBatch.set(col('historico').doc(String(entry.id)), entry);
     entryIdx++;
 
-    resumoItens.push(`${p.emoji} ${p.name}: ${isIn ? '+' : '-'}${c.totalQty} (${qtyAntes} → ${p.qty})`);
+    resumoItens.push(`${p.emoji} ${p.name}: ${isIn ? '+' : '-'}${c.totalQty} (${qtyAntes} → ${p.qty})${faltou ? ` ⚠️ faltaram ${faltou}` : ''}`);
   });
 
   // 4b. Aprender apelidos — as grafias que você mapeou na mão viram
