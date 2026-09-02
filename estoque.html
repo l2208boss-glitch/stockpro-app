@@ -1366,9 +1366,9 @@
 
 <!-- ══════════ MODAL — RESULTADO CONFRONTO ══════════ -->
 <div class="overlay" id="confrontoResultModal" onclick="overlayClick(event,'confrontoResultModal')">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" id="confrontoResultCaixa" style="max-width:520px">
     <div class="modal-hd">
-      <span class="modal-title edit">📋 Resultado do Confronto</span>
+      <span class="modal-title edit" id="confrontoResultTitulo">📋 Resultado do Confronto</span>
       <button class="btn-x" onclick="closeOverlay('confrontoResultModal')">✕</button>
     </div>
     <div class="modal-body" style="max-height:72vh;overflow-y:auto">
@@ -5027,12 +5027,17 @@ function renderContagemLock() {
     banner.style.display = 'none'; banner.innerHTML = ''; return;
   }
   const dt = _contagemLock.ts ? new Date(_contagemLock.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '';
+  const conf = (_confrontosList || []).find(c => String(c.id) === String(_contagemLock.contagemId));
+  const resumo = conf ? _resumoConferencia(conf) : '';
   banner.innerHTML = `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px;color:#92400e;line-height:1.45">
         🔒 <strong>Contagem travada</strong> — enviada por <strong>${_contagemLock.byName || _contagemLock.by || 'operador'}</strong>${dt ? ' em ' + dt : ''} e já aplicada no estoque.<br>
-        <span style="font-size:12px">Ela não consegue enviar outra contagem até você liberar.</span>
+        <span style="font-size:12px">${resumo ? resumo + ' · c' : 'C'}onfira antes de liberar a próxima.</span>
       </div>
-      <button onclick="liberarContagem()" style="padding:9px 16px;border:none;border-radius:var(--radius-sm);background:#059669;color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔓 Liberar nova contagem</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${conf ? `<button onclick="verConferenciaDaTrava()" style="padding:9px 16px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔍 Conferir</button>` : ''}
+        <button onclick="liberarContagem()" style="padding:9px 16px;border:none;border-radius:var(--radius-sm);background:#059669;color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔓 Liberar nova contagem</button>
+      </div>
     </div>`;
   banner.style.display = '';
   const block = document.getElementById('confrontosBlock');
@@ -5319,6 +5324,171 @@ function renderConfontos(lista) {
 }
 
 let _confrontoAtual = null;
+/* ══════════════════════════════════════════
+   CONFERÊNCIA DA CONTAGEM
+   A contagem passou a alterar o estoque sozinha, então precisa de
+   auditoria: para cada produto reconstrói a trilha desde a contagem
+   anterior — quanto tinha, o que entrou, o que saiu — e mostra quanto
+   DEVERIA ter contra o que ela contou. A diferença é a quebra real.
+   ══════════════════════════════════════════ */
+
+// Ajustes gerados pela própria aplicação de uma contagem não contam como
+// movimentação do período — eles só levaram o sistema até o valor contado.
+function _ajusteDeContagem(h) {
+  return h.type === 'ajuste' && /^(Contagem de estoque enviada por|Ajuste via confronto)/i.test(h.obs || '');
+}
+
+// Contagem aplicada/aprovada imediatamente anterior que inclua este produto.
+function _contagemAnteriorDe(conf, productId) {
+  const anteriores = (_confrontosList || [])
+    .filter(c => String(c.id) !== String(conf.id)
+      && (c.status === 'aplicado' || c.status === 'aprovado')
+      && new Date(c.ts) < new Date(conf.ts))
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  for (const c of anteriores) {
+    const it = c.items.find(i => String(i.productId) === String(productId));
+    if (it) return { conf: c, item: it };
+  }
+  return null;
+}
+
+function montarConferencia(conf) {
+  // índice do histórico por produto — evita varrer tudo linha a linha
+  const porProduto = {};
+  (history || []).forEach(h => {
+    const k = String(h.productId);
+    (porProduto[k] = porProduto[k] || []).push(h);
+  });
+  const tsConf = new Date(conf.ts);
+
+  const linhas = conf.items.map(item => {
+    const ant = _contagemAnteriorDe(conf, item.productId);
+    const desde = ant ? new Date(ant.conf.ts) : null;
+    let entradas = 0, saidas = 0, ajustes = 0;
+    (porProduto[String(item.productId)] || []).forEach(h => {
+      const t = new Date(h.datetime || h.ts);
+      if (desde && t <= desde) return;      // pertence ao período anterior
+      if (t > tsConf) return;               // depois desta contagem
+      if (_ajusteDeContagem(h)) return;
+      if (h.type === 'entrada') entradas += Math.abs(h.qty || 0);
+      else if (h.type === 'saida') saidas += Math.abs(h.qty || 0);
+      else if (h.type === 'ajuste') ajustes += (h.delta != null ? h.delta : 0);
+    });
+    const base = ant ? ant.item.qtyFisico : null;
+    const esperado = base == null ? null
+      : Math.round((base + entradas - saidas + ajustes) * 1000) / 1000;
+    const quebra = esperado == null ? null
+      : Math.round((item.qtyFisico - esperado) * 1000) / 1000;
+    const prod = products.find(x => String(x.id) === String(item.productId));
+    const custo = (prod && Number(prod.custo)) || 0;
+    // esperado deve bater com o que o sistema tinha; se não bate, faltou
+    // registrar movimentação (ou alguém editou a quantidade na mão)
+    const furoNoHistorico = esperado != null && Math.abs(esperado - item.qtySistema) >= 0.01;
+    return {
+      item, prod, base, desdeTs: ant ? ant.conf.ts : null,
+      entradas, saidas, ajustes, esperado, quebra,
+      valor: quebra == null ? 0 : quebra * custo,
+      furoNoHistorico
+    };
+  });
+
+  linhas.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor) || Math.abs(b.quebra || 0) - Math.abs(a.quebra || 0));
+
+  const comQuebra = linhas.filter(l => l.quebra != null && Math.abs(l.quebra) >= 0.01);
+  const naoContados = (products || []).filter(pr =>
+    !conf.items.some(i => String(i.productId) === String(pr.id)));
+
+  return {
+    linhas, comQuebra, naoContados,
+    bateram: linhas.filter(l => l.quebra != null && Math.abs(l.quebra) < 0.01).length,
+    semBase: linhas.filter(l => l.quebra == null).length,
+    furos: linhas.filter(l => l.furoNoHistorico).length,
+    valorTotal: linhas.reduce((a, l) => a + l.valor, 0)
+  };
+}
+
+function renderConferenciaHTML(conf) {
+  const c = montarConferencia(conf);
+  const dt = new Date(conf.ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const anteriorTs = c.linhas.map(l => l.desdeTs).filter(Boolean).sort().pop();
+  const diasDesde = anteriorTs
+    ? Math.round((new Date(conf.ts) - new Date(anteriorTs)) / 86400000) : null;
+
+  const badge = (txt, cor, bg) =>
+    `<span style="font-size:12px;font-weight:700;color:${cor};background:${bg};padding:4px 10px;border-radius:99px;white-space:nowrap">${txt}</span>`;
+
+  let resumo = `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+    ${badge('✅ ' + c.bateram + ' bateram', 'var(--success)', 'rgba(16,185,129,.12)')}
+    ${c.comQuebra.length ? badge('❌ ' + c.comQuebra.length + ' com quebra', 'var(--danger)', 'rgba(239,68,68,.12)') : ''}
+    ${c.semBase ? badge('🆕 ' + c.semBase + ' sem contagem anterior', '#0369a1', 'rgba(14,165,233,.12)') : ''}
+    ${c.naoContados.length ? badge('⚪ ' + c.naoContados.length + ' não contados', 'var(--text-3)', 'var(--bg)') : ''}
+    ${Math.abs(c.valorTotal) >= 0.01 ? badge((c.valorTotal < 0 ? '💸 Falta ' : '📈 Sobra ') + fmtMoney(Math.abs(c.valorTotal)), c.valorTotal < 0 ? 'var(--danger)' : '#d97706', c.valorTotal < 0 ? 'rgba(239,68,68,.12)' : 'rgba(217,119,6,.12)') : ''}
+    ${c.furos ? badge('⚠️ ' + c.furos + ' sem trilha completa', '#b45309', 'rgba(245,158,11,.14)') : ''}
+  </div>`;
+
+  const num = v => (v == null ? '—' : (Math.round(v * 1000) / 1000).toLocaleString('pt-BR'));
+  const temAjuste = c.linhas.some(l => Math.abs(l.ajustes) >= 0.01);
+
+  const linhas = c.linhas.map(l => {
+    const q = l.quebra;
+    const grave = q != null && Math.abs(q) >= 0.01;
+    const cor = q == null ? 'var(--text-3)' : (Math.abs(q) < 0.01 ? 'var(--success)' : (q < 0 ? 'var(--danger)' : '#d97706'));
+    const txtQ = q == null ? '—' : (Math.abs(q) < 0.01 ? '✅ 0' : (q > 0 ? '+' + num(q) : num(q)));
+    return `<tr style="${grave ? 'background:#fff7ed' : ''}">
+      <td style="padding:6px 8px;border-bottom:1px solid var(--border)">${l.item.emoji} ${l.item.productName}${l.furoNoHistorico ? ' <span title="O esperado não bate com o que o sistema tinha — faltou registrar alguma movimentação, ou alguém editou a quantidade na mão">⚠️</span>' : ''}</td>
+      <td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-2)">${num(l.base)}</td>
+      <td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--success)">${l.entradas ? '+' + num(l.entradas) : '—'}</td>
+      <td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--danger)">${l.saidas ? '−' + num(l.saidas) : '—'}</td>
+      ${temAjuste ? `<td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-2)">${l.ajustes ? num(l.ajustes) : '—'}</td>` : ''}
+      <td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);font-weight:700">${num(l.esperado)}</td>
+      <td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);font-weight:700">${num(l.item.qtyFisico)}</td>
+      <td style="padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);color:${cor};font-weight:700">${txtQ}</td>
+      <td style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);color:${cor};white-space:nowrap">${Math.abs(l.valor) >= 0.01 ? fmtMoney(l.valor) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const th = t => `<th style="padding:7px 8px;text-align:center;border-bottom:2px solid var(--border);font-size:11px;color:var(--text-2);white-space:nowrap">${t}</th>`;
+
+  return `
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">
+      Contagem de <strong>${conf.user}</strong> em ${dt}${diasDesde != null ? ` · ${diasDesde} dia(s) desde a contagem anterior` : ''}
+    </div>
+    ${resumo}
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px">
+      <thead><tr style="background:var(--bg)">
+        <th style="padding:7px 8px;text-align:left;border-bottom:2px solid var(--border);font-size:11px;color:var(--text-2)">Produto</th>
+        ${th('Contagem<br>anterior')}${th('Entrou')}${th('Saiu')}${temAjuste ? th('Ajustes') : ''}${th('Deveria<br>ter')}${th('Ela<br>contou')}${th('Quebra')}${th('Valor')}
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>
+    ${c.naoContados.length ? `<div style="font-size:11px;color:var(--text-3);margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--radius-sm)">
+      ⚪ <strong>Não contados</strong> (ficaram com a quantidade do sistema): ${c.naoContados.map(x => x.name).join(', ')}
+    </div>` : ''}
+    ${conf.obs ? `<div style="font-size:12px;color:var(--text-2);margin-top:10px;padding:8px;background:var(--bg);border-radius:var(--radius-sm)">💬 ${conf.obs}</div>` : ''}
+    <div style="font-size:11px;color:var(--text-3);margin-top:10px;line-height:1.6">
+      <strong>Como ler:</strong> <em>Deveria ter</em> = contagem anterior + entradas − saídas. A <em>quebra</em> é o que sobrou ou faltou sem explicação nas movimentações.
+      Negativo = sumiu do estoque. Positivo = tinha mais do que o sistema sabia (baixa não registrada, ou erro na contagem passada).
+    </div>`;
+}
+
+/* Resumo curto de uma contagem, para o banner de trava. */
+function _resumoConferencia(conf) {
+  try {
+    const c = montarConferencia(conf);
+    if (!c.comQuebra.length) return '✅ tudo bateu com as movimentações';
+    const v = Math.abs(c.valorTotal) >= 0.01 ? ` · ${c.valorTotal < 0 ? 'falta' : 'sobra'} ${fmtMoney(Math.abs(c.valorTotal))}` : '';
+    return `❌ ${c.comQuebra.length} produto(s) com quebra${v}`;
+  } catch (e) { console.error(e); return ''; }
+}
+
+function verConferenciaDaTrava() {
+  const id = _contagemLock && _contagemLock.contagemId;
+  const conf = (_confrontosList || []).find(c => String(c.id) === String(id));
+  if (!conf) { toast('Contagem não encontrada na lista', 'error'); return; }
+  verConfronto(conf.id);
+}
+
 function verConfronto(id) {
   const snap = _confrontosList?.find(c => String(c.id) === String(id));
   if (!snap) return;
@@ -5328,6 +5498,23 @@ function verConfronto(id) {
     const sign = diff > 0 ? `+${diff}` : `${diff}`;
     return `<span style="color:${diff>0?'#d97706':'var(--danger)'};font-weight:700">${sign} ${unit}</span>`;
   };
+  const caixa = document.getElementById('confrontoResultCaixa');
+  const tituloRes = document.getElementById('confrontoResultTitulo');
+  // Contagem que já alterou o estoque: mostra a auditoria contra as movimentações
+  if (snap.status === 'aplicado' || snap.status === 'aprovado') {
+    if (caixa) caixa.style.maxWidth = '900px';
+    if (tituloRes) tituloRes.textContent = '🔍 Conferência da Contagem';
+    document.getElementById('confrontoResultBody').innerHTML = renderConferenciaHTML(snap);
+    document.getElementById('confrontoResultFt').innerHTML =
+      `<button class="btn-cancel" onclick="closeOverlay('confrontoResultModal')">Fechar</button>` +
+      (_contagemTravada() && String(_contagemLock.contagemId) === String(snap.id)
+        ? `<button onclick="closeOverlay('confrontoResultModal');liberarContagem()" style="padding:10px 18px;border:none;border-radius:var(--radius-sm);background:#059669;color:#fff;font-weight:700;cursor:pointer">🔓 Liberar nova contagem</button>`
+        : '');
+    document.getElementById('confrontoResultModal').classList.add('on');
+    return;
+  }
+  if (caixa) caixa.style.maxWidth = '520px';
+  if (tituloRes) tituloRes.textContent = '📋 Resultado do Confronto';
   const rows = snap.items.map(i =>
     `<tr style="${Math.abs(i.diff)>=0.01?'background:#fff7ed':''}">
       <td>${i.emoji} ${i.productName}</td>
