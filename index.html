@@ -1075,6 +1075,7 @@
           <div class="sec-sub" id="confrontosSubtitle">Contagens físicas aguardando aprovação</div>
         </div>
       </div>
+      <div id="contagemLockBanner" style="display:none;margin-bottom:12px"></div>
       <div id="confrontosLista" style="display:grid;gap:10px"></div>
     </div>
 
@@ -1318,11 +1319,13 @@
 <div class="overlay" id="confrontoModal" onclick="overlayClick(event,'confrontoModal')">
   <div class="modal" style="max-width:560px">
     <div class="modal-hd">
-      <span class="modal-title edit">📊 Confronto de Estoque</span>
+      <span class="modal-title edit" id="confrontoTitulo">📊 Confronto de Estoque</span>
       <button class="btn-x" onclick="closeOverlay('confrontoModal')">✕</button>
     </div>
     <div class="modal-body" style="max-height:72vh;overflow-y:auto">
-      <p style="font-size:13px;color:var(--text-2);margin-bottom:10px">Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.</p>
+      <div id="confrontoBloqueado" style="display:none"></div>
+      <div id="confrontoForm">
+      <p id="confrontoIntro" style="font-size:13px;color:var(--text-2);margin-bottom:10px">Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.</p>
       <div style="position:relative;margin-bottom:10px">
         <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none">🔍</span>
         <input id="confrontoBusca" type="text" placeholder="Buscar produto..."
@@ -1337,9 +1340,10 @@
       <div style="margin-top:12px">
         <textarea id="confrontoObs" placeholder="Observação (opcional)..." oninput="_salvarRascunhoConfronto()" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;height:54px;font-family:inherit;box-sizing:border-box"></textarea>
       </div>
+      </div>
     </div>
     <div class="modal-ft">
-      <button class="btn-cancel" onclick="closeOverlay('confrontoModal')">Cancelar</button>
+      <button class="btn-cancel" id="btnCancelarConfronto" onclick="closeOverlay('confrontoModal')">Cancelar</button>
       <button class="btn-confirm save" id="btnSalvarConfronto" onclick="salvarConfronto()">📤 Enviar Contagem</button>
     </div>
   </div>
@@ -2769,6 +2773,7 @@ function showEstoqueApp() {
   document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
   document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
   if (isAdmin) loadConfontos();
+  loadContagemLock();
 }
 
 function showCaixaApp() {
@@ -4855,8 +4860,115 @@ function imprimirFolhaContagem() {
   setTimeout(() => w.print(), 400);
 }
 
+/* ══════════════════════════════════════════
+   TRAVA DA CONTAGEM (Farmácia — operador aplica direto no estoque)
+   ══════════════════════════════════════════ */
+let _contagemLock = null;
+let _contagemLockUnsub = null;
+
+// Na Farmácia o operador aplica a contagem direto no estoque (sem aprovação do admin)
+function _contagemAplicaDireto() {
+  return !!(currentFilial && currentFilial.id === FARMACIA_ID && user && user.role !== 'admin');
+}
+function _contagemTravada() { return !!(_contagemLock && _contagemLock.locked); }
+function _contagemLockRef() { return db.doc(`lojas/${FARMACIA_ID}/config/contagemLock`); }
+
+function loadContagemLock() {
+  if (_contagemLockUnsub) { _contagemLockUnsub(); _contagemLockUnsub = null; }
+  _contagemLock = null;
+  if (!currentFilial || currentFilial.id !== FARMACIA_ID) { renderContagemLock(); return; }
+  _contagemLockUnsub = _contagemLockRef().onSnapshot(d => {
+    _contagemLock = d.exists ? d.data() : null;
+    renderContagemLock();
+    // se travou com o modal aberto, troca para a tela de bloqueio
+    const mod = document.getElementById('confrontoModal');
+    if (mod && mod.classList.contains('on') && _contagemAplicaDireto() && _contagemTravada()) openConfronto();
+  }, () => {});
+}
+
+function renderContagemLock() {
+  const btn = document.getElementById('btnConfronto');
+  if (btn) {
+    const direto = _contagemAplicaDireto();
+    const travado = direto && _contagemTravada();
+    const lbl = btn.childNodes[0];
+    if (lbl && lbl.nodeType === 3) {
+      lbl.nodeValue = travado ? '🔒 Contagem enviada' : (direto ? '📊 Contagem de Estoque' : '📊 Confronto de Estoque');
+    }
+    btn.style.background = travado ? '#94a3b8' : '#7c3aed';
+    btn.title = travado ? 'Contagem já enviada — só o admin pode liberar outra' : '';
+  }
+  const banner = document.getElementById('contagemLockBanner');
+  if (!banner) return;
+  const isAdmin = user && user.role === 'admin';
+  if (!isAdmin || !currentFilial || currentFilial.id !== FARMACIA_ID || !_contagemTravada()) {
+    banner.style.display = 'none'; banner.innerHTML = ''; return;
+  }
+  const dt = _contagemLock.ts ? new Date(_contagemLock.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '';
+  banner.innerHTML = `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:13px;color:#92400e;line-height:1.45">
+        🔒 <strong>Contagem travada</strong> — enviada por <strong>${_contagemLock.byName || _contagemLock.by || 'operador'}</strong>${dt ? ' em ' + dt : ''} e já aplicada no estoque.<br>
+        <span style="font-size:12px">Ela não consegue enviar outra contagem até você liberar.</span>
+      </div>
+      <button onclick="liberarContagem()" style="padding:9px 16px;border:none;border-radius:var(--radius-sm);background:#059669;color:#fff;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">🔓 Liberar nova contagem</button>
+    </div>`;
+  banner.style.display = '';
+  const block = document.getElementById('confrontosBlock');
+  if (block) block.style.display = '';
+}
+
+async function liberarContagem() {
+  if (!user || user.role !== 'admin') return;
+  if (!confirm('Liberar nova contagem para a atendente?\n\nEla vai poder enviar outra contagem e alterar o estoque de novo.')) return;
+  try {
+    await _contagemLockRef().set({ locked: false, liberadoPor: user.username, liberadoEm: new Date().toISOString() }, { merge: true });
+    toast('🔓 Contagem liberada', 'success');
+  } catch(e) { toast('Erro ao liberar contagem', 'error'); console.error(e); }
+}
+
 function openConfronto() {
   if (!currentFilial) return;
+  const direto = _contagemAplicaDireto();
+  const bloq = document.getElementById('confrontoBloqueado');
+  const form = document.getElementById('confrontoForm');
+  const btnSalvar = document.getElementById('btnSalvarConfronto');
+  const titulo = document.getElementById('confrontoTitulo');
+  if (titulo) titulo.textContent = direto ? '📊 Contagem de Estoque' : '📊 Confronto de Estoque';
+
+  // Já enviou: fica bloqueada até o admin liberar
+  if (direto && _contagemTravada()) {
+    const dt = _contagemLock.ts ? new Date(_contagemLock.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '';
+    if (bloq) {
+      bloq.innerHTML = `<div style="text-align:center;padding:22px 10px">
+        <div style="font-size:44px;margin-bottom:10px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:6px">Contagem já enviada</div>
+        <div style="font-size:13px;color:var(--text-2);line-height:1.5">O estoque foi atualizado com a sua contagem${dt ? ' de <strong>' + dt + '</strong>' : ''}.<br>
+        Para enviar outra contagem, peça ao administrador para liberar.</div>
+      </div>`;
+      bloq.style.display = '';
+    }
+    if (form) form.style.display = 'none';
+    if (btnSalvar) btnSalvar.style.display = 'none';
+    const btnCancel = document.getElementById('btnCancelarConfronto');
+    if (btnCancel) btnCancel.textContent = 'Fechar';
+    document.getElementById('confrontoModal').classList.add('on');
+    return;
+  }
+  if (bloq) { bloq.style.display = 'none'; bloq.innerHTML = ''; }
+  const btnCancelar = document.getElementById('btnCancelarConfronto');
+  if (btnCancelar) btnCancelar.textContent = 'Cancelar';
+  if (form) form.style.display = '';
+  if (btnSalvar) {
+    btnSalvar.style.display = '';
+    btnSalvar.textContent = direto ? '📤 Enviar e Atualizar Estoque' : '📤 Enviar Contagem';
+  }
+  const intro = document.getElementById('confrontoIntro');
+  if (intro) {
+    intro.innerHTML = direto
+      ? 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.<br><span style="color:#b45309">⚠️ Ao enviar, o estoque é corrigido na hora — e você não poderá alterar de novo sem liberação do administrador.</span>'
+      : 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.';
+  }
+
   const lista = document.getElementById('confrontoListaProdutos');
   document.getElementById('confrontoBusca').value = '';
   lista.innerHTML = products.length === 0
@@ -4898,6 +5010,12 @@ function openConfronto() {
 
 async function salvarConfronto() {
   if (!currentFilial) return;
+  const direto = _contagemAplicaDireto();
+  if (direto && _contagemTravada()) {
+    toast('🔒 Contagem já enviada — peça ao admin para liberar', 'error');
+    openConfronto();
+    return;
+  }
   const inputs = document.querySelectorAll('#confrontoListaProdutos input[data-pid]');
   const items = [];
   inputs.forEach(inp => {
@@ -4916,14 +5034,27 @@ async function salvarConfronto() {
   if (!items.length) { toast('Informe ao menos uma quantidade', 'error'); return; }
   const obs = document.getElementById('confrontoObs').value.trim();
   const id = Date.now();
-  const doc = { id, ts: new Date().toISOString(), user: user.username, status: 'pendente',
+  const doc = { id, ts: new Date().toISOString(), user: user.username, status: direto ? 'aplicado' : 'pendente',
     filialId: currentFilial.id, filialNome: currentFilial.nome||currentFilial.id, obs, items };
+
+  if (direto) {
+    const nDiv = items.filter(i => Math.abs(i.diff) >= 0.01).length;
+    const aviso = nDiv
+      ? `O estoque de ${nDiv} produto(s) vai ser corrigido AGORA para a quantidade que você contou.`
+      : 'Nenhuma diferença encontrada — o estoque continua igual.';
+    if (!confirm(`${aviso}\n\n⚠️ Depois de enviar você NÃO poderá alterar de novo. Só o administrador pode liberar outra contagem.\n\nConfirmar envio?`)) return;
+  }
+
   try {
     document.getElementById('btnSalvarConfronto').disabled = true;
-    await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id)).set(doc);
+    if (direto) {
+      await _aplicarContagemNoEstoque(doc);
+    } else {
+      await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id)).set(doc);
+    }
     _limparRascunhoConfronto();
     closeOverlay('confrontoModal');
-    toast('✅ Contagem enviada para o admin', 'success');
+    toast(direto ? '✅ Estoque atualizado com a sua contagem' : '✅ Contagem enviada para o admin', 'success');
     if (user.role === 'admin') loadConfontos();
   } catch(e) {
     toast('Erro ao salvar contagem', 'error');
@@ -4931,6 +5062,63 @@ async function salvarConfronto() {
   } finally {
     document.getElementById('btnSalvarConfronto').disabled = false;
   }
+}
+
+/* Aplica a contagem direto no estoque + trava novas contagens.
+   Escreve tudo em batch e não fica preso esperando o servidor: com a
+   persistência offline ligada o dado já vale localmente e sincroniza depois
+   (era aí que a aprovação antiga travava e o estoque nunca mudava). */
+async function _aplicarContagemNoEstoque(doc) {
+  const fid = currentFilial.id;
+  const agora = new Date().toISOString();
+  const divergentes = doc.items.filter(i => Math.abs(i.diff) >= 0.01);
+
+  let batch = db.batch(), ops = 0;
+  const pendentes = [];
+  const flush = () => { if (ops) { pendentes.push(batch.commit()); batch = db.batch(); ops = 0; } };
+
+  for (const item of divergentes) {
+    batch.set(db.doc(`lojas/${fid}/produtos/${item.productId}`), { qty: item.qtyFisico }, { merge: true });
+    batch.set(db.collection(`lojas/${fid}/historico`).doc(), {
+      id: Date.now() + Math.random(),
+      productId: item.productId,
+      datetime: agora,
+      productName: item.productName,
+      emoji: item.emoji || '📦',
+      type: 'ajuste',
+      qty: Math.abs(item.diff),
+      delta: item.diff,
+      balance: item.qtyFisico,
+      obs: `Contagem de estoque enviada por ${doc.user}`,
+      user: doc.user
+    });
+    ops += 2;
+    if (ops >= 400) flush();
+  }
+  batch.set(db.doc(`lojas/${fid}/confrontos/${doc.id}`), Object.assign({}, doc, { aplicadoEm: agora }));
+  ops++;
+  if (fid === FARMACIA_ID) {
+    batch.set(_contagemLockRef(), {
+      locked: true, by: doc.user, byName: (user && user.name) || doc.user,
+      ts: agora, contagemId: doc.id
+    }, { merge: true });
+    ops++;
+  }
+  flush();
+
+  const tudo = Promise.all(pendentes);
+  tudo.catch(e => {
+    console.error(e);
+    toast('⚠️ Sem conexão — contagem salva no aparelho e sobe quando voltar', 'error');
+  });
+  // nao bloqueia a tela por mais de 5s esperando o servidor confirmar
+  await Promise.race([tudo.catch(() => {}), new Promise(r => setTimeout(r, 5000))]);
+
+  divergentes.forEach(item => {
+    const prod = products.find(x => String(x.id) === String(item.productId));
+    if (prod) prod.qty = item.qtyFisico;
+  });
+  renderProducts();
 }
 
 let _confrontosList = [];
@@ -4960,7 +5148,7 @@ function renderConfontos(lista) {
   const block = document.getElementById('confrontosBlock');
   const cont  = document.getElementById('confrontosLista');
   if (!block) return;
-  if (!lista.length) { block.style.display = 'none'; return; }
+  if (!lista.length) { block.style.display = 'none'; renderContagemLock(); return; }
   block.style.display = '';
   const pendentes = lista.filter(c => c.status === 'pendente');
   const outros    = lista.filter(c => c.status !== 'pendente');
@@ -4975,8 +5163,10 @@ function renderConfontos(lista) {
       ? `<span style="color:var(--success);font-weight:700;font-size:12px">✅ Tudo conferido</span>`
       : `<span style="color:var(--danger);font-weight:700;font-size:12px">❌ ${divergentes.length} divergência(s)</span>
          <span style="color:var(--success);font-size:12px">· ✅ ${ok.length} ok</span>`;
-    const statusColor = c.status === 'pendente' ? '#d97706' : c.status === 'aprovado' ? 'var(--success)' : 'var(--danger)';
-    const statusLabel = c.status === 'pendente' ? '⏳ Pendente' : c.status === 'aprovado' ? '✅ Aprovado' : '❌ Rejeitado';
+    const statusColor = c.status === 'pendente' ? '#d97706' : c.status === 'rejeitado' ? 'var(--danger)' : 'var(--success)';
+    const statusLabel = c.status === 'pendente' ? '⏳ Pendente'
+      : c.status === 'aplicado' ? '✅ Aplicado no estoque'
+      : c.status === 'aprovado' ? '✅ Aprovado' : '❌ Rejeitado';
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow-sm)">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
         <div>
@@ -4994,6 +5184,7 @@ function renderConfontos(lista) {
       ${c.obs ? `<div style="font-size:11px;color:var(--text-3);margin-top:6px">💬 ${c.obs}</div>` : ''}
     </div>`;
   }).join('');
+  renderContagemLock();
 }
 
 let _confrontoAtual = null;
@@ -5101,6 +5292,8 @@ function doLogout() {
   stopListeners();
   if (unsubFiliais) { unsubFiliais(); unsubFiliais = null; }
   if (_confrontosUnsub) { _confrontosUnsub(); _confrontosUnsub = null; }
+  if (_contagemLockUnsub) { _contagemLockUnsub(); _contagemLockUnsub = null; }
+  _contagemLock = null;
   user = null; currentFilial = null; currentMode = null;
   products = []; history = []; photos = {}; filiais = [];
   cart = []; vendas = []; cotacao = { brl:0, pix:0, pyg:0, date:'' };
@@ -5509,6 +5702,7 @@ function renderAll() {
   document.getElementById('reportsBlock').style.display  = isAdmin ? '' : 'none';
   document.getElementById('historyBlock').style.display  = isAdmin ? '' : 'none';
   if (isAdmin) loadConfontos();
+  renderContagemLock();
 }
 
 function fmtMoney(v) {
