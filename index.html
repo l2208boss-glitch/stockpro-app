@@ -1326,6 +1326,21 @@
       <div id="confrontoBloqueado" style="display:none"></div>
       <div id="confrontoForm">
       <p id="confrontoIntro" style="font-size:13px;color:var(--text-2);margin-bottom:10px">Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.</p>
+      <div id="confrontoColarBox" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;background:var(--bg)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700;color:var(--text-1)">📋 Colar a contagem</span>
+          <span id="confrontoProgresso" style="font-size:12px;color:var(--text-3);font-weight:600"></span>
+        </div>
+        <textarea id="confrontoColar" placeholder="Uma linha por produto, com o número contado:&#10;Dipirona 12&#10;Paracetamol x 5&#10;3 Soro" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;height:64px;resize:vertical;font-family:inherit;background:var(--surface);color:var(--text-1)"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" onclick="preencherContagemColada()" style="padding:7px 14px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-size:12px;font-weight:700;cursor:pointer">⚡ Preencher</button>
+          <button type="button" onclick="limparContagem()" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer">🧹 Limpar</button>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);cursor:pointer;margin-left:auto">
+            <input type="checkbox" id="confrontoSoFaltam" onchange="filtrarConfronto()"> só os que faltam
+          </label>
+        </div>
+        <div id="confrontoColarResumo" style="font-size:12px;margin-top:7px;line-height:1.5"></div>
+      </div>
       <div style="position:relative;margin-bottom:10px">
         <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none">🔍</span>
         <input id="confrontoBusca" type="text" placeholder="Buscar produto..."
@@ -4745,9 +4760,115 @@ function renderFechamentos(lista) {
 
 function filtrarConfronto() {
   const q = (document.getElementById('confrontoBusca')?.value || '').toLowerCase().trim();
+  const soFaltam = !!document.getElementById('confrontoSoFaltam')?.checked;
   document.querySelectorAll('#confrontoListaProdutos [data-prow]').forEach(row => {
-    row.style.display = !q || row.dataset.prow.toLowerCase().includes(q) ? '' : 'none';
+    const inp = row.querySelector('input[data-pid]');
+    const vazio = !inp || inp.value.trim() === '';
+    const casaBusca = !q || row.dataset.prow.toLowerCase().includes(q);
+    row.style.display = (casaBusca && (!soFaltam || vazio)) ? '' : 'none';
   });
+}
+
+/* Contador "X de N preenchidos" + linha verde no que já foi contado. */
+function atualizarProgressoContagem() {
+  const inps = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')];
+  const el = document.getElementById('confrontoProgresso');
+  if (el) el.textContent = inps.length ? `${inps.filter(i => i.value.trim() !== '').length} de ${inps.length} preenchidos` : '';
+  inps.forEach(i => {
+    const row = i.closest('[data-prow]');
+    if (!row) return;
+    const ok = i.value.trim() !== '';
+    row.style.borderColor = ok ? 'var(--success)' : 'var(--border)';
+    row.style.background  = ok ? 'rgba(16,185,129,.08)' : 'var(--surface)';
+  });
+}
+
+/* Enter salta para o próximo produto visível — dá para contar sem tirar
+   a mão do teclado nem usar o mouse. */
+function contagemEnter(ev, inp) {
+  if (ev.key !== 'Enter') return;
+  ev.preventDefault();
+  const visiveis = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')]
+    .filter(i => { const r = i.closest('[data-prow]'); return r && r.style.display !== 'none'; });
+  const prox = visiveis[visiveis.indexOf(inp) + 1];
+  if (prox) { prox.focus(); prox.select(); } else inp.blur();
+}
+
+/* Parser da lista colada. Diferente do lote: aceita ZERO (produto que
+   acabou) e casas decimais, e não some com o número quando o nome do
+   produto já tem dígitos ("Dipirona 500mg 12" → Dipirona 500mg = 12). */
+function parsearContagem(texto) {
+  const out = [];
+  texto.split('\n').forEach(linha => {
+    let l = linha.trim();
+    if (!l) return;
+    if (/^[=\-_*·—–~+#.\s]+$/.test(l)) return;
+    l = l.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+         .replace(/^[\s*_>\-–—•·=)\]]+/, '')
+         .trim();
+    if (!l) return;
+    let nome = null, qty = null, m;
+    if ((m = l.match(/^(.+?)[\s:=\-–—.·]+(\d+(?:[.,]\d+)?)$/))) {
+      nome = m[1]; qty = m[2];                    // "Dipirona 12", "Soro: 7", "Dipirona x 5"
+    } else if ((m = l.match(/^(\d+(?:[.,]\d+)?)\s*[xX×]?\s*[-–—·).:]?\s*(.+)$/))) {
+      qty = m[1]; nome = m[2];                    // "12 Dipirona", "3x Soro"
+    } else return;
+    nome = nome.replace(/\([^)]*\)/g, '').replace(/[xX×]$/, '').trim();
+    if (!nome || !/[a-zA-Z]/.test(nome)) return;
+    const n = parseFloat(String(qty).replace(',', '.'));
+    if (isNaN(n) || n < 0) return;
+    out.push({ linha, nome, qty: n });
+  });
+  return out;
+}
+
+/* Preenche os campos a partir da lista colada, casando pelo nome ou
+   pelos apelidos já cadastrados (mesmo índice da entrada/saída em lote). */
+function preencherContagemColada() {
+  const txt = (document.getElementById('confrontoColar')?.value || '').trim();
+  const resumoEl = document.getElementById('confrontoColarResumo');
+  if (!txt) { toast('Cole ou digite a lista antes.', 'error'); return; }
+  const parsed = parsearContagem(txt);
+  if (!parsed.length) {
+    resumoEl.innerHTML = '<span style="color:var(--danger)">Não achei nenhum item. Escreva uma linha por produto com o número: <b>Dipirona 12</b></span>';
+    return;
+  }
+  const idx = montarIndiceApelidos();
+  const somados = {}, naoRec = [];
+  parsed.forEach(({ nome, qty }) => {
+    const prod = encontrarProduto(nome, idx);
+    if (!prod) { if (!naoRec.includes(nome)) naoRec.push(nome); return; }
+    somados[prod.id] = (somados[prod.id] || 0) + qty;   // linhas repetidas somam
+  });
+  const inps = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')];
+  const feitos = [];
+  Object.entries(somados).forEach(([pid, qty]) => {
+    const inp = inps.find(i => String(i.getAttribute('data-pid')) === String(pid));
+    if (!inp) return;
+    inp.value = qty;
+    const prod = products.find(x => String(x.id) === String(pid));
+    feitos.push(((prod && prod.name) || pid) + ' = ' + qty);
+  });
+  _salvarRascunhoConfronto();
+  atualizarProgressoContagem();
+  filtrarConfronto();
+  let html = '';
+  if (feitos.length) html += `<div style="color:var(--success);font-weight:700">✅ ${feitos.length} preenchido(s): ${feitos.join(' · ')}</div>`;
+  if (naoRec.length) html += `<div style="color:#b45309;margin-top:4px">⚠️ Não reconheci: <b>${naoRec.join('</b>, <b>')}</b> — digite na mão na lista abaixo.</div>`;
+  resumoEl.innerHTML = html;
+  if (feitos.length) toast(`⚡ ${feitos.length} produto(s) preenchido(s)`, 'success');
+}
+
+function limparContagem() {
+  const inps = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')];
+  if (!inps.some(i => i.value.trim() !== '')) return;
+  if (!confirm('Apagar tudo o que já foi digitado nesta contagem?')) return;
+  inps.forEach(i => i.value = '');
+  const resumoEl = document.getElementById('confrontoColarResumo');
+  if (resumoEl) resumoEl.innerHTML = '';
+  _salvarRascunhoConfronto();
+  atualizarProgressoContagem();
+  filtrarConfronto();
 }
 
 function _confrontoRascunhoKey() {
@@ -4759,6 +4880,7 @@ function _salvarRascunhoConfronto() {
   inputs.forEach(inp => { if (inp.value.trim() !== '') vals[inp.getAttribute('data-pid')] = inp.value; });
   const obs = document.getElementById('confrontoObs')?.value || '';
   localStorage.setItem(_confrontoRascunhoKey(), JSON.stringify({ vals, obs, ts: Date.now() }));
+  atualizarProgressoContagem();
 }
 function _limparRascunhoConfronto() {
   localStorage.removeItem(_confrontoRascunhoKey());
@@ -4969,6 +5091,13 @@ function openConfronto() {
       : 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.';
   }
 
+  const colar = document.getElementById('confrontoColar');
+  if (colar) colar.value = '';
+  const resumoColar = document.getElementById('confrontoColarResumo');
+  if (resumoColar) resumoColar.innerHTML = '';
+  const soFaltam = document.getElementById('confrontoSoFaltam');
+  if (soFaltam) soFaltam.checked = false;
+
   const lista = document.getElementById('confrontoListaProdutos');
   document.getElementById('confrontoBusca').value = '';
   lista.innerHTML = products.length === 0
@@ -4981,6 +5110,7 @@ function openConfronto() {
         <input type="number" step="any" min="0" data-pid="${p.id}"
           placeholder="Contado"
           style="width:82px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;text-align:center;background:var(--bg)"
+          onkeydown="contagemEnter(event,this)"
           oninput="_salvarRascunhoConfronto()">
       </div>`).join('');
 
@@ -5005,6 +5135,7 @@ function openConfronto() {
     const bannerEl = document.getElementById('confrontoRascunhoBanner');
     if (bannerEl) bannerEl.style.display = 'none';
   }
+  atualizarProgressoContagem();
   document.getElementById('confrontoModal').classList.add('on');
 }
 
