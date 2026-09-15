@@ -1886,6 +1886,29 @@
   </div>
 </div>
 
+<!-- ══════════ MODAL — CONFIRMAR IMPRESSÃO DA FACTURA ══════════ -->
+<div class="overlay" id="facturaConfirmModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd">
+      <span class="modal-title edit">🖨️ A factura saiu impressa?</span>
+    </div>
+    <div class="modal-body">
+      <div style="text-align:center;padding:6px 0 14px">
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">Factura N°</div>
+        <div style="font-size:30px;font-weight:800;color:#c0392b;letter-spacing:1px" id="factConfirmNum">0000651</div>
+      </div>
+      <div style="font-size:13px;color:var(--text-2);line-height:1.6;background:var(--bg);padding:10px 12px;border-radius:var(--radius-sm)">
+        Confirme só depois de ver o papel impresso.<br>
+        Se você cancelou, imprimiu só para teste ou o papel saiu errado, clique em <strong>devolver o número</strong> — a próxima factura vai usar esse mesmo número.
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="devolverNumeroFactura()">↩️ Cancelei — devolver o número</button>
+      <button class="btn-confirm save" onclick="confirmarFacturaImpressa()">✅ Saiu, confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ MODAL — CONFIG NUMERACIÓN FACTURA ══════════ -->
 <div class="overlay" id="facturaConfigModal" onclick="overlayClick(event,'facturaConfigModal')">
   <div class="modal" style="max-width:380px">
@@ -3350,16 +3373,19 @@ const GPP_EMPRESA = {
   direccion: 'Avda. Adrian Jara N° 270 - Salón N° 7 - Edificio Miguelito',
   ciudad: 'Ciudad Del Este - Alto Paraná - Paraguay',
   telefono: '(0974) 907 679',
-  timbrado: '18280266',
-  vigenciaInicio: '02/09/2025',
-  vigenciaFin: '30/09/2026',
+  timbrado: '19087362',
+  vigenciaInicio: '31/08/2026',
+  vigenciaFin: '31/08/2027',
+  // Primeiro número do talonário novo. Ao trocar de timbrado, a numeração
+  // recomeça aqui automaticamente (ver loadFacturaConfig).
+  numeroInicial: 651,
   actividades: [
     'Comercio al Por Menor de Otros Productos en Comercios No Especializados',
     'Comercio al Por Menor de Cosméticos y Artículos de Tocador',
     'Comercio al Por Menor de Productos Farmacéuticos de Uso Humano'
   ]
 };
-let facturaConfig   = { nextNum: 532, serie: '001-001' };
+let facturaConfig   = { nextNum: 651, serie: '001-001' };
 let facturaVenda    = null;
 let facturasEmitidas = [];
 let unsubFacturas   = null;
@@ -8339,7 +8365,17 @@ async function deleteFactura(id) {
 async function loadFacturaConfig() {
   try {
     const snap = await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').get();
-    if (snap.exists) facturaConfig = { nextNum: 532, serie: '001-001', ...snap.data() };
+    if (!snap.exists) return;
+    const cfg = snap.data();
+    // Talonário novo (timbrado diferente do gravado) → numeração recomeça
+    // no primeiro número do talonário, sem precisar mexer na configuração.
+    if (cfg.timbrado !== GPP_EMPRESA.timbrado) {
+      facturaConfig = { nextNum: GPP_EMPRESA.numeroInicial, serie: '001-001', timbrado: GPP_EMPRESA.timbrado };
+      await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
+        .set(facturaConfig).catch(console.error);
+      return;
+    }
+    facturaConfig = { nextNum: GPP_EMPRESA.numeroInicial, serie: '001-001', ...cfg };
   } catch(e) { console.error('loadFacturaConfig:', e); }
 }
 
@@ -8367,16 +8403,17 @@ function openFacturaModal() {
 
 function openFacturaConfigModal() {
   document.getElementById('factConfigSerie').value = facturaConfig.serie || '001-001';
-  document.getElementById('factConfigNext').value  = facturaConfig.nextNum || 532;
+  document.getElementById('factConfigNext').value  = facturaConfig.nextNum || GPP_EMPRESA.numeroInicial;
   document.getElementById('facturaConfigModal').classList.add('on');
 }
 
 async function saveFacturaConfig() {
   const serie   = (document.getElementById('factConfigSerie').value.trim() || '001-001');
-  const nextNum = parseInt(document.getElementById('factConfigNext').value) || 532;
+  const nextNum = parseInt(document.getElementById('factConfigNext').value) || GPP_EMPRESA.numeroInicial;
   try {
-    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').set({ serie, nextNum });
-    facturaConfig = { serie, nextNum };
+    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
+      .set({ serie, nextNum, timbrado: GPP_EMPRESA.timbrado });
+    facturaConfig = { serie, nextNum, timbrado: GPP_EMPRESA.timbrado };
     toast(`✅ Numeración guardada. Próxima factura: ${String(nextNum).padStart(7,'0')}`, 'success');
     closeOverlay('facturaConfigModal');
   } catch(e) { toast('Error al guardar: ' + e.message, 'error'); }
@@ -8401,12 +8438,13 @@ async function gerarFactura() {
   const printWin = window.open('', '_blank', 'width=820,height=900,scrollbars=yes');
   if (!printWin) { toast('⚠️ Popup bloqueado. Permita popups para imprimir.', 'error'); return; }
 
-  // Reservar número e incrementar
-  const numEmitido = facturaConfig.nextNum || 532;
+  // Reserva o número JÁ (duas impressões seguidas nunca repetem o mesmo).
+  // Se a impressão for cancelada, o número é devolvido na confirmação.
+  const numEmitido = facturaConfig.nextNum || GPP_EMPRESA.numeroInicial;
   const proximo    = numEmitido + 1;
   try {
     await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').set({
-      serie: facturaConfig.serie || '001-001', nextNum: proximo
+      serie: facturaConfig.serie || '001-001', nextNum: proximo, timbrado: GPP_EMPRESA.timbrado
     });
     facturaConfig.nextNum = proximo;
   } catch(e) { console.warn('Erro ao incrementar contador factura:', e); }
@@ -8446,23 +8484,71 @@ async function gerarFactura() {
     items, total: totalMoneda, iva5,
     totalEnLetras: numALetras(totalMoneda, moneda)
   };
-  // Registrar fatura somente após confirmar impressão (onafterprint no popup)
-  const _totalUSD = facturaVenda.totalUSD;
-  window.__facturaCallback__ = function() {
-    const fId  = Date.now();
-    const fMes = new Date().toISOString().slice(0,7);
-    db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
-      id: fId,
-      ts: new Date().toISOString(),
-      mes: fMes,
-      totalUSD: _totalUSD,
-      numFactura: numEmitido,
-      clienteNombre: nombre
-    }).catch(console.error);
+  // A fatura só é registrada quando VOCÊ confirmar que a impressão saiu.
+  // O navegador não avisa se o usuário cancelou no diálogo de impressão —
+  // por isso a confirmação é manual, e é ela que devolve o número.
+  _facturaPendente = {
+    num: numEmitido,
+    totalUSD: facturaVenda.totalUSD,
+    clienteNombre: nombre
   };
+  window.__facturaCallback__ = null;
 
   printFacturaDupla(factData, printWin);
   closeOverlay('facturaModal');
+  abrirConfirmFactura();
+}
+
+/* ── Confirmação da impressão ──────────────────────────────────────
+   Impressão cancelada (teste, papel torto, travou) devolve o número
+   para a próxima factura usar. */
+let _facturaPendente = null;
+
+function abrirConfirmFactura() {
+  if (!_facturaPendente) return;
+  const el = document.getElementById('factConfirmNum');
+  if (el) el.textContent = String(_facturaPendente.num).padStart(7, '0');
+  document.getElementById('facturaConfirmModal').classList.add('on');
+}
+
+async function confirmarFacturaImpressa() {
+  const f = _facturaPendente;
+  if (!f) { closeOverlay('facturaConfirmModal'); return; }
+  _facturaPendente = null;
+  closeOverlay('facturaConfirmModal');
+  const fId = Date.now();
+  try {
+    await db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
+      id: fId,
+      ts: new Date().toISOString(),
+      mes: new Date().toISOString().slice(0,7),
+      totalUSD: f.totalUSD,
+      numFactura: f.num,
+      clienteNombre: f.clienteNombre
+    });
+    toast(`✅ Factura ${String(f.num).padStart(7,'0')} registrada`, 'success');
+  } catch(e) { toast('Erro ao registrar a factura', 'error'); console.error(e); }
+}
+
+async function devolverNumeroFactura() {
+  const f = _facturaPendente;
+  if (!f) { closeOverlay('facturaConfirmModal'); return; }
+  const fmt = String(f.num).padStart(7, '0');
+  if (!confirm(`Devolver o número ${fmt}?\n\nA factura NÃO será registrada e a próxima impressão vai usar esse mesmo número.`)) return;
+  _facturaPendente = null;
+  closeOverlay('facturaConfirmModal');
+  // só devolve se ninguém tiver puxado outro número no meio
+  if (facturaConfig.nextNum !== f.num + 1) {
+    toast(`⚠️ Outra factura já usou o número seguinte — ${fmt} não pode ser devolvido`, 'error');
+    return;
+  }
+  try {
+    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').set({
+      serie: facturaConfig.serie || '001-001', nextNum: f.num, timbrado: GPP_EMPRESA.timbrado
+    });
+    facturaConfig.nextNum = f.num;
+    toast(`↩️ Número ${fmt} devolvido — a próxima factura usa ele de novo`, 'success');
+  } catch(e) { toast('Erro ao devolver o número', 'error'); console.error(e); }
 }
 
 function _n2w(n) {
