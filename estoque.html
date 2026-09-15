@@ -978,7 +978,7 @@
           <div class="sec-sub" id="histCount">0 registros</div>
         </div>
         <div class="hist-controls">
-          <select class="fsel" id="fProd" onchange="_histLimite=HIST_PAGINA;renderHistory()">
+          <select class="fsel" id="fProd" onchange="_histLimite=HIST_PAGINA;filtrarHistoricoProduto()">
             <option value="">Todos os produtos</option>
           </select>
           <select class="fsel" id="fType" onchange="_histLimite=HIST_PAGINA;renderHistory()">
@@ -1025,7 +1025,7 @@
           <select class="fsel" id="rPeriod" onchange="renderReports()">
             <option value="0">Todo o período</option>
             <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
             <option value="90">Últimos 90 dias</option>
           </select>
         </div>
@@ -2421,6 +2421,69 @@ let currentFilial = null;   // filial selecionada
 let filiais       = [];     // lista de filiais do Firestore
 let products      = [];
 let history       = [];
+const HIST_JANELA_DIAS = 35;   // cobre a conferência semanal e o relatório de 30 dias
+let _histJanela = [];          // ao vivo (listener dos últimos HIST_JANELA_DIAS)
+let _histExtra = {};           // buscados sob demanda, por id do documento
+let _histCompleto = false;
+let _histBuscas = {};          // buscas já feitas nesta sessão (não repete leitura)
+let _relatorioPediuCompleto = false;
+
+function _histCorte() {
+  return new Date(Date.now() - HIST_JANELA_DIAS * 864e5).toISOString();
+}
+
+function _recomporHistory() {
+  const porId = { ..._histExtra };
+  _histJanela.forEach(h => { porId[h._docId] = h; });
+  history = Object.values(porId)
+    .sort((a, b) => new Date(a.datetime || a.ts) - new Date(b.datetime || b.ts));
+}
+
+// Executa a consulta uma vez por sessão e junta o resultado ao histórico.
+async function _buscarHistorico(chave, montarQuery) {
+  if (_histCompleto || _histBuscas[chave]) return _histBuscas[chave];
+  _histBuscas[chave] = (async () => {
+    const snap = await montarQuery(col('historico')).get();
+    snap.docs.forEach(d => { _histExtra[d.id] = { ...d.data(), _docId: d.id }; });
+    _recomporHistory();
+    return snap.size;
+  })().catch(e => { delete _histBuscas[chave]; throw e; });
+  return _histBuscas[chave];
+}
+
+async function carregarHistoricoCompleto() {
+  if (_histCompleto) return;
+  const btn = document.getElementById('btnHistCompleto');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Carregando…'; }
+  try {
+    await _buscarHistorico('tudo', q => q);
+    _histCompleto = true;
+    renderHistory(); renderReports();
+    toast(`📚 Histórico completo carregado (${history.length} registros)`, 'success');
+  } catch (e) {
+    console.error(e);
+    toast(e.code === 'resource-exhausted'
+      ? '⚠️ Cota diária do Firestore esgotada — tente depois das 4h'
+      : 'Erro ao carregar o histórico', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '📚 Carregar histórico completo'; }
+  }
+}
+
+// Garante os registros desde `desdeIso` (ex.: base de uma conferência antiga).
+async function garantirHistoricoDesde(desdeIso) {
+  if (_histCompleto || !desdeIso) return;
+  const corte = _histCorte();
+  if (desdeIso >= corte) return;
+  await _buscarHistorico('desde:' + desdeIso, q => q.where('datetime', '>=', desdeIso).where('datetime', '<', corte));
+}
+
+// Todos os registros de um produto (filtro do histórico).
+async function garantirHistoricoProduto(pid) {
+  if (_histCompleto || !pid) return;
+  const ids = [String(pid)];
+  if (!isNaN(Number(pid))) ids.push(Number(pid));
+  await _buscarHistorico('prod:' + pid, q => q.where('productId', 'in', ids));
+}
 let photos        = {};
 let activeStatFilter = null; // 'baixo' | 'zero' | 'vencer' | null
 let movState      = { productId: null, type: null };
@@ -2530,11 +2593,18 @@ function setupRealtimeListeners() {
     fixPricesToVenda();     // move custo→venda em produtos importados (1x por sessão)
   }, console.error);
 
-  unsubHistory = col('historico').onSnapshot(snap => {
-    history = snap.docs.map(d => d.data())
-      .sort((a, b) => new Date(a.datetime || a.ts) - new Date(b.datetime || b.ts));
-    renderStats(); renderHistory(); renderReports();
-  }, console.error);
+  // Histórico: só o admin vê, e só a janela recente fica ao vivo. Antes todo
+  // aparelho (inclusive operador, que nem mostra histórico) baixava a coleção
+  // inteira a cada abertura — 7 mil leituras por vez, e a cota diária do
+  // Firestore estourava. Registros antigos são buscados sob demanda.
+  _histJanela = []; _histExtra = {}; _histCompleto = false; _histBuscas = {};
+  if (user && user.role === 'admin') {
+    unsubHistory = col('historico').where('datetime', '>=', _histCorte()).onSnapshot(snap => {
+      _histJanela = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      _recomporHistory();
+      renderStats(); renderHistory(); renderReports();
+    }, console.error);
+  }
 
   unsubPhotos = col('fotos').onSnapshot(snap => {
     snap.docChanges().forEach(ch => {
@@ -5530,6 +5600,22 @@ function verConfronto(id) {
   const caixa = document.getElementById('confrontoResultCaixa');
   const tituloRes = document.getElementById('confrontoResultTitulo');
   // Contagem que já alterou o estoque: mostra a auditoria contra as movimentações
+  if ((snap.status === 'aplicado' || snap.status === 'aprovado') && !_histCompleto) {
+    const bases = snap.items.map(i => _contagemAnteriorDe(snap, i.productId)).filter(Boolean).map(a => a.conf.ts).sort();
+    const desde = bases[0];
+    if (desde && desde < _histCorte() && !_histBuscas['desde:' + desde]) {
+      toast('⏳ Buscando movimentações desde a contagem anterior…', 'info');
+      garantirHistoricoDesde(desde)
+        .then(() => { renderContagemLock(); verConfronto(id); })
+        .catch(e => {
+          console.error(e);
+          toast('Não consegui buscar as movimentações antigas — conferência pode ficar incompleta', 'error');
+          _histBuscas['desde:' + desde] = Promise.resolve(0);   // mostra o que tem, sem ficar tentando
+          verConfronto(id);
+        });
+      return;
+    }
+  }
   if (snap.status === 'aplicado' || snap.status === 'aprovado') {
     if (caixa) caixa.style.maxWidth = '900px';
     if (tituloRes) tituloRes.textContent = '🔍 Conferência da Contagem';
@@ -6966,6 +7052,14 @@ function renderProducts() {
    Mostra um pedaço por vez — filtros, contagem e CSV continuam sobre o total. */
 const HIST_PAGINA = 100;
 let _histLimite = HIST_PAGINA;
+async function filtrarHistoricoProduto() {
+  renderHistory();
+  const pid = document.getElementById('fProd').value;
+  if (!pid || _histCompleto) return;
+  try { await garantirHistoricoProduto(pid); renderHistory(); }
+  catch (e) { console.error(e); toast('Não consegui buscar os registros antigos deste produto', 'error'); }
+}
+
 function verMaisHistorico(todos) {
   _histLimite = todos ? Infinity : _histLimite + HIST_PAGINA * 5;
   renderHistory();
@@ -6982,7 +7076,11 @@ function renderHistory() {
   const empty = document.getElementById('histEmpty');
   const mais = document.getElementById('histMais');
   if (mais) mais.innerHTML = '';
-  if (!rows.length) { body.innerHTML=''; empty.style.display='block'; return; }
+  const avisoJanela = (!_histCompleto && !fp)
+    ? `<div style="font-size:12px;color:var(--text-3);margin-top:10px">Mostrando os últimos ${HIST_JANELA_DIAS} dias.
+        <button id="btnHistCompleto" onclick="carregarHistoricoCompleto()" style="margin-left:6px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-1);font-size:12px;font-weight:600;cursor:pointer">📚 Carregar histórico completo</button></div>`
+    : '';
+  if (!rows.length) { body.innerHTML=''; empty.style.display='block'; if (mais) mais.innerHTML = avisoJanela; return; }
   empty.style.display='none';
   const total = rows.length;
   rows = rows.slice(0, _histLimite);
@@ -6992,6 +7090,7 @@ function renderHistory() {
       <button onclick="verMaisHistorico(false)" style="padding:8px 16px;margin-right:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-1);font-size:13px;font-weight:600;cursor:pointer">▼ Mostrar mais ${Math.min(HIST_PAGINA * 5, faltam)}</button>
       <button onclick="verMaisHistorico(true)" style="padding:8px 16px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer">Mostrar todos (${total})</button>`;
   }
+  if (mais) mais.innerHTML += avisoJanela;
   body.innerHTML = rows.map(r => {
     const rDate = r.datetime || r.ts;
     const rProd = products.find(p => String(p.id) === String(r.productId));
@@ -8076,7 +8175,7 @@ function closeOverlay(id) {
 ══════════════════════════════════════════ */
 function clearHistory() {
   if (!history.length) { toast('Histórico já está vazio.','info'); return; }
-  if (!confirm(`Apagar ${history.length} registros? Esta ação não pode ser desfeita.`)) return;
+  if (!confirm(`Apagar TODO o histórico${_histCompleto ? ` (${history.length} registros)` : ' (inclusive os registros antigos que não estão na tela)'}? Esta ação não pode ser desfeita.`)) return;
   history = []; renderHistory(); toast('🗑 Histórico apagado.','info');
   col('historico').get().then(snap => {
     const batch = db.batch();
@@ -8929,7 +9028,12 @@ ${(()=>{
   setTimeout(() => { w.focus(); w.print(); }, 700);
 }
 
-function exportCSV() {
+async function exportCSV() {
+  if (!_histCompleto) {
+    toast('📚 Carregando histórico completo para exportar…', 'info');
+    await carregarHistoricoCompleto();
+    if (!_histCompleto) return;
+  }
   if (!history.length) { toast('Nenhum histórico para exportar.','error'); return; }
   const head = ['Data/Hora','Produto','Tipo','Quantidade','Saldo','Observação','Usuário'];
   const rows = history.map(r => [fmtDate(r.datetime),r.productName,r.type==='entrada'?'Entrada':'Saída',r.qty,r.balance,r.obs||'',r.user]);
@@ -8965,6 +9069,11 @@ function renderReports() {
   if (!sec || sec.style.display === 'none') return;
 
   const period = parseInt(document.getElementById('rPeriod').value) || 0;
+  // "Todo o período" ou 90 dias passam da janela carregada: busca o completo
+  if (!_histCompleto && !_relatorioPediuCompleto && (period === 0 || period > HIST_JANELA_DIAS)) {
+    _relatorioPediuCompleto = true;   // uma tentativa por sessão — sem cota, não fica repetindo
+    carregarHistoricoCompleto();
+  }
   let rows = [...history];
   if (period > 0) {
     const cutoff = new Date();
