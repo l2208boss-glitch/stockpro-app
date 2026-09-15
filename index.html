@@ -8378,6 +8378,12 @@ async function loadFacturaConfig() {
       return;
     }
     facturaConfig = { nextNum: GPP_EMPRESA.numeroInicial, serie: '001-001', ...cfg };
+    // Impressão que ficou sem resposta (aba fechada, recarregada, aviso
+    // escondido atrás da janela de impressão) — pergunta de novo.
+    if (cfg.pendente && cfg.pendente.num) {
+      _facturaPendente = cfg.pendente;
+      abrirConfirmFactura();
+    }
   } catch(e) { console.error('loadFacturaConfig:', e); }
 }
 
@@ -8404,6 +8410,7 @@ function openFacturaModal() {
 }
 
 function openFacturaConfigModal() {
+  if (_facturaPendente) { abrirConfirmFactura(); return; }
   document.getElementById('factConfigSerie').value = facturaConfig.serie || '001-001';
   document.getElementById('factConfigNext').value  = facturaConfig.nextNum || GPP_EMPRESA.numeroInicial;
   document.getElementById('facturaConfigModal').classList.add('on');
@@ -8414,8 +8421,9 @@ async function saveFacturaConfig() {
   const nextNum = parseInt(document.getElementById('factConfigNext').value) || GPP_EMPRESA.numeroInicial;
   try {
     await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
-      .set({ serie, nextNum, timbrado: GPP_EMPRESA.timbrado });
+      .set({ serie, nextNum, timbrado: GPP_EMPRESA.timbrado, pendente: null });
     facturaConfig = { serie, nextNum, timbrado: GPP_EMPRESA.timbrado };
+    _facturaPendente = null;
     toast(`✅ Numeración guardada. Próxima factura: ${String(nextNum).padStart(7,'0')}`, 'success');
     closeOverlay('facturaConfigModal');
   } catch(e) { toast('Error al guardar: ' + e.message, 'error'); }
@@ -8442,14 +8450,28 @@ async function gerarFactura() {
 
   // Reserva o número JÁ (duas impressões seguidas nunca repetem o mesmo).
   // Se a impressão for cancelada, o número é devolvido na confirmação.
-  const numEmitido = facturaConfig.nextNum || GPP_EMPRESA.numeroInicial;
-  const proximo    = numEmitido + 1;
+  // Lê o contador do servidor dentro de uma transação — uma aba aberta há
+  // horas com número velho na memória não consegue repetir número.
+  let numEmitido;
+  const reserva = { totalUSD: facturaVenda.totalUSD, clienteNombre: nombre, ts: new Date().toISOString() };
   try {
-    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').set({
-      serie: facturaConfig.serie || '001-001', nextNum: proximo, timbrado: GPP_EMPRESA.timbrado
+    const ref = db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura');
+    await db.runTransaction(async t => {
+      const snap = await t.get(ref);
+      const cfg = snap.exists ? snap.data() : {};
+      numEmitido = (cfg.timbrado === GPP_EMPRESA.timbrado && cfg.nextNum) || GPP_EMPRESA.numeroInicial;
+      t.set(ref, {
+        serie: cfg.serie || '001-001', nextNum: numEmitido + 1, timbrado: GPP_EMPRESA.timbrado,
+        pendente: { num: numEmitido, ...reserva }
+      });
     });
-    facturaConfig.nextNum = proximo;
-  } catch(e) { console.warn('Erro ao incrementar contador factura:', e); }
+    facturaConfig.nextNum = numEmitido + 1;
+  } catch(e) {
+    console.error('Erro ao reservar número da factura:', e);
+    printWin.close();
+    toast('⚠️ Sem conexão para reservar o número da factura. Tente de novo.', 'error');
+    return;
+  }
 
   const now    = new Date();
   const MESES  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -8489,11 +8511,7 @@ async function gerarFactura() {
   // A fatura só é registrada quando VOCÊ confirmar que a impressão saiu.
   // O navegador não avisa se o usuário cancelou no diálogo de impressão —
   // por isso a confirmação é manual, e é ela que devolve o número.
-  _facturaPendente = {
-    num: numEmitido,
-    totalUSD: facturaVenda.totalUSD,
-    clienteNombre: nombre
-  };
+  _facturaPendente = { num: numEmitido, ...reserva };
   window.__facturaCallback__ = null;
 
   printFacturaDupla(factData, printWin);
@@ -8528,6 +8546,8 @@ async function confirmarFacturaImpressa() {
       numFactura: f.num,
       clienteNombre: f.clienteNombre
     });
+    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
+      .set({ pendente: null }, { merge: true });
     toast(`✅ Factura ${String(f.num).padStart(7,'0')} registrada`, 'success');
   } catch(e) { toast('Erro ao registrar a factura', 'error'); console.error(e); }
 }
@@ -8539,15 +8559,19 @@ async function devolverNumeroFactura() {
   if (!confirm(`Devolver o número ${fmt}?\n\nA factura NÃO será registrada e a próxima impressão vai usar esse mesmo número.`)) return;
   _facturaPendente = null;
   closeOverlay('facturaConfirmModal');
-  // só devolve se ninguém tiver puxado outro número no meio
-  if (facturaConfig.nextNum !== f.num + 1) {
-    toast(`⚠️ Outra factura já usou o número seguinte — ${fmt} não pode ser devolvido`, 'error');
-    return;
-  }
   try {
-    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura').set({
-      serie: facturaConfig.serie || '001-001', nextNum: f.num, timbrado: GPP_EMPRESA.timbrado
+    const ref = db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura');
+    let devolveu = false;
+    await db.runTransaction(async t => {
+      const cfg = (await t.get(ref)).data() || {};
+      // só devolve se ninguém tiver puxado outro número no meio
+      devolveu = cfg.nextNum === f.num + 1;
+      t.set(ref, devolveu ? { nextNum: f.num, pendente: null } : { pendente: null }, { merge: true });
     });
+    if (!devolveu) {
+      toast(`⚠️ Outra factura já usou o número seguinte — ${fmt} não pode ser devolvido`, 'error');
+      return;
+    }
     facturaConfig.nextNum = f.num;
     toast(`↩️ Número ${fmt} devolvido — a próxima factura usa ele de novo`, 'success');
   } catch(e) { toast('Erro ao devolver o número', 'error'); console.error(e); }
