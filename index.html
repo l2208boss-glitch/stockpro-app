@@ -8452,26 +8452,16 @@ async function gerarFactura() {
   // Se a impressão for cancelada, o número é devolvido na confirmação.
   // Lê o contador do servidor dentro de uma transação — uma aba aberta há
   // horas com número velho na memória não consegue repetir número.
-  let numEmitido;
   const reserva = { totalUSD: facturaVenda.totalUSD, clienteNombre: nombre, ts: new Date().toISOString() };
-  try {
-    const ref = db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura');
-    await db.runTransaction(async t => {
-      const snap = await t.get(ref);
-      const cfg = snap.exists ? snap.data() : {};
-      numEmitido = (cfg.timbrado === GPP_EMPRESA.timbrado && cfg.nextNum) || GPP_EMPRESA.numeroInicial;
-      t.set(ref, {
-        serie: cfg.serie || '001-001', nextNum: numEmitido + 1, timbrado: GPP_EMPRESA.timbrado,
-        pendente: { num: numEmitido, ...reserva }
-      });
-    });
-    facturaConfig.nextNum = numEmitido + 1;
-  } catch(e) {
-    console.error('Erro ao reservar número da factura:', e);
-    printWin.close();
-    toast('⚠️ Sem conexão para reservar o número da factura. Tente de novo.', 'error');
-    return;
-  }
+  const numEmitido = await _alterarConfigFactura(cfg => {
+    const num = (cfg.timbrado === GPP_EMPRESA.timbrado && cfg.nextNum) || GPP_EMPRESA.numeroInicial;
+    return {
+      dados: { serie: cfg.serie || '001-001', nextNum: num + 1, timbrado: GPP_EMPRESA.timbrado,
+               pendente: { num, ...reserva } },
+      retorno: num
+    };
+  });
+  facturaConfig.nextNum = numEmitido + 1;
 
   const now    = new Date();
   const MESES  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -8519,6 +8509,35 @@ async function gerarFactura() {
   abrirConfirmFactura();
 }
 
+/* Lê-e-grava config/factura. Tenta transação no servidor (protege contra
+   dois aparelhos pegando o mesmo número). Se o servidor não responder —
+   cota diária do Firestore estourada, sem internet — faz a mesma conta
+   sobre o cache local e deixa a gravação na fila para sincronizar depois.
+   O cache já inclui gravações pendentes, então neste aparelho a sequência
+   continua certa mesmo offline. */
+async function _alterarConfigFactura(fn) {
+  const ref = db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura');
+  try {
+    let res;
+    const tx = db.runTransaction(async t => {
+      const snap = await t.get(ref);
+      const { dados, retorno } = fn(snap.exists ? snap.data() : {});
+      t.set(ref, dados, { merge: true });
+      res = retorno;
+    });
+    await Promise.race([tx, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))]);
+    return res;
+  } catch (e) {
+    console.warn('config/factura sem servidor, usando cache local:', e.code || e.message);
+    let cfg = {};
+    try { const snap = await ref.get({ source: 'cache' }); if (snap.exists) cfg = snap.data(); }
+    catch (_) { cfg = { ...facturaConfig }; }
+    const { dados, retorno } = fn(cfg);
+    ref.set(dados, { merge: true }).catch(err => console.error('fila config/factura:', err));
+    return retorno;
+  }
+}
+
 /* ── Confirmação da impressão ──────────────────────────────────────
    Impressão cancelada (teste, papel torto, travou) devolve o número
    para a próxima factura usar. */
@@ -8537,19 +8556,19 @@ async function confirmarFacturaImpressa() {
   _facturaPendente = null;
   closeOverlay('facturaConfirmModal');
   const fId = Date.now();
-  try {
-    await db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
-      id: fId,
-      ts: new Date().toISOString(),
-      mes: new Date().toISOString().slice(0,7),
-      totalUSD: f.totalUSD,
-      numFactura: f.num,
-      clienteNombre: f.clienteNombre
-    });
-    await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
-      .set({ pendente: null }, { merge: true });
-    toast(`✅ Factura ${String(f.num).padStart(7,'0')} registrada`, 'success');
-  } catch(e) { toast('Erro ao registrar a factura', 'error'); console.error(e); }
+  // sem await: com a cota estourada o servidor não confirma, mas a gravação
+  // fica na fila local e sobe sozinha depois
+  db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(fId)).set({
+    id: fId,
+    ts: new Date().toISOString(),
+    mes: new Date().toISOString().slice(0,7),
+    totalUSD: f.totalUSD,
+    numFactura: f.num,
+    clienteNombre: f.clienteNombre
+  }).catch(e => console.error('registrar factura:', e));
+  db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
+    .set({ pendente: null }, { merge: true }).catch(e => console.error('limpar pendente:', e));
+  toast(`✅ Factura ${String(f.num).padStart(7,'0')} registrada`, 'success');
 }
 
 async function devolverNumeroFactura() {
@@ -8560,13 +8579,10 @@ async function devolverNumeroFactura() {
   _facturaPendente = null;
   closeOverlay('facturaConfirmModal');
   try {
-    const ref = db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura');
-    let devolveu = false;
-    await db.runTransaction(async t => {
-      const cfg = (await t.get(ref)).data() || {};
+    const devolveu = await _alterarConfigFactura(cfg => {
       // só devolve se ninguém tiver puxado outro número no meio
-      devolveu = cfg.nextNum === f.num + 1;
-      t.set(ref, devolveu ? { nextNum: f.num, pendente: null } : { pendente: null }, { merge: true });
+      const ok = cfg.nextNum === f.num + 1;
+      return { dados: ok ? { nextNum: f.num, pendente: null } : { pendente: null }, retorno: ok };
     });
     if (!devolveu) {
       toast(`⚠️ Outra factura já usou o número seguinte — ${fmt} não pode ser devolvido`, 'error');
