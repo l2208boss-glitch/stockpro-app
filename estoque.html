@@ -2569,11 +2569,15 @@ function setupRealtimeListeners() {
   // Limpa dados da filial anterior antes de carregar a nova
   products = []; history = []; photos = {};
 
+  const _filialDoListener = currentFilial.id;
   unsubProducts = col('produtos').onSnapshot(snap => {
     if (snap.empty) {
-      const batch = db.batch();
-      DEFAULT_PRODUCTS.forEach(p => batch.set(col('produtos').doc(String(p.id)), p));
-      batch.commit();
+      // NUNCA gravar produtos de exemplo aqui. Uma resposta vazia costuma vir
+      // do cache do aparelho (cache limpo, sem internet ou cota do Firestore
+      // estourada) e NÃO significa que a filial está vazia. Antes o sistema
+      // gravava Leite, Manteiga, Detergente etc. por cima do estoque real.
+      products = [];
+      renderStats(); renderProducts(); populateFilter();
       return;
     }
     // Aplica apenas os documentos que mudaram — evita reverter writes pendentes
@@ -2591,6 +2595,7 @@ function setupRealtimeListeners() {
     renderStats(); renderProducts(); populateFilter();
     sanitizeProductData();  // corrige unit numérico em background (1x por sessão)
     fixPricesToVenda();     // move custo→venda em produtos importados (1x por sessão)
+    if (!snap.metadata.fromCache) limparProdutosDemo(_filialDoListener);
   }, console.error);
 
   // Histórico: só o admin vê, e só a janela recente fica ao vivo. Antes todo
@@ -2613,6 +2618,32 @@ function setupRealtimeListeners() {
     });
     renderProducts();
   }, console.error);
+}
+
+/* Remove os 15 produtos de exemplo (Café, Leite, Manteiga, Detergente...)
+   que o bug antigo gravou nas filiais. Só apaga o que bate EXATAMENTE com o
+   exemplo: mesmo id (1–15), nome, categoria, unidade e custo/venda zerados.
+   Produto real nunca tem id 1–15 (os reais usam Date.now()). */
+const _demoLimpo = {};
+function limparProdutosDemo(filialId) {
+  if (!filialId || _demoLimpo[filialId]) return;
+  if (!currentFilial || currentFilial.id !== filialId) return;
+  _demoLimpo[filialId] = true;
+  const lixo = products.filter(p => {
+    const d = DEFAULT_PRODUCTS.find(x => String(x.id) === String(p.id));
+    return d && p.name === d.name && p.category === d.category && p.unit === d.unit
+      && !(Number(p.custo) > 0) && !(Number(p.venda) > 0);
+  });
+  if (!lixo.length) return;
+  const ref = db.collection('lojas').doc(filialId);
+  const batch = db.batch();
+  lixo.forEach(p => {
+    batch.delete(ref.collection('produtos').doc(String(p.id)));
+    batch.delete(ref.collection('fotos').doc(String(p.id)));
+  });
+  batch.commit()
+    .then(() => console.log(`[StockPro] ${lixo.length} produtos de exemplo removidos de ${filialId}`))
+    .catch(err => { console.warn('[StockPro] limpeza de exemplos falhou:', err); _demoLimpo[filialId] = false; });
 }
 
 function stopListeners() {

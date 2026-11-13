@@ -2257,9 +2257,7 @@ function setupRealtimeListeners() {
 
   unsubProducts = col('produtos').onSnapshot(snap => {
     if (snap.empty) {
-      const batch = db.batch();
-      DEFAULT_PRODUCTS.forEach(p => batch.set(col('produtos').doc(String(p.id)), p));
-      batch.commit();
+      // Nunca gravar produtos de exemplo: vazio pode ser só cache do aparelho.
       return;
     }
     // Aplica apenas os documentos que mudaram — evita reverter writes pendentes
