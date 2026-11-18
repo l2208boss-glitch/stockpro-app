@@ -4925,6 +4925,82 @@ function parsearContagem(texto) {
   return out;
 }
 
+/* Nomes/códigos colados que não casaram com nenhum produto. Você aponta o
+   produto UMA vez: a contagem entra no campo dele e o código vira apelido
+   permanente (por filial), então da próxima vez já é reconhecido. */
+let _confrontoPend = [];
+let _confrontoSomas = {};
+
+function _escHtmlConf(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
+
+function _renderConfrontoPend() {
+  const el = document.getElementById('confrontoPend');
+  if (!el) return;
+  if (!_confrontoPend.length) { el.innerHTML = ''; return; }
+  const lista = products.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'))
+    .map(p => `<option value="${_escHtmlConf(p.name)}">`).join('');
+  el.innerHTML = `<datalist id="confrontoProdutosList">${lista}</datalist>
+    <div style="color:#b45309;margin-top:8px;font-weight:700">⚠️ ${_confrontoPend.length} não reconhecido${_confrontoPend.length!==1?'s':''} — digite o produto de cada um (só uma vez, eu aprendo o código) ou clique em ignorar:</div>` +
+    _confrontoPend.map((x, i) => `
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
+        <span style="min-width:120px"><b>${_escHtmlConf(x.nome)}</b> = ${x.qty}</span>
+        <input list="confrontoProdutosList" placeholder="🔍 qual produto é?" onfocus="this.select()"
+          onchange="mapearContagemPend(${i}, this.value)"
+          style="flex:1;min-width:150px;max-width:240px;padding:4px 6px;border:1px solid #ef4444;border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">
+        <button type="button" onclick="ignorarContagemPend(${i})"
+          style="padding:2px 8px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text-2);font-size:11px;cursor:pointer">ignorar</button>
+      </div>`).join('');
+}
+
+function ignorarContagemPend(i) {
+  _confrontoPend.splice(i, 1);
+  _renderConfrontoPend();
+}
+
+function mapearContagemPend(i, texto) {
+  const item = _confrontoPend[i];
+  if (!item) return;
+  const t = normTexto(texto);
+  if (!t) return;
+  let p = products.find(x => normTexto(x.name) === t);
+  if (!p) {
+    const cand = products.filter(x => normTexto(x.name).includes(t));
+    if (cand.length === 1) p = cand[0];
+    else if (cand.length > 1) {
+      toast(`"${texto}" casa com ${cand.length} produtos (${cand.slice(0,4).map(c=>c.name).join(', ')}${cand.length>4?'…':''}). Digite mais letras.`, 'error');
+      return;
+    }
+  }
+  if (!p) { toast(`Não achei nenhum produto com "${texto}".`, 'error'); return; }
+  const inp = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')]
+    .find(x => String(x.getAttribute('data-pid')) === String(p.id));
+  if (!inp) { toast('Esse produto não está na lista de contagem.', 'error'); return; }
+
+  _confrontoSomas[p.id] = (_confrontoSomas[p.id] || 0) + item.qty;   // mesmo produto em 2 códigos soma
+  inp.value = _confrontoSomas[p.id];
+
+  // Aprende o código — a não ser que ele já pertença a OUTRO produto (ambíguo).
+  const n = normTexto(item.nome);
+  const dono = products.find(x => String(x.id) !== String(p.id) &&
+    [x.name, ...(x.aliases || [])].some(a => normTexto(a) === n));
+  let aprendeu = false;
+  if (n && !dono && ![p.name, ...(p.aliases || [])].some(a => normTexto(a) === n)) {
+    p.aliases = [...(p.aliases || []), item.nome.trim()];
+    col('produtos').doc(String(p.id)).update({
+      aliases: firebase.firestore.FieldValue.arrayUnion(item.nome.trim())
+    }).catch(err => { console.error(err); toast('⚠️ Não consegui salvar o apelido no servidor.', 'error'); });
+    aprendeu = true;
+  }
+  _confrontoPend.splice(i, 1);
+  _salvarRascunhoConfronto();
+  atualizarProgressoContagem();
+  filtrarConfronto();
+  _renderConfrontoPend();
+  toast(`✅ ${item.nome} → ${p.name}${aprendeu ? '\n🧠 Aprendi este código — não pergunto de novo.' : (dono ? '\n(código já pertence a "' + dono.name + '", não gravei apelido)' : '')}`, 'success');
+}
+
 /* Preenche os campos a partir da lista colada, casando pelo nome ou
    pelos apelidos já cadastrados (mesmo índice da entrada/saída em lote). */
 function preencherContagemColada() {
@@ -4937,12 +5013,18 @@ function preencherContagemColada() {
     return;
   }
   const idx = montarIndiceApelidos();
-  const somados = {}, naoRec = [];
+  const somados = {};
+  _confrontoPend = [];
   parsed.forEach(({ nome, qty }) => {
     const prod = encontrarProduto(nome, idx);
-    if (!prod) { if (!naoRec.includes(nome)) naoRec.push(nome); return; }
+    if (!prod) {
+      const igual = _confrontoPend.find(x => normTexto(x.nome) === normTexto(nome));
+      if (igual) igual.qty += qty; else _confrontoPend.push({ nome, qty });
+      return;
+    }
     somados[prod.id] = (somados[prod.id] || 0) + qty;   // linhas repetidas somam
   });
+  _confrontoSomas = { ...somados };
   const inps = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')];
   const feitos = [];
   Object.entries(somados).forEach(([pid, qty]) => {
@@ -4957,8 +5039,9 @@ function preencherContagemColada() {
   filtrarConfronto();
   let html = '';
   if (feitos.length) html += `<div style="color:var(--success);font-weight:700">✅ ${feitos.length} preenchido(s): ${feitos.join(' · ')}</div>`;
-  if (naoRec.length) html += `<div style="color:#b45309;margin-top:4px">⚠️ Não reconheci: <b>${naoRec.join('</b>, <b>')}</b> — digite na mão na lista abaixo.</div>`;
+  html += `<div id="confrontoPend"></div>`;
   resumoEl.innerHTML = html;
+  _renderConfrontoPend();
   if (feitos.length) toast(`⚡ ${feitos.length} produto(s) preenchido(s)`, 'success');
 }
 
@@ -4969,6 +5052,7 @@ function limparContagem() {
   inps.forEach(i => i.value = '');
   const resumoEl = document.getElementById('confrontoColarResumo');
   if (resumoEl) resumoEl.innerHTML = '';
+  _confrontoPend = []; _confrontoSomas = {};
   _salvarRascunhoConfronto();
   atualizarProgressoContagem();
   filtrarConfronto();
@@ -5203,6 +5287,7 @@ function openConfronto() {
   if (colar) colar.value = '';
   const resumoColar = document.getElementById('confrontoColarResumo');
   if (resumoColar) resumoColar.innerHTML = '';
+  _confrontoPend = []; _confrontoSomas = {};
   const soFaltam = document.getElementById('confrontoSoFaltam');
   if (soFaltam) soFaltam.checked = false;
 
