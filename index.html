@@ -2363,6 +2363,46 @@ db.enablePersistence({ synchronizeTabs: true }).catch(err => {
   }
 });
 
+/* ── Aviso de sincronização / cota do Firebase ──────────────────────
+   Com a cota diária gratuita estourada (ou sem internet) o Firebase NÃO
+   dá erro nas gravações: guarda no aparelho e fica tentando em silêncio —
+   por isso ninguém nunca via aviso. Aqui vigiamos: se um lançamento passa
+   de 2 min sem chegar ao servidor, aparece uma faixa no topo, que some
+   sozinha quando sincronizar. Erro de cota explícito também mostra. */
+const AVISO_SYNC = '⚠️ Os lançamentos deste computador não chegam ao servidor há mais de 2 minutos (sem internet ou limite diário do Firebase atingido). Eles estão guardados aqui e sobem sozinhos quando voltar — NÃO feche o app nem limpe o navegador.';
+const AVISO_COTA = '⚠️ Limite diário gratuito do banco de dados (Firebase) atingido — este computador pode estar com o estoque desatualizado. Os lançamentos ficam guardados aqui e sobem quando a cota renovar. Avise o administrador e, quando normalizar, feche e abra o app.';
+let _avisoSyncEl = null, _avisoSyncTipo = null;
+function _mostrarAvisoSync(tipo) {
+  if (_avisoSyncTipo === 'cota' && tipo === 'sync') return;   // o de cota é mais importante
+  if (!_avisoSyncEl) {
+    _avisoSyncEl = document.createElement('div');
+    _avisoSyncEl.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;font:600 13px/1.4 system-ui,sans-serif;padding:8px 14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+    document.body.appendChild(_avisoSyncEl);
+  }
+  _avisoSyncTipo = tipo;
+  _avisoSyncEl.textContent = tipo === 'cota' ? AVISO_COTA : AVISO_SYNC;
+  _avisoSyncEl.style.display = '';
+}
+function _esconderAvisoSync() {
+  if (_avisoSyncEl && _avisoSyncTipo === 'sync') { _avisoSyncEl.style.display = 'none'; _avisoSyncTipo = null; }
+}
+function _fbErro(err) {
+  console.error(err);
+  if (err && err.code === 'resource-exhausted') _mostrarAvisoSync('cota');
+}
+let _syncVerificando = false;
+function _verificarSincronizacao() {
+  if (_syncVerificando) return;
+  _syncVerificando = true;
+  let ok = false;
+  db.waitForPendingWrites()
+    .then(() => { ok = true; _esconderAvisoSync(); })
+    .catch(() => { ok = true; })
+    .finally(() => { _syncVerificando = false; });
+  setTimeout(() => { if (!ok) _mostrarAvisoSync('sync'); }, 120000);
+}
+setInterval(_verificarSincronizacao, 60000);
+
 // Registra Service Worker — força atualização automática ao detectar nova versão
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -2538,25 +2578,25 @@ function col(name) {
    FIRESTORE — save individual records
 ══════════════════════════════════════════ */
 function saveProduct(p) {
-  col('produtos').doc(String(p.id)).set(p).catch(console.error);
+  col('produtos').doc(String(p.id)).set(p).catch(_fbErro);
 }
 // Atualiza APENAS a qty de forma atômica — evita race conditions em lotes
 function saveQtyDelta(productId, delta) {
   col('produtos').doc(String(productId))
     .update({ qty: firebase.firestore.FieldValue.increment(delta) })
     .catch(err => {
-      console.error('[StockPro] Erro ao salvar qty:', err);
+      _fbErro(err);
       toast('⚠️ Erro ao salvar no servidor. Recarregue a página.', 'error');
     });
 }
 function saveHistoryEntry(entry) {
-  col('historico').doc(String(entry.id)).set(entry).catch(console.error);
+  col('historico').doc(String(entry.id)).set(entry).catch(_fbErro);
 }
 function savePhoto(productId, dataUrl) {
   if (dataUrl) {
-    col('fotos').doc(String(productId)).set({ data: dataUrl }).catch(console.error);
+    col('fotos').doc(String(productId)).set({ data: dataUrl }).catch(_fbErro);
   } else {
-    col('fotos').doc(String(productId)).delete().catch(console.error);
+    col('fotos').doc(String(productId)).delete().catch(_fbErro);
   }
 }
 
@@ -2595,7 +2635,7 @@ function setupRealtimeListeners() {
     renderStats(); renderProducts(); populateFilter();
     sanitizeProductData();  // corrige unit numérico em background (1x por sessão)
     fixPricesToVenda();     // move custo→venda em produtos importados (1x por sessão)
-  }, console.error);
+  }, _fbErro);
 
   // Histórico: só o admin vê, e só a janela recente fica ao vivo. Antes todo
   // aparelho (inclusive operador, que nem mostra histórico) baixava a coleção
@@ -2607,7 +2647,7 @@ function setupRealtimeListeners() {
       _histJanela = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
       _recomporHistory();
       renderStats(); renderHistory(); renderReports();
-    }, console.error);
+    }, _fbErro);
   }
 
   unsubPhotos = col('fotos').onSnapshot(snap => {
@@ -2616,7 +2656,7 @@ function setupRealtimeListeners() {
       else photos[ch.doc.id] = ch.doc.data().data;
     });
     renderProducts();
-  }, console.error);
+  }, _fbErro);
 }
 
 function stopListeners() {
@@ -2681,7 +2721,7 @@ function setupGlobalPresencaListener() {
         badge.textContent = count + ' online';
       } else if (badge) { badge.remove(); }
     }
-  }, console.error);
+  }, _fbErro);
 }
 
 function stopPresencaModal() {
@@ -2734,7 +2774,7 @@ function setupFiliaisListener() {
   unsubFiliais = db.collection('lojas').onSnapshot(snap => {
     filiais = snap.docs.map(d => d.data()).sort((a, b) => a.nome.localeCompare(b.nome));
     renderFiliais();
-  }, console.error);
+  }, _fbErro);
 }
 
 /* ══════════════════════════════════════════
@@ -3084,13 +3124,13 @@ function openUsersModal() {
   unsubUsuariosModal = db.collection('usuarios').onSnapshot(snap => {
     _modalUsuarios = snap.docs.map(d => d.data());
     _renderUsersModalBody();
-  }, console.error);
+  }, _fbErro);
 
   unsubPresencaModal = db.collection('presenca').onSnapshot(snap => {
     _modalPresenca = {};
     snap.docs.forEach(d => { _modalPresenca[String(d.id)] = d.data(); });
     _renderUsersModalBody();
-  }, console.error);
+  }, _fbErro);
 }
 
 function openUserForm(userId) {
@@ -3212,7 +3252,7 @@ function setupCaixaListeners() {
   unsubAtendentes = col('config').doc('atendentes').onSnapshot(snap => {
     atendentes = (snap.exists && Array.isArray(snap.data().nomes)) ? snap.data().nomes : [];
     renderAtendenteChips();
-  }, console.error);
+  }, _fbErro);
 
   const today = new Date().toISOString().slice(0,10);
   unsubCotacao = col('cotacao').doc('atual').onSnapshot(snap => {
@@ -3222,14 +3262,14 @@ function setupCaixaListeners() {
       cotacao = { brl:0, pix:0, pyg:0, date:'' };
     }
     renderCotacaoBar();
-  }, console.error);
+  }, _fbErro);
 
   _setupVendasListener();
 
   unsubSangrias = col('sangrias').where('date','==',today).orderBy('ts','desc').onSnapshot(snap => {
     sangrias = snap.docs.map(d => d.data());
     renderSangriasModal();
-  }, console.error);
+  }, _fbErro);
 
   if (currentFilial && currentFilial.id === FARMACIA_ID) {
     if (unsubFacturas) { unsubFacturas(); unsubFacturas = null; }
@@ -3240,7 +3280,7 @@ function setupCaixaListeners() {
         facturasEmitidas = snap.docs.map(d => d.data());
         renderFacturasResumo();
         renderFatCompra();
-      }, console.error);
+      }, _fbErro);
 
     if (unsubFatCompras) { unsubFatCompras(); unsubFatCompras = null; }
     unsubFatCompras = db.collection(`lojas/${FARMACIA_ID}/faturas_compra`)
@@ -3248,7 +3288,7 @@ function setupCaixaListeners() {
       .onSnapshot(snap => {
         fatCompras = snap.docs.map(d => d.data());
         renderFatCompra();
-      }, console.error);
+      }, _fbErro);
 
     if (unsubCompras) { unsubCompras(); unsubCompras = null; }
     unsubCompras = db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`)
@@ -3256,7 +3296,7 @@ function setupCaixaListeners() {
       .onSnapshot(snap => {
         compras = snap.docs.map(d => d.data());
         renderFatCompra();
-      }, console.error);
+      }, _fbErro);
   }
 }
 
@@ -3325,7 +3365,7 @@ function saveCotacao() {
   const today = new Date().toISOString().slice(0,10);
   col('cotacao').doc('atual').set({ brl, pix, pyg, descontoMax: isNaN(descontoMax) ? 10 : descontoMax, date: today, user: user.name, ts: new Date().toISOString() })
     .then(() => { toast('✅ Cotação salva!', 'success'); closeOverlay('cotacaoModal'); })
-    .catch(console.error);
+    .catch(_fbErro);
 }
 
 /* ══════════════════════════════════════════
@@ -3839,7 +3879,7 @@ async function confirmPayment() {
     user: user.name,
     atendente: atendenteSel || null
   };
-  col('vendas').doc(String(vendaId)).set(venda).catch(console.error);
+  col('vendas').doc(String(vendaId)).set(venda).catch(_fbErro);
 
   // Baixar estoque
   cart.forEach(item => {
@@ -4930,6 +4970,12 @@ function parsearContagem(texto) {
    permanente (por filial), então da próxima vez já é reconhecido. */
 let _confrontoPend = [];
 let _confrontoSomas = {};
+/* Saldo do sistema no MOMENTO em que cada produto foi contado:
+   { pid: { q: saldo, t: ISO } }. A contagem aplica só a diferença
+   (contado − saldo daquele momento), então o que foi vendido entre contar
+   e enviar/aprovar continua descontado. Antes o saldo era SUBSTITUÍDO
+   pelo contado e essas vendas voltavam para o estoque. */
+let _contagemBase = {};
 
 function _escHtmlConf(t) {
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
@@ -5064,12 +5110,22 @@ function _confrontoRascunhoKey() {
 function _salvarRascunhoConfronto() {
   const inputs = document.querySelectorAll('#confrontoListaProdutos input[data-pid]');
   const vals = {};
-  inputs.forEach(inp => { if (inp.value.trim() !== '') vals[inp.getAttribute('data-pid')] = inp.value; });
+  inputs.forEach(inp => {
+    const pid = inp.getAttribute('data-pid');
+    if (inp.value.trim() !== '') {
+      vals[pid] = inp.value;
+      if (!_contagemBase[pid]) {
+        const prod = products.find(p => String(p.id) === String(pid));
+        _contagemBase[pid] = { q: Math.round(((prod && prod.qty) ?? 0) * 1000) / 1000, t: new Date().toISOString() };
+      }
+    } else delete _contagemBase[pid];
+  });
   const obs = document.getElementById('confrontoObs')?.value || '';
-  localStorage.setItem(_confrontoRascunhoKey(), JSON.stringify({ vals, obs, ts: Date.now() }));
+  localStorage.setItem(_confrontoRascunhoKey(), JSON.stringify({ vals, obs, bases: _contagemBase, ts: Date.now() }));
   atualizarProgressoContagem();
 }
 function _limparRascunhoConfronto() {
+  _contagemBase = {};
   localStorage.removeItem(_confrontoRascunhoKey());
 }
 
@@ -5287,7 +5343,7 @@ function openConfronto() {
   if (colar) colar.value = '';
   const resumoColar = document.getElementById('confrontoColarResumo');
   if (resumoColar) resumoColar.innerHTML = '';
-  _confrontoPend = []; _confrontoSomas = {};
+  _confrontoPend = []; _confrontoSomas = {}; _contagemBase = {};
   const soFaltam = document.getElementById('confrontoSoFaltam');
   if (soFaltam) soFaltam.checked = false;
 
@@ -5311,7 +5367,8 @@ function openConfronto() {
   const raw = localStorage.getItem(_confrontoRascunhoKey());
   if (raw) {
     try {
-      const { vals, obs, ts } = JSON.parse(raw);
+      const { vals, obs, ts, bases } = JSON.parse(raw);
+      _contagemBase = bases || {};
       const ageMin = Math.round((Date.now() - ts) / 60000);
       Object.entries(vals).forEach(([pid, val]) => {
         const inp = lista.querySelector(`input[data-pid="${pid}"]`);
@@ -5350,10 +5407,11 @@ async function salvarConfronto() {
     if (!prod) return;
     const qtyFisico = parseFloat(v);
     if (isNaN(qtyFisico)) return;
-    const qtySistema = Math.round((prod.qty??0) * 1000) / 1000;
+    const base = _contagemBase[pid];
+    const qtySistema = base ? base.q : Math.round((prod.qty??0) * 1000) / 1000;
     const diff = Math.round((qtyFisico - qtySistema) * 1000) / 1000;
     items.push({ productId: pid, productName: prod.name, emoji: prod.emoji||'📦', unit: prod.unit||'',
-      qtySistema, qtyFisico, diff });
+      qtySistema, qtyFisico, diff, contadoEm: base ? base.t : new Date().toISOString() });
   });
   if (!items.length) { toast('Informe ao menos uma quantidade', 'error'); return; }
   const obs = document.getElementById('confrontoObs').value.trim();
@@ -5364,7 +5422,7 @@ async function salvarConfronto() {
   if (direto) {
     const nDiv = items.filter(i => Math.abs(i.diff) >= 0.01).length;
     const aviso = nDiv
-      ? `O estoque de ${nDiv} produto(s) vai ser corrigido AGORA para a quantidade que você contou.`
+      ? `O estoque de ${nDiv} produto(s) vai ser corrigido AGORA pela diferença da sua contagem (o que foi vendido depois de contar continua descontado).`
       : 'Nenhuma diferença encontrada — o estoque continua igual.';
     if (!confirm(`${aviso}\n\n⚠️ Depois de enviar você NÃO poderá alterar de novo. Só o administrador pode liberar outra contagem.\n\nConfirmar envio?`)) return;
   }
@@ -5401,8 +5459,14 @@ async function _aplicarContagemNoEstoque(doc) {
   const pendentes = [];
   const flush = () => { if (ops) { pendentes.push(batch.commit()); batch = db.batch(); ops = 0; } };
 
+  const novosSaldos = [];
   for (const item of divergentes) {
-    batch.set(db.doc(`lojas/${fid}/produtos/${item.productId}`), { qty: item.qtyFisico }, { merge: true });
+    const prod = products.find(x => String(x.id) === String(item.productId));
+    const saldoNovo = Math.round((((prod && prod.qty) ?? 0) + item.diff) * 1000) / 1000;
+    if (prod) novosSaldos.push([prod, saldoNovo]);
+    // Soma a diferença em vez de substituir: vendas feitas depois da contagem
+    // (neste ou em outro aparelho) continuam descontadas.
+    batch.update(db.doc(`lojas/${fid}/produtos/${item.productId}`), { qty: firebase.firestore.FieldValue.increment(item.diff) });
     batch.set(db.collection(`lojas/${fid}/historico`).doc(), {
       id: Date.now() + Math.random(),
       productId: item.productId,
@@ -5412,7 +5476,7 @@ async function _aplicarContagemNoEstoque(doc) {
       type: 'ajuste',
       qty: Math.abs(item.diff),
       delta: item.diff,
-      balance: item.qtyFisico,
+      balance: saldoNovo,
       obs: `Contagem de estoque enviada por ${doc.user}`,
       user: doc.user
     });
@@ -5438,10 +5502,7 @@ async function _aplicarContagemNoEstoque(doc) {
   // nao bloqueia a tela por mais de 5s esperando o servidor confirmar
   await Promise.race([tudo.catch(() => {}), new Promise(r => setTimeout(r, 5000))]);
 
-  divergentes.forEach(item => {
-    const prod = products.find(x => String(x.id) === String(item.productId));
-    if (prod) prod.qty = item.qtyFisico;
-  });
+  novosSaldos.forEach(([prod, saldo]) => { prod.qty = saldo; });
   renderProducts();
 }
 
@@ -5551,12 +5612,13 @@ function montarConferencia(conf) {
 
   const linhas = conf.items.map(item => {
     const ant = _contagemAnteriorDe(conf, item.productId);
-    const desde = ant ? new Date(ant.conf.ts) : null;
+    const desde = ant ? new Date(ant.item.contadoEm || ant.conf.ts) : null;
+    const ateItem = new Date(item.contadoEm || conf.ts);
     let entradas = 0, saidas = 0, ajustes = 0;
     (porProduto[String(item.productId)] || []).forEach(h => {
       const t = new Date(h.datetime || h.ts);
       if (desde && t <= desde) return;      // pertence ao período anterior
-      if (t > tsConf) return;               // depois desta contagem
+      if (t > ateItem) return;              // depois desta contagem
       if (_ajusteDeContagem(h)) return;
       if (h.type === 'entrada') entradas += Math.abs(h.qty || 0);
       else if (h.type === 'saida') saidas += Math.abs(h.qty || 0);
@@ -5573,7 +5635,7 @@ function montarConferencia(conf) {
     // registrar movimentação (ou alguém editou a quantidade na mão)
     const furoNoHistorico = esperado != null && Math.abs(esperado - item.qtySistema) >= 0.01;
     return {
-      item, prod, base, desdeTs: ant ? ant.conf.ts : null,
+      item, prod, base, desdeTs: ant ? (ant.item.contadoEm || ant.conf.ts) : null,
       entradas, saidas, ajustes, esperado, quebra,
       valor: quebra == null ? 0 : quebra * custo,
       furoNoHistorico
@@ -5759,7 +5821,7 @@ async function processarConfronto(id, status) {
     const nDiv = conf.items.filter(i => Math.abs(i.diff) >= 0.01).length;
     if (nDiv === 0) {
       if (!confirm('Nenhuma divergência nesta contagem — o estoque não muda. Marcar como aprovado mesmo assim?')) return;
-    } else if (!confirm(`⚠️ Isto vai ALTERAR o estoque de ${nDiv} produto(s), substituindo pela quantidade contada. Esta ação não tem como desfazer. Confirmar?`)) {
+    } else if (!confirm(`⚠️ Isto vai ALTERAR o estoque de ${nDiv} produto(s) pela diferença encontrada na contagem (o que foi vendido depois da contagem continua descontado). Esta ação não tem como desfazer. Confirmar?`)) {
       return;
     }
   } else if (status === 'rejeitado') {
@@ -5772,10 +5834,12 @@ async function processarConfronto(id, status) {
       // Aplica ajustes no estoque para itens com diferença
       const divergentes = conf.items.filter(i => Math.abs(i.diff) >= 0.01);
       for (const item of divergentes) {
-        const novaQty = item.qtyFisico;
-        await db.collection(`lojas/${currentFilial.id}/produtos`).doc(String(item.productId))
-          .update({ qty: novaQty });
         const adjProd = products.find(p => String(p.id) === String(item.productId));
+        const novaQty = Math.round((((adjProd && adjProd.qty) ?? 0) + item.diff) * 1000) / 1000;
+        // Soma a diferença: o que foi vendido entre a contagem e esta
+        // aprovação continua descontado (antes voltava para o estoque).
+        await db.collection(`lojas/${currentFilial.id}/produtos`).doc(String(item.productId))
+          .update({ qty: firebase.firestore.FieldValue.increment(item.diff) });
         await db.collection(`lojas/${currentFilial.id}/historico`).add({
           id: Date.now() + Math.random(),
           productId: item.productId,
@@ -5832,7 +5896,7 @@ function doLogout() {
 }
 
 // Auto-restore session on page load (requires anonymous auth first)
-firebase.auth().signInAnonymously().catch(console.error).finally(async () => {
+firebase.auth().signInAnonymously().catch(_fbErro).finally(async () => {
   const saved = localStorage.getItem('sp_session');
   if (saved) {
     try {
@@ -5920,12 +5984,12 @@ function saveFilial() {
   if (editFilialId) {
     db.collection('lojas').doc(editFilialId).update({ nome, caixaEnabled })
       .then(() => toast(`✅ Filial "${nome}" atualizada!`, 'success'))
-      .catch(console.error);
+      .catch(_fbErro);
   } else {
     const id = 'filial_' + Date.now();
     db.collection('lojas').doc(id).set({ id, nome, caixaEnabled, createdAt: new Date().toISOString() })
       .then(() => toast(`✅ Filial "${nome}" criada!`, 'success'))
-      .catch(console.error);
+      .catch(_fbErro);
   }
   closeOverlay('filialModal');
 }
@@ -5935,7 +5999,7 @@ function deleteFilial(filialId) {
   if (!confirm(`Excluir a filial "${f?.nome}"?\n\nAtenção: os dados de estoque desta filial permanecerão no banco mas não estarão mais acessíveis pelo sistema.`)) return;
   db.collection('lojas').doc(filialId).delete()
     .then(() => toast('🗑 Filial excluída.', 'info'))
-    .catch(console.error);
+    .catch(_fbErro);
 }
 
 /* ══════════════════════════════════════════
@@ -7196,17 +7260,45 @@ function renderHistory() {
       <td style="font-weight:600">${rBalance}</td>
       <td style="color:var(--text-2);font-size:13px;max-width:180px">${r.obs||'—'}</td>
       <td style="color:var(--text-3);font-size:12px">${r.user}</td>
-      <td><button onclick="deleteHistoryEntry('${r.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.45;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.opacity=1;this.style.background='var(--danger-light)'" onmouseout="this.style.opacity=.45;this.style.background='none'" title="Excluir permanentemente">🗑</button></td>
+      <td><button onclick="deleteHistoryEntry('${r._docId || r.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.45;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.opacity=1;this.style.background='var(--danger-light)'" onmouseout="this.style.opacity=.45;this.style.background='none'" title="Excluir permanentemente">🗑</button></td>
     </tr>`;
   }).join('');
 }
 
-function deleteHistoryEntry(id) {
-  if (!confirm('Excluir este registro permanentemente? Esta ação não pode ser desfeita.')) return;
-  history = history.filter(r => String(r.id) !== String(id));
-  col('historico').doc(String(id)).delete().catch(console.error);
-  renderHistory(); renderStats(); renderReports();
-  toast('🗑 Registro excluído', 'success');
+/* Excluir um lançamento DESFAZ o efeito dele no estoque (entrada sai,
+   saída volta, ajuste é revertido). Antes só apagava o registro e o saldo
+   continuava alterado — "apagar o lançamento errado" deixava o estoque errado. */
+const _histExcluindo = new Set();
+function deleteHistoryEntry(chave) {
+  const r = history.find(h => String(h._docId || h.id) === String(chave));
+  if (!r || _histExcluindo.has(String(chave))) return;
+  if (/^Venda #/.test(r.obs || '')) {
+    toast('Esta saída é de uma venda do caixa — use 🚫 Cancelar venda no histórico de vendas.', 'error');
+    return;
+  }
+  const qtd = Math.abs(Number(r.qty) || 0);
+  const desfaz = r.type === 'entrada' ? -qtd
+    : r.type === 'saida' ? qtd
+    : (r.delta != null ? -Number(r.delta) : null);
+  const prod = products.find(p => String(p.id) === String(r.productId));
+  const nome = r.productName || (prod && prod.name) || 'produto';
+  let msg;
+  if (prod && desfaz) {
+    const atual = Number(prod.qty) || 0;
+    const novo = Math.round((atual + desfaz) * 1000) / 1000;
+    msg = `Excluir este lançamento e DESFAZER no estoque?\n\n${nome}: ${atual} → ${novo} (${desfaz > 0 ? '+' : ''}${desfaz})`;
+  } else {
+    msg = `Excluir este registro? O estoque de ${nome} não muda` +
+      (!prod ? ' (produto não existe mais).' : ' (não há quantidade para desfazer).');
+  }
+  if (!confirm(msg)) return;
+  _histExcluindo.add(String(chave));
+  if (prod && desfaz) { prod.qty = Math.round(((Number(prod.qty) || 0) + desfaz) * 1000) / 1000; saveQtyDelta(prod.id, desfaz); }
+  history = history.filter(h => h !== r);
+  delete _histExtra[r._docId];
+  col('historico').doc(String(r._docId || r.id)).delete().catch(_fbErro);
+  renderAll();
+  toast(prod && desfaz ? `🗑 Lançamento excluído e estoque corrigido (${desfaz > 0 ? '+' : ''}${desfaz})` : '🗑 Registro excluído', 'success');
 }
 
 function filtrarBuscaProduto() {
@@ -7277,7 +7369,7 @@ function confirmMov() {
   if (movState.type==='saida' && qty>p.qty) { toast(`Estoque insuficiente! Disponível: ${p.qty} ${p.unit}`,'error'); return; }
   const delta = movState.type==='entrada' ? qty : -qty;
   p.qty += delta;
-  const entry = { id:Date.now(), datetime:new Date().toISOString(), productId:p.id, productName:p.name, emoji:p.emoji, type:movState.type, qty, balance:p.qty, obs, user:user.name };
+  const entry = { id:Date.now() + Math.random(), datetime:new Date().toISOString(), productId:p.id, productName:p.name, emoji:p.emoji, type:movState.type, qty, balance:p.qty, obs, user:user.name };
   history.push(entry);
   renderAll();
   closeOverlay('movOverlay');
@@ -7861,7 +7953,7 @@ function confirmAjuste() {
   const oldQty = p.qty;
   p.qty = novaQty;
   const entry = {
-    id:          Date.now(),
+    id:          Date.now() + Math.random(),
     datetime:    new Date().toISOString(),
     productId:   p.id,
     productName: p.name,
@@ -8055,7 +8147,7 @@ function saveEditProduct() {
         productName: p.name, emoji: p.emoji, type: 'entrada', qty: p.qty, balance: p.qty,
         obs: 'Estoque inicial', user: user.username };
       history.unshift(hDoc);
-      db.collection(`lojas/${currentFilial.id}/historico`).add(hDoc).catch(console.error);
+      db.collection(`lojas/${currentFilial.id}/historico`).add(hDoc).catch(_fbErro);
     }
     return;
   }
@@ -8076,7 +8168,16 @@ function saveEditProduct() {
   else               delete photos[editId];
   renderAll(); closeOverlay('editOverlay');
   toast(`✅ Produto "${p.name}" atualizado!`, 'success');
-  saveProduct(p);
+  // Só os campos editados. Antes regravava o produto inteiro, inclusive a
+  // quantidade que estava na memória deste aparelho — se estivesse
+  // desatualizada, o estoque voltava para um número antigo sem registro.
+  const upd = {
+    name: p.name, category: p.category, unit: p.unit, emoji: p.emoji,
+    venda: p.venda, validade: p.validade ?? null, aliases: p.aliases || [],
+    bula: bulaObj ? bulaObj : firebase.firestore.FieldValue.delete()
+  };
+  if (user.role === 'admin') upd.custo = p.custo;
+  col('produtos').doc(String(p.id)).update(upd).catch(_fbErro);
   savePhoto(editId, editPhotoTemp || null);
 }
 
@@ -8325,7 +8426,7 @@ function clearHistory() {
     const batch = db.batch();
     snap.docs.forEach(d => batch.delete(d.ref));
     return batch.commit();
-  }).catch(console.error);
+  }).catch(_fbErro);
 }
 
 /* ══════════════════════════════════════════
@@ -8415,7 +8516,7 @@ function clearVendas() {
     const batch = db.batch();
     snap.docs.forEach(d => batch.delete(d.ref));
     return batch.commit();
-  }).catch(console.error);
+  }).catch(_fbErro);
 }
 
 function mostrarFacturaBanner(venda) {
@@ -8535,7 +8636,7 @@ async function saveFatCompra() {
   const id = Date.now();
   await db.collection(`lojas/${FARMACIA_ID}/faturas_compra`).doc(String(id)).set({
     id, ts: new Date().toISOString(), data, fornecedor, numNota, totalUSD: +totalUSD.toFixed(2)
-  }).catch(console.error);
+  }).catch(_fbErro);
 
   toast('✅ Nota de compra registrada!', 'success');
   closeOverlay('fatCompraModal');
@@ -8543,7 +8644,7 @@ async function saveFatCompra() {
 
 async function deleteFatCompra(id) {
   if (!confirm('Excluir esta nota de compra?')) return;
-  await db.collection(`lojas/${FARMACIA_ID}/faturas_compra`).doc(String(id)).delete().catch(console.error);
+  await db.collection(`lojas/${FARMACIA_ID}/faturas_compra`).doc(String(id)).delete().catch(_fbErro);
 }
 
 function renderFacturasResumo() {
@@ -8600,7 +8701,7 @@ function renderFacturasResumo() {
 
 async function deleteFactura(id) {
   if (!confirm('Excluir este registro de fatura?')) return;
-  await db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(id)).delete().catch(console.error);
+  await db.collection(`lojas/${FARMACIA_ID}/facturas_emitidas`).doc(String(id)).delete().catch(_fbErro);
 }
 
 /* ══════════════════════════════════════════
@@ -8617,7 +8718,7 @@ async function loadFacturaConfig() {
     if (cfg.timbrado !== GPP_EMPRESA.timbrado) {
       facturaConfig = { nextNum: GPP_EMPRESA.numeroInicial, serie: '001-001', timbrado: GPP_EMPRESA.timbrado };
       await db.collection(`lojas/${FARMACIA_ID}/config`).doc('factura')
-        .set(facturaConfig).catch(console.error);
+        .set(facturaConfig).catch(_fbErro);
       return;
     }
     facturaConfig = { nextNum: GPP_EMPRESA.numeroInicial, serie: '001-001', ...cfg };
@@ -9299,7 +9400,7 @@ function setupProducaoListener() {
   unsubProducao = col('producao').orderBy('ts','desc').limit(500).onSnapshot(snap => {
     producoes = snap.docs.map(d => d.data());
     if (currentMode === 'producao') renderProducaoSection();
-  }, console.error);
+  }, _fbErro);
 }
 
 async function loadMetaProducao() {
@@ -9679,7 +9780,7 @@ function showComprasApp() {
       renderComprasResumo();
       renderComprasList();
       renderFatCompra();
-    }, console.error);
+    }, _fbErro);
 }
 
 /* ══════════════════════════════════════════
@@ -9706,10 +9807,10 @@ function showVonlineApp() {
   loadVonVendedores();
   if (unsubVonTab) unsubVonTab();
   unsubVonTab = db.collection(`lojas/${FARMACIA_ID}/tabela_online`).orderBy('name')
-    .onSnapshot(s => { vonTab = s.docs.map(d => d.data()); renderVonProdSelect(); renderVonTabList(); }, console.error);
+    .onSnapshot(s => { vonTab = s.docs.map(d => d.data()); renderVonProdSelect(); renderVonTabList(); }, _fbErro);
   if (unsubVonVendas) unsubVonVendas();
   unsubVonVendas = db.collection(`lojas/${FARMACIA_ID}/vendas_online`).orderBy('ts','desc').limit(500)
-    .onSnapshot(s => { vonVendas = s.docs.map(d => d.data()); renderVonResumo(); renderVonList(); }, console.error);
+    .onSnapshot(s => { vonVendas = s.docs.map(d => d.data()); renderVonResumo(); renderVonList(); }, _fbErro);
 }
 
 const VON_VENDEDORES_PADRAO = [{nome:'Liz',pct:5},{nome:'Anderson',pct:5},{nome:'Michael',pct:5},{nome:'Saulo',pct:5}];
@@ -10423,7 +10524,7 @@ async function saveCompra() {
       fornecedor, data, moeda, descricao, total, tipo,
       prazoData: prazoData||null, temFatura, obs,
       updatedAt: new Date().toISOString()
-    }).catch(console.error);
+    }).catch(_fbErro);
   } else {
     const id = Date.now();
     const avista = tipo === 'avista';
@@ -10434,7 +10535,7 @@ async function saveCompra() {
       totalPago: avista ? total : 0,
       pagamentos: avista ? [{ id: Date.now(), valor: total, data, obs: 'À vista' }] : [],
       user: user.username
-    }).catch(console.error);
+    }).catch(_fbErro);
   }
   closeOverlay('compraModal');
   toast('Compra salva!', 'success');
@@ -10442,7 +10543,7 @@ async function saveCompra() {
 
 async function deleteCompra(id) {
   if (!confirm('Excluir esta compra?')) return;
-  await db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(id)).delete().catch(console.error);
+  await db.collection(`lojas/${FARMACIA_ID}/compras_fornecedor`).doc(String(id)).delete().catch(_fbErro);
 }
 
 function abrirPagamentoFornecedor(fornecedor, moeda) {
