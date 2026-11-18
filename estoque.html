@@ -7275,8 +7275,20 @@ function encontrarProduto(nome, idx) {
 /* Linhas que são dados do cliente, não produto. */
 const LOTE_RUIDO = /^(nome|cpf|rg|e-?mail|end|endereco|endereço|compl|complemento|bairro|cidade|estado|uf|cep|numero|número|n[ºo°]|tel|telefone|whats|whatsapp|obs|observa|pedido|entrega|cliente|destinat|rua|av|avenida|travessa|trav|alameda|quadra|passagem|estrada|rodovia|praca|praça|conjunto|apto?|apart|bloco|bl|casa|torre|sala|loja|km|setor)\b/i;
 
-function parsearListaLote(texto) {
+/* "1. Willian Franco" é o cliente numerado do pedido, não um item. */
+function _pareceNomeDePessoa(txt) {
+  const palavras = txt.trim().split(/\s+/);
+  return palavras.length >= 2 &&
+    palavras.every(w => /^[A-ZÀ-Ý][a-zà-ÿ'’-]*$/.test(w) || /^(d[aeo]s?|e)$/i.test(w));
+}
+
+function parsearListaLote(texto, idx) {
   const out = [];
+  const ignoradas = [];
+  idx = idx || montarIndiceApelidos();
+  // Pedido com itens no formato "2x Produto": linhas "N. Nome" sem produto
+  // conhecido são o número+nome do cliente.
+  const temItensComX = /^\s*\d{1,4}\s*[xX×]\s*\S/m.test(texto);
   texto.split('\n').forEach(linha => {
     const bruta = linha.trim();
     if (!bruta) return;
@@ -7311,18 +7323,25 @@ function parsearListaLote(texto) {
     nome = nome.replace(/\([^)]*\)/g, '').trim(); // "2 (Duas) Enantato" → "Enantato"
     if (!nome || LOTE_RUIDO.test(nome)) return;   // "145 Apt 701" é endereço
     if (!/[a-zA-Z]/.test(nome)) return;
+    // "1. Willian Franco" / "3) Maria Souza": numeração de cliente, sem "x"
+    // e sem produto conhecido → descarta em vez de virar "produto".
+    const numerada = /^\d{1,4}\s*[.)]\s*\S/.test(l) && !/^\d{1,4}\s*[xX×]/.test(l);
+    if (numerada && !encontrarProduto(nome, idx) &&
+        (temItensComX || _pareceNomeDePessoa(nome))) { ignoradas.push(bruta); return; }
     if (!qty || qty < 1) qty = 1;
     out.push({ linha: bruta, nome, qty });
   });
+  out.ignoradas = ignoradas;
   return out;
 }
 
 function interpretarLote() {
   const texto = document.getElementById('loteTxt').value.trim();
   if (!texto) { toast('Cole a lista antes de interpretar.', 'error'); return; }
-  const parsed = parsearListaLote(texto);
-  if (!parsed.length) { toast('Não encontrei nenhum item na lista.', 'error'); return; }
   const idx = montarIndiceApelidos();
+  const parsed = parsearListaLote(texto, idx);
+  if (!parsed.length) { toast('Não encontrei nenhum item na lista.', 'error'); return; }
+  loteState.ignoradas = parsed.ignoradas || [];
   loteState.itens = parsed.map(({ linha, nome, qty }) => {
     const produto = encontrarProduto(nome, idx);
     return {
@@ -7372,17 +7391,21 @@ function renderLotePreview() {
     const cor = !encontrou ? '#ef4444' : semEstoque ? '#f59e0b' : 'var(--text-1)';
     // Não reconhecido → dropdown para você apontar o produto UMA vez.
     let celulaProd;
-    if (encontrou) {
+    if (encontrou && !item.editando) {
       celulaProd = `${item.produto.emoji} ${item.produto.name}` +
-        (item.aprender ? ` <span style="color:var(--primary);font-size:11px;font-weight:700">🧠 vai aprender</span>` : '');
+        (item.aprender ? ` <span style="color:var(--primary);font-size:11px;font-weight:700">🧠 vai aprender</span>` : '') +
+        ` <button type="button" onclick="trocarProdutoLote(${i})" title="Escolher outro produto para esta linha"
+            style="margin-left:6px;padding:2px 8px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text-2);font-size:11px;font-weight:600;cursor:pointer">✏️ trocar</button>`;
     } else {
       // Campo com busca: digitar filtra por qualquer pedaço do nome;
       // clicar na setinha ainda mostra a lista inteira.
       celulaProd = `
         <input list="loteProdutosList" placeholder="🔍 digite o produto…"
           onchange="mapearLoteItemPorNome(${i},this.value)"
-          onfocus="this.select()"
-          style="width:100%;max-width:230px;padding:4px 6px;border:1px solid #ef4444;border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">`;
+          onfocus="this.select()" ${item.editando ? 'id="loteTrocaInput"' : ''}
+          style="width:100%;max-width:230px;padding:4px 6px;border:1px solid ${item.editando ? 'var(--primary)' : '#ef4444'};border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">` +
+        (item.editando ? ` <button type="button" onclick="cancelarTrocaLote(${i})"
+            style="margin-left:4px;padding:2px 8px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text-2);font-size:11px;cursor:pointer">cancelar</button>` : '');
     }
     html += `
       <tr style="border-bottom:1px solid var(--border);color:${cor};opacity:${item.ativo ? 1 : 0.4}">
@@ -7440,6 +7463,11 @@ function renderLotePreview() {
   });
   resumoProd += `</div>`;
   html += resumo + resumoProd;
+  const ign = loteState.ignoradas || [];
+  if (ign.length) {
+    html += `<div style="margin:8px 0 0;font-size:12px;color:var(--text-3)">🙈 ${ign.length} linha${ign.length!==1?'s':''} de dados do cliente ignorada${ign.length!==1?'s':''}: ` +
+      ign.map(x => String(x).replace(/</g,'&lt;')).join(' · ') + `</div>`;
+  }
 
   document.getElementById('lotePreviewWrap').innerHTML = html;
 
@@ -7508,6 +7536,18 @@ async function spSeedApelidos() {
   return { gravados: n, pulados };
 }
 
+function trocarProdutoLote(i) {
+  loteState.itens[i].editando = true;
+  renderLotePreview();
+  const inp = document.getElementById('loteTrocaInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
+function cancelarTrocaLote(i) {
+  loteState.itens[i].editando = false;
+  renderLotePreview();
+}
+
 function toggleLoteItem(i, checked) {
   loteState.itens[i].ativo = checked;
   renderLotePreview();
@@ -7517,7 +7557,7 @@ function toggleLoteItem(i, checked) {
    Aceita o nome exato ou um pedaço dele, desde que sobre um só candidato. */
 function mapearLoteItemPorNome(i, texto) {
   const t = normTexto(texto);
-  if (!t) { loteState.itens[i].produto = null; loteState.itens[i].ativo = false; renderLotePreview(); return; }
+  if (!t) { loteState.itens[i].editando = false; renderLotePreview(); return; }
   let p = products.find(x => normTexto(x.name) === t);
   if (!p) {
     const cand = products.filter(x => normTexto(x.name).includes(t));
@@ -7547,6 +7587,7 @@ function mapearLoteItem(i, produtoId) {
     outro.produto  = p;
     outro.aprender = true;
     outro.ativo    = true;
+    outro.editando = false;
   });
   renderLotePreview();
 }
