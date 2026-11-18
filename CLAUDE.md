@@ -54,6 +54,15 @@ aparecer até a versão subir para v132.)
   Extras (frete etc.) ficam em `config/vonCustos.extrasPct`, padrão 0% — a
   Farmácia vende no balcão, não há frete fixo. Nunca usar cotação fixa no código.
 
+## Giro e Saúde dos preços (admin, caixa → botões 📈 e 💰)
+
+- "Dura"/"Saiu 30d" usam `saidasNetas()`: TODAS as saídas do histórico (caixa,
+  Saída em Lote, manual) menos cancelamentos. Nunca calcular giro só com as
+  vendas do caixa — os pedidos em lote baixam estoque sem passar por `vendas`.
+- Saúde dos preços: preço sugerido = custo ÷ (1 − margem-alvo), limitado pelo
+  `precoMercado` do produto, nunca sugere baixar. `precoMin` (piso) nunca passa
+  do preço de venda. Config em `config/precos` ({alvo, piso, passo}).
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,
