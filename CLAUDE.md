@@ -37,6 +37,16 @@ aparecer até a versão subir para v132.)
   foi contado), não substitui o saldo.
 - Excluir um lançamento do histórico desfaz o efeito dele no estoque.
 
+## Pedido do vendedor (tablet) e CRM
+
+- Usuário `op` com `vendedor: true` entra direto em `pedidoApp`; grava em
+  `lojas/{filial}/pedidos` (status aberto → pago/cancelado). Estoque só
+  baixa quando o caixa recebe (`confirmPayment`).
+- Limite de desconto em um lugar só: `limiteDescontoItens` (menor entre o
+  % da Cotação e metade da margem, nunca abaixo de `precoMin` do produto).
+- Clientes em `lojas/{filial}/clientes/{telefone só dígitos}`; vendas de
+  pedido levam `clienteTel`, `pedidoId` e `precoTabelaUSD` nos itens.
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,
