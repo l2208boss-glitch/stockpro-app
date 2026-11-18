@@ -1211,6 +1211,7 @@
         <button class="btn-clr" onclick="openAtendentesModal()" title="Configurar vendedores" style="background:var(--primary-light);color:var(--primary-dark)">🛍️</button>
         <button class="btn-clr" onclick="openClientesModal()" title="Clientes (CRM)" style="background:var(--primary-light);color:var(--primary-dark)">👥</button>
         <button class="btn-clr" onclick="openMargemModal()" title="Margem e giro por produto" style="background:var(--primary-light);color:var(--primary-dark)">📈</button>
+        <button class="btn-clr" onclick="openPrecosModal()" title="Saúde dos preços: margem-alvo e preços sugeridos" style="background:var(--primary-light);color:var(--primary-dark)">💰</button>
         <button class="btn-clr" onclick="clearVendas()" title="Limpar histórico de vendas">🗑</button>
       </div>
     </div>
@@ -1909,6 +1910,24 @@
         </select>
       </div>
       <div id="margemConteudo" style="max-height:65vh;overflow:auto"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="precosModal" onclick="overlayClick(event,'precosModal')">
+  <div class="modal" style="max-width:1100px">
+    <div class="modal-hd">
+      <span class="modal-title edit">💰 Saúde dos preços</span>
+      <button class="btn-x" onclick="closeOverlay('precosModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:12px;padding:10px 12px;background:var(--primary-light);border-radius:var(--radius-sm);font-size:13px">
+        <label>Margem-alvo <input id="precoAlvo" type="number" min="1" max="89" step="0.5" value="25" onchange="precoCfgMudou()" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-weight:700;text-align:right">%</label>
+        <label>Margem mínima (piso) <input id="precoPiso" type="number" min="0" max="89" step="0.5" value="12" onchange="precoCfgMudou()" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-weight:700;text-align:right">%</label>
+        <label>Arredondar para cima de <input id="precoPasso" type="number" min="0.01" step="0.5" value="0.5" onchange="precoCfgMudou()" style="width:58px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-weight:700;text-align:right"></label>
+        <span style="font-size:11px;color:var(--text-3)">Preço sugerido = custo ÷ (1 − margem). Digite o preço de mercado onde o cliente compara: o sugerido não passa dele.</span>
+      </div>
+      <div id="precosConteudo"></div>
     </div>
   </div>
 </div>
@@ -4282,7 +4301,28 @@ async function openMargemModal() {
   await calcularMargem();
 }
 
-function calcularMargemDe(vendasLista, dias) {
+/* Saídas líquidas por produto nos últimos N dias, de TODOS os canais que baixam
+   estoque (caixa, Saída em Lote, saída manual), menos o que voltou por
+   cancelamento de venda. É o ritmo real de giro — o caixa sozinho não conta o
+   que sai pelos pedidos em lote. */
+function saidasNetas(dias) {
+  const corte = Date.now() - dias * 864e5;
+  const m = {};
+  (history || []).forEach(h => {
+    const t = new Date(h.datetime || h.ts).getTime();
+    if (!(t >= corte)) return;
+    const k = String(h.productId);
+    const q = Math.abs(Number(h.qty) || 0);
+    if (h.type === 'saida') m[k] = (m[k] || 0) + q;
+    else if (h.type === 'entrada' && /^Cancelamento da Venda/i.test(h.obs || '')) m[k] = (m[k] || 0) - q;
+  });
+  return m;
+}
+
+const GIRO_DIAS = 30;   // janela do giro (o histórico ao vivo do admin cobre 35 dias)
+
+function calcularMargemDe(vendasLista, dias, saidas) {
+  saidas = saidas || {};
   const porProd = {};
   vendasLista.forEach(v => {
     if (v.cancelada) return;
@@ -4299,16 +4339,23 @@ function calcularMargemDe(vendasLista, dias) {
       r.tabela += (Number(i.qty) || 0) * (Number(i.precoTabelaUSD != null ? i.precoTabelaUSD : i.precoUSD) || 0);
     });
   });
+  // produtos que saíram só por pedido em lote também entram (para o giro)
+  Object.keys(saidas).forEach(k => {
+    if (porProd[k] || !(saidas[k] > 0)) return;
+    const prod = products.find(p => String(p.id) === k);
+    if (prod) porProd[k] = { productId: prod.id, name: prod.name, qty: 0, receita: 0, tabela: 0 };
+  });
   return Object.values(porProd).map(r => {
     const prod = products.find(p => String(p.id) === String(r.productId));
     const custoUn = Number(prod && prod.custo) || 0;
     const custo = custoUn * r.qty;
-    const lucro = custoUn > 0 ? r.receita - custo : null;
-    const margem = custoUn > 0 && r.receita > 0 ? (lucro / r.receita) * 100 : null;
+    const lucro = r.qty > 0 && custoUn > 0 ? r.receita - custo : (r.qty > 0 ? null : 0);
+    const margem = r.qty > 0 && custoUn > 0 && r.receita > 0 ? (lucro / r.receita) * 100 : null;
     const estoque = prod ? Number(prod.qty) || 0 : null;
-    const porDia = r.qty / dias;
+    const saiu = Math.max(0, saidas[String(r.productId)] || 0);        // todas as saídas no giro
+    const porDia = saiu / GIRO_DIAS;
     const diasEstoque = estoque != null && porDia > 0 ? estoque / porDia : null;
-    return { ...r, name: (prod && prod.name) || r.name, custoUn, lucro, margem, estoque, diasEstoque,
+    return { ...r, name: (prod && prod.name) || r.name, custoUn, lucro, margem, estoque, saiu, diasEstoque,
       precoMedio: r.qty ? r.receita / r.qty : 0, descontoMedio: r.tabela > 0 ? (1 - r.receita / r.tabela) * 100 : 0 };
   });
 }
@@ -4323,40 +4370,222 @@ async function calcularMargem() {
     const snap = await col('vendas').where('ts', '>=', desde).get();
     vs = snap.docs.map(d => d.data());
   } catch (e) { _fbErro(e); box.innerHTML = '<div style="color:var(--danger)">Erro ao carregar vendas.</div>'; return; }
-  const linhas = calcularMargemDe(vs, dias)
+  const linhas = calcularMargemDe(vs, dias, saidasNetas(GIRO_DIAS))
     .sort((a, b) => (a.margem == null ? 1e9 : a.margem) - (b.margem == null ? 1e9 : b.margem));
-  const comCusto = linhas.filter(l => l.lucro != null);
+  const comCusto = linhas.filter(l => l.lucro != null && l.qty > 0);
   const receita = comCusto.reduce((s, l) => s + l.receita, 0);
   const lucro = comCusto.reduce((s, l) => s + l.lucro, 0);
-  const semCusto = linhas.length - comCusto.length;
+  const semCusto = linhas.filter(l => l.qty > 0 && !(l.custoUn > 0)).length;
+  // estoque que levaria mais de 180 dias para sair no ritmo real (todas as saídas)
+  const parado = linhas.filter(l => l.custoUn > 0 && l.estoque > 0 && (l.diasEstoque == null || l.diasEstoque > 180))
+    .reduce((s, l) => s + l.estoque * l.custoUn, 0);
   const corM = m => m == null ? 'var(--text-3)' : m < 10 ? '#dc2626' : m < 20 ? '#d97706' : 'var(--success)';
+  const chip = (t, extra) => `<span style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:4px 12px;${extra || ''}">${t}</span>`;
   box.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:13px">
-      <span style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:4px 12px">Receita <b>$${receita.toFixed(2)}</b></span>
-      <span style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:4px 12px">Lucro <b>$${lucro.toFixed(2)}</b></span>
-      <span style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:4px 12px">Margem <b style="color:${corM(receita ? lucro / receita * 100 : null)}">${receita ? (lucro / receita * 100).toFixed(1) + '%' : '—'}</b></span>
-      ${semCusto ? `<span style="background:#fef3c7;color:#92400e;border-radius:99px;padding:4px 12px">⚠️ ${semCusto} produto(s) sem custo cadastrado</span>` : ''}
+      ${chip(`Receita <b>$${receita.toFixed(2)}</b>`)}
+      ${chip(`Lucro <b>$${lucro.toFixed(2)}</b>`)}
+      ${chip(`Margem <b style="color:${corM(receita ? lucro / receita * 100 : null)}">${receita ? (lucro / receita * 100).toFixed(1) + '%' : '—'}</b>`)}
+      ${semCusto ? chip(`⚠️ ${semCusto} produto(s) sem custo cadastrado`, 'background:#fef3c7;color:#92400e;border-color:#fcd34d') : ''}
+      ${parado > 0 ? chip(`Estoque de giro lento (+180 dias): <b>$${Math.round(parado).toLocaleString('en-US')}</b>`, 'background:#e0e7ff;border-color:#c7d2fe') : ''}
     </div>
-    <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">Vendas do caixa nos últimos ${dias} dias, pior margem primeiro. Lucro sobre o custo cadastrado hoje — confira se o custo inclui frete e taxas.</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">Receita, lucro e margem: vendas do <b>caixa</b> nos últimos ${dias} dias (só produtos com custo), pior margem primeiro. <b>Saiu</b> e <b>Dura</b>: todas as saídas dos últimos ${GIRO_DIAS} dias (caixa + pedidos em lote), contra o estoque do sistema — se o estoque do sistema estiver diferente do real, o "Dura" também fica. Lucro sobre o custo cadastrado hoje.</div>
     <div style="overflow:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr style="text-align:left;color:var(--text-2);border-bottom:2px solid var(--border)">
-        <th style="padding:6px">Produto</th><th style="padding:6px;text-align:right">Vendido</th><th style="padding:6px;text-align:right">Preço médio</th>
+        <th style="padding:6px">Produto</th><th style="padding:6px;text-align:right">Vendido (caixa)</th><th style="padding:6px;text-align:right">Preço médio</th>
         <th style="padding:6px;text-align:right">Custo</th><th style="padding:6px;text-align:right">Receita</th><th style="padding:6px;text-align:right">Lucro</th>
-        <th style="padding:6px;text-align:right">Margem</th><th style="padding:6px;text-align:right">Desc. médio</th><th style="padding:6px;text-align:right">Estoque</th><th style="padding:6px;text-align:right">Dura</th></tr></thead>
+        <th style="padding:6px;text-align:right">Margem</th><th style="padding:6px;text-align:right">Desc. médio</th><th style="padding:6px;text-align:right">Saiu ${GIRO_DIAS}d</th><th style="padding:6px;text-align:right">Estoque</th><th style="padding:6px;text-align:right">Dura</th></tr></thead>
       <tbody>${linhas.map(l => `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:6px;font-weight:600">${_esc(l.name)}</td>
         <td style="padding:6px;text-align:right">${l.qty}</td>
-        <td style="padding:6px;text-align:right">$${l.precoMedio.toFixed(2)}</td>
+        <td style="padding:6px;text-align:right">${l.qty ? '$' + l.precoMedio.toFixed(2) : '—'}</td>
         <td style="padding:6px;text-align:right">${l.custoUn ? '$' + l.custoUn.toFixed(2) : '—'}</td>
-        <td style="padding:6px;text-align:right">$${l.receita.toFixed(2)}</td>
-        <td style="padding:6px;text-align:right">${l.lucro == null ? '—' : '$' + l.lucro.toFixed(2)}</td>
-        <td style="padding:6px;text-align:right;font-weight:700;color:${corM(l.margem)}">${l.margem == null ? 'sem custo' : l.margem.toFixed(1) + '%'}</td>
+        <td style="padding:6px;text-align:right">${l.qty ? '$' + l.receita.toFixed(2) : '—'}</td>
+        <td style="padding:6px;text-align:right">${l.lucro == null || !l.qty ? '—' : '$' + l.lucro.toFixed(2)}</td>
+        <td style="padding:6px;text-align:right;font-weight:700;color:${corM(l.margem)}">${!l.qty ? '—' : l.margem == null ? 'sem custo' : l.margem.toFixed(1) + '%'}</td>
         <td style="padding:6px;text-align:right">${l.descontoMedio > 0.05 ? l.descontoMedio.toFixed(1) + '%' : '—'}</td>
+        <td style="padding:6px;text-align:right;font-weight:600">${l.saiu}</td>
         <td style="padding:6px;text-align:right">${l.estoque == null ? '—' : l.estoque}</td>
         <td style="padding:6px;text-align:right">${l.diasEstoque == null ? '—' : Math.round(l.diasEstoque) + ' dias'}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
+}
+
+/* ══════════════════════════════════════════
+   SAÚDE DOS PREÇOS — admin
+   Para cada produto: custo, preço, margem de hoje, preço de mercado (opcional)
+   e o preço sugerido para chegar na margem-alvo (preço = custo ÷ (1 − margem)).
+   Preço de mercado limita a sugestão; nunca sugere baixar preço. O que o
+   mercado não deixa subir fica marcado para renegociar o custo.
+══════════════════════════════════════════ */
+let _precoCfg = { alvo: 25, piso: 12, passo: 0.5 };
+let _precoSel = {};
+let _precoFiltro = 'precisam';
+
+async function openPrecosModal() {
+  if (!user || user.role !== 'admin') return;
+  try {
+    const d = await col('config').doc('precos').get();
+    if (d.exists) _precoCfg = { ..._precoCfg, ...d.data() };
+  } catch (e) { /* segue com os padrões */ }
+  document.getElementById('precoAlvo').value = _precoCfg.alvo;
+  document.getElementById('precoPiso').value = _precoCfg.piso;
+  document.getElementById('precoPasso').value = _precoCfg.passo;
+  _precoSel = {};
+  document.getElementById('precosModal').classList.add('on');
+  renderPrecos();
+}
+
+function precoCfgMudou() {
+  const alvo = parseFloat(document.getElementById('precoAlvo').value);
+  const piso = parseFloat(document.getElementById('precoPiso').value);
+  const passo = parseFloat(document.getElementById('precoPasso').value);
+  if (!(alvo > 0 && alvo < 90) || !(piso >= 0 && piso < alvo) || !(passo > 0)) return;
+  _precoCfg = { alvo, piso, passo };
+  col('config').doc('precos').set({ alvo, piso, passo, updatedBy: user.name, ts: new Date().toISOString() }, { merge: true }).catch(_fbErro);
+  _precoSel = {};
+  renderPrecos();
+}
+
+function _precoLinhas() {
+  const alvo = Number(_precoCfg.alvo) / 100, piso = Number(_precoCfg.piso) / 100, passo = Number(_precoCfg.passo) || 0.5;
+  const sobe = v => Math.round(Math.ceil(v / passo - 1e-9) * passo * 100) / 100;
+  const saidas = saidasNetas(GIRO_DIAS);
+  return products.map(p => {
+    const custo = Number(p.custo) || 0, preco = Number(p.venda) || 0, mercado = Number(p.precoMercado) || 0;
+    const un = Math.max(0, saidas[String(p.id)] || 0);
+    const margem = custo > 0 && preco > 0 ? (preco - custo) / preco * 100 : null;
+    let sug = null, minimo = null, estado = 'semcusto';
+    if (custo > 0) {
+      const base = sobe(custo / (1 - alvo));
+      minimo = sobe(custo / (1 - piso));
+      sug = mercado > 0 ? Math.min(base, mercado) : base;
+      if (preco >= sug - 0.005) sug = preco;                        // nunca sugere baixar
+      const mSug = (sug - custo) / sug * 100;
+      if (preco >= base - 0.005 && margem >= Number(_precoCfg.alvo) - 0.05) estado = 'ok';
+      else if (mercado > 0 && sug <= mercado + 0.005 && sug < base - 0.005) estado = mSug < Number(_precoCfg.piso) ? 'piso' : 'mercado';
+      else estado = sug > preco + 0.005 ? 'subir' : 'ok';
+    }
+    return { p, custo, preco, mercado, un, margem, sug, minimo, estado,
+      impacto: sug != null && sug > preco ? (sug - preco) * un : 0 };
+  });
+}
+
+function renderPrecos() {
+  const el = document.getElementById('precosConteudo');
+  if (!el) return;
+  const todas = _precoLinhas();
+  const comCusto = todas.filter(l => l.custo > 0 && l.preco > 0 && l.un > 0);
+  const rec = comCusto.reduce((s, l) => s + l.preco * l.un, 0);
+  const luc = comCusto.reduce((s, l) => s + (l.preco - l.custo) * l.un, 0);
+  const lucNovo = comCusto.reduce((s, l) => s + (l.sug - l.custo) * l.un, 0);
+  const recNovo = comCusto.reduce((s, l) => s + l.sug * l.un, 0);
+  const impacto = todas.reduce((s, l) => s + l.impacto, 0);
+  const nPrecisam = todas.filter(l => l.sug != null && l.sug > l.preco + 0.005).length;
+  const nSemCusto = todas.filter(l => l.estado === 'semcusto').length;
+  const nPiso = todas.filter(l => l.estado === 'piso').length;
+  let lista = todas;
+  if (_precoFiltro === 'precisam') lista = todas.filter(l => l.sug != null && l.sug > l.preco + 0.005);
+  else if (_precoFiltro === 'semcusto') lista = todas.filter(l => l.estado === 'semcusto');
+  else if (_precoFiltro === 'piso') lista = todas.filter(l => l.estado === 'piso');
+  lista = lista.slice().sort((a, b) => (b.impacto - a.impacto) || (b.un - a.un) || String(a.p.name).localeCompare(String(b.p.name), 'pt-BR'));
+  const nSel = Object.values(_precoSel).filter(Boolean).length;
+  const chip = (t, extra) => `<span style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:4px 12px;${extra || ''}">${t}</span>`;
+  const rotulo = { ok: ['✓ ok', 'var(--success)'], subir: ['↑ subir', 'var(--primary)'], mercado: ['limitado pelo mercado', '#92400e'],
+    piso: ['⚠️ mercado não deixa chegar no piso — renegociar custo', '#b91c1c'], semcusto: ['informe o custo', '#92400e'] };
+  const filtro = (id, t) => `<button onclick="_precoFiltro='${id}';renderPrecos()" style="padding:5px 12px;border:1px solid var(--border);border-radius:99px;cursor:pointer;font-size:12px;font-weight:700;background:${_precoFiltro === id ? 'var(--primary)' : 'var(--surface)'};color:${_precoFiltro === id ? '#fff' : 'var(--text-2)'}">${t}</button>`;
+  el.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:13px">
+      ${comCusto.length ? chip(`Margem hoje <b>${(luc / rec * 100).toFixed(1)}%</b> → com os preços sugeridos <b style="color:var(--success)">${(lucNovo / recNovo * 100).toFixed(1)}%</b>`) : ''}
+      ${impacto > 0 ? chip(`Lucro a mais por mês (no ritmo atual): <b style="color:var(--success)">+$${Math.round(impacto).toLocaleString('en-US')}</b>`) : ''}
+      ${nSemCusto ? chip(`⚠️ ${nSemCusto} sem custo`, 'background:#fef3c7;color:#92400e;border-color:#fcd34d') : ''}
+      ${nPiso ? chip(`${nPiso} com margem abaixo do piso mesmo no preço de mercado`, 'background:#fee2e2;color:#991b1b;border-color:#fca5a5') : ''}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px">
+      ${filtro('precisam', `Precisam subir (${nPrecisam})`)}${filtro('semcusto', `Sem custo (${nSemCusto})`)}${filtro('piso', `Abaixo do piso (${nPiso})`)}${filtro('todos', `Todos (${todas.length})`)}
+      <span style="flex:1"></span>
+      <button onclick="precosMarcarTodos()" style="padding:5px 12px;border:1px solid var(--border);border-radius:99px;cursor:pointer;font-size:12px;font-weight:700;background:var(--surface)">Marcar os que precisam subir</button>
+    </div>
+    <div style="overflow:auto;max-height:52vh">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr style="text-align:left;color:var(--text-2);border-bottom:2px solid var(--border);position:sticky;top:0;background:var(--surface)">
+        <th style="padding:6px"></th><th style="padding:6px">Produto</th><th style="padding:6px;text-align:right">Saiu 30d</th>
+        <th style="padding:6px;text-align:right">Custo</th><th style="padding:6px;text-align:right">Preço</th><th style="padding:6px;text-align:right">Margem</th>
+        <th style="padding:6px;text-align:right">Mercado</th><th style="padding:6px;text-align:right">Sugerido</th><th style="padding:6px;text-align:right">Impacto/mês</th><th style="padding:6px">Situação</th></tr></thead>
+      <tbody>${lista.map(l => {
+        const [rot, cor] = rotulo[l.estado];
+        const podeMarcar = l.sug != null && l.sug > l.preco + 0.005;
+        const mNova = l.sug != null ? ((l.sug - l.custo) / l.sug * 100) : null;
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px">${podeMarcar ? `<input type="checkbox" ${_precoSel[l.p.id] ? 'checked' : ''} onchange="precosSel('${l.p.id}',this.checked)">` : ''}</td>
+          <td style="padding:6px;font-weight:600">${_esc(l.p.name)}</td>
+          <td style="padding:6px;text-align:right">${l.un}</td>
+          <td style="padding:6px;text-align:right"><input type="number" min="0" step="0.01" value="${l.custo || ''}" placeholder="custo" onchange="precoSetCampo('${l.p.id}','custo',this.value)"
+            style="width:68px;padding:3px 5px;border:1px solid ${l.custo ? 'var(--border)' : '#f59e0b'};border-radius:5px;font-size:12.5px;text-align:right"></td>
+          <td style="padding:6px;text-align:right">$${l.preco.toFixed(2)}</td>
+          <td style="padding:6px;text-align:right;font-weight:700;color:${l.margem == null ? 'var(--text-3)' : l.margem < 10 ? '#dc2626' : l.margem < Number(_precoCfg.alvo) ? '#d97706' : 'var(--success)'}">${l.margem == null ? '—' : l.margem.toFixed(1) + '%'}</td>
+          <td style="padding:6px;text-align:right"><input type="number" min="0" step="0.01" value="${l.mercado || ''}" placeholder="—" onchange="precoSetCampo('${l.p.id}','precoMercado',this.value)"
+            style="width:62px;padding:3px 5px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;text-align:right"></td>
+          <td style="padding:6px;text-align:right;font-weight:800">${l.sug != null ? '$' + l.sug.toFixed(2) + `<div style="font-size:10.5px;font-weight:600;color:var(--text-3)">${mNova.toFixed(1)}%</div>` : '—'}</td>
+          <td style="padding:6px;text-align:right;color:var(--success);font-weight:700">${l.impacto > 0 ? '+$' + Math.round(l.impacto) : '—'}</td>
+          <td style="padding:6px;color:${cor};font-weight:600;font-size:11.5px">${rot}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="10" style="padding:16px;color:var(--text-3)">Nada nesta lista.</td></tr>'}</tbody>
+    </table></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px">
+      <button onclick="aplicarPrecos()" ${nSel ? '' : 'disabled'} class="btn-confirm save" style="padding:9px 16px">✅ Aplicar ${nSel} selecionado(s)</button>
+      <button onclick="definirPisos()" class="btn-cancel" title="Define o preço mínimo de cada produto com custo (custo ÷ (1 − margem mínima)) para o caixa e o tablet">🛡️ Definir preço mínimo em todos</button>
+    </div>`;
+}
+
+function precosSel(pid, v) { _precoSel[pid] = v; renderPrecos(); }
+function precosMarcarTodos() {
+  _precoLinhas().forEach(l => { if (l.sug != null && l.sug > l.preco + 0.005) _precoSel[l.p.id] = true; });
+  renderPrecos();
+}
+
+async function precoSetCampo(pid, campo, valor) {
+  const n = parseFloat(String(valor).replace(',', '.'));
+  if (valor !== '' && (isNaN(n) || n < 0)) return toast('Valor inválido', 'error');
+  const p = products.find(x => String(x.id) === String(pid));
+  if (!p) return;
+  const v = valor === '' ? 0 : n;
+  p[campo] = v;
+  col('produtos').doc(String(pid)).update({ [campo]: v }).catch(_fbErro);
+  renderPrecos();
+}
+
+async function aplicarPrecos() {
+  const sel = _precoLinhas().filter(l => _precoSel[l.p.id] && l.sug != null && l.sug > l.preco + 0.005);
+  if (!sel.length) return;
+  const resumo = sel.slice(0, 12).map(l => `• ${l.p.name}: $${l.preco.toFixed(2)} → $${l.sug.toFixed(2)}`).join('\n') + (sel.length > 12 ? `\n… e mais ${sel.length - 12}` : '');
+  if (!confirm(`Alterar o preço de venda de ${sel.length} produto(s)?\n\n${resumo}\n\nO preço mínimo de cada um também será definido.`)) return;
+  for (let i = 0; i < sel.length; i += 200) {
+    const b = db.batch();
+    sel.slice(i, i + 200).forEach(l => b.update(col('produtos').doc(String(l.p.id)), { venda: l.sug, precoMin: Math.min(l.minimo, l.sug) }));
+    await b.commit();
+  }
+  sel.forEach(l => { l.p.venda = l.sug; l.p.precoMin = Math.min(l.minimo, l.sug); });
+  _precoSel = {};
+  renderPrecos(); renderProducts();
+  toast(`✅ ${sel.length} preço(s) atualizado(s)`, 'success');
+}
+
+/* O piso nunca passa do preço de venda atual: se a margem mínima não cabe no preço (mercado não deixa subir), o piso vira o próprio preço — sem desconto. */
+function pisoDe(l) { return l.preco > 0 ? Math.min(l.minimo, l.preco) : l.minimo; }
+
+async function definirPisos() {
+  const alvo = _precoLinhas().filter(l => l.minimo != null);
+  if (!alvo.length) return toast('Nenhum produto com custo cadastrado.', 'error');
+  if (!confirm(`Definir o preço mínimo (margem mínima ${_precoCfg.piso}%) em ${alvo.length} produto(s)? Ninguém consegue dar desconto que passe desse preço, no caixa ou no tablet.`)) return;
+  for (let i = 0; i < alvo.length; i += 200) {
+    const b = db.batch();
+    alvo.slice(i, i + 200).forEach(l => b.update(col('produtos').doc(String(l.p.id)), { precoMin: pisoDe(l) }));
+    await b.commit();
+  }
+  alvo.forEach(l => { l.p.precoMin = pisoDe(l); });
+  toast(`🛡️ Preço mínimo definido em ${alvo.length} produto(s)`, 'success');
 }
 
 function openPaymentModal() {
