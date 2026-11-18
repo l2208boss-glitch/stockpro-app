@@ -10393,6 +10393,7 @@ function showComprasApp() {
    VENDAS ONLINE (comissão sobre lucro)
 ══════════════════════════════════════════ */
 let unsubVonVendas = null, unsubVonTab = null, unsubVonCot = null, unsubVonCustoCfg = null;
+let vonSoManual = false;  // filtro: só produtos com custo digitado em R$ (não acompanham o dólar)
 let vonCotacaoBRL = 0;   // dólar do dia (R$ por US$), da cotação do caixa da Farmácia
 let vonExtrasPct = 0;    // custos extras sobre o custo em US$ (frete etc.) — padrão 0%
 
@@ -10709,6 +10710,17 @@ async function updateVonCustoUSD(id, valor) {
   toast('Custo em US$ salvo');
 }
 
+/* Converte um custo manual em R$ para US$ pelo dólar de hoje: a partir daí ele
+   acompanha o dólar. O valor em R$ atual é mantido como ponto de partida. */
+async function vonConverterUSD(id) {
+  const p = vonTab.find(x => String(x.id) === String(id));
+  if (!p || !(vonCotacaoBRL > 0) || !(Number(p.custo) > 0)) return;
+  const usd = Math.round(Number(p.custo) / (vonCotacaoBRL * (1 + vonExtrasPct / 100)) * 100) / 100;
+  if (!confirm(`Converter o custo de "${p.name}" para US$ ${usd.toFixed(2)} (R$ ${Number(p.custo).toFixed(2)} ÷ dólar de hoje)? Daqui para frente ele acompanha o dólar do dia.`)) return;
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).update({ custoUSD: usd });
+  toast('Custo convertido para US$ ' + usd.toFixed(2));
+}
+
 async function saveVonExtras(valor) {
   const v = parseFloat(String(valor).replace(',', '.'));
   if (isNaN(v) || v < 0 || v > 100) return toast('Percentual inválido (0 a 100)', 'error');
@@ -10855,6 +10867,8 @@ function vonMargem(p) {
   return (preco - custo) / preco * 100;
 }
 
+function vonToggleManual() { vonSoManual = !vonSoManual; renderVonTabList(); }
+
 function vonToggleOrdem() {
   vonTabOrdem = vonTabOrdem === 'nome' ? 'margem' : 'nome';
   renderVonTabList();
@@ -10869,6 +10883,7 @@ function renderVonTabList() {
 
   // Resumo do pente fino
   const semCusto = vonTab.filter(p => !vonCusto(p));
+  const manuais = vonTab.filter(p => !(Number(p.custoUSD) > 0) && Number(p.custo) > 0);
   const comMargem = vonTab.filter(p => vonMargem(p) !== null);
   const abaixoPiso = comMargem.filter(p => vonMargem(p) < VON_MARGEM_PISO);
   const negativos  = comMargem.filter(p => vonMargem(p) <= 0);
@@ -10884,6 +10899,8 @@ function renderVonTabList() {
       <b>${abaixoPiso.length}</b> abaixo de ${VON_MARGEM_PISO}%</span>` : ''}
     ${semCusto.length ? `<span style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:5px 10px;color:#92400e">
       <b>${semCusto.length}</b> sem custo</span>` : ''}
+    ${manuais.length ? `<button onclick="vonToggleManual()" title="Custo digitado em R$ não acompanha o dólar — confira se está atualizado" style="background:${vonSoManual ? '#92400e' : '#fef3c7'};color:${vonSoManual ? '#fff' : '#92400e'};border:1px solid #fcd34d;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:700">
+      ${vonSoManual ? '✓ ' : ''}⚠️ ${manuais.length} com custo manual em R$ (conferir)</button>` : ''}
     <button onclick="vonToggleOrdem()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600">
       ${vonTabOrdem === 'margem' ? '↕ Ordem: pior margem' : '↕ Ordem: nome'}</button>
   </div>`;
@@ -10898,7 +10915,8 @@ function renderVonTabList() {
       })
     : vonTab;
 
-  el.innerHTML = resumo + lista.map(p => {
+  const listaVis = vonSoManual ? lista.filter(p => !(Number(p.custoUSD) > 0)) : lista;
+  el.innerHTML = resumo + listaVis.map(p => {
     const m = vonMargem(p);
     let mLabel, mCor, mBg;
     if (!vonCusto(p)) { mLabel = 'sem custo'; mCor = '#92400e'; mBg = '#fef3c7'; }
@@ -10922,6 +10940,7 @@ function renderVonTabList() {
           <input type="number" min="0" step="0.01" value="${p.custo || ''}" placeholder="0"
             onchange="updateVonCusto('${p.id}', this.value)"
             style="width:80px;padding:4px 6px;border:1px solid ${p.custo ? 'var(--border)' : '#f59e0b'};border-radius:5px;font-size:13px;font-weight:600;text-align:right">
+          ${Number(p.custo) > 0 && vonCotacaoBRL > 0 ? `<button type="button" title="Converter este custo para US$ (passa a acompanhar o dólar)" onclick="vonConverterUSD('${p.id}')" style="background:none;border:1px solid var(--border);border-radius:99px;padding:1px 7px;font-size:11px;cursor:pointer;color:var(--text-2)">→ US$</button>` : ''}
         </label>`}
         <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px">Venda R$
           <input type="number" min="0" step="0.01" value="${p.preco || ''}" placeholder="0"
