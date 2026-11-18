@@ -47,6 +47,13 @@ aparecer até a versão subir para v132.)
 - Clientes em `lojas/{filial}/clientes/{telefone só dígitos}`; vendas de
   pedido levam `clienteTel`, `pedidoId` e `precoTabelaUSD` nos itens.
 
+## Custo da tabela de Vendas Online
+
+- Produto com `custoUSD` tem o custo em R$ calculado na hora por `vonCusto(p)`:
+  US$ × dólar do dia (cotação BRL do caixa da Farmácia) × (1 + extras %).
+  Extras (frete etc.) ficam em `config/vonCustos.extrasPct`, padrão 0% — a
+  Farmácia vende no balcão, não há frete fixo. Nunca usar cotação fixa no código.
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,
