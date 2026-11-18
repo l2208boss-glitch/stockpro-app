@@ -26,8 +26,16 @@ aparecer até a versão subir para v132.)
 - `index.html` e `estoque.html` são cópias idênticas — altere os dois igual
   (edite um e copie para o outro). O app instalado abre `/stockpro-app/`
   (o `index.html`).
-- `stockpro.html` é uma versão mais antiga do app; mantenha a mesma mudança
-  nele quando o trecho existir lá.
+- `stockpro.html` é uma versão antiga, que o app instalado não usa; não é
+  mantida.
+
+## Regras do saldo (não regredir)
+
+- Nunca gravar `qty` absoluto a partir da memória do aparelho: use
+  `FieldValue.increment(delta)`. Editar produto grava só os campos editados.
+- Contagem aplica a diferença (contado − saldo no momento em que o produto
+  foi contado), não substitui o saldo.
+- Excluir um lançamento do histórico desfaz o efeito dele no estoque.
 
 ## Publicar
 
