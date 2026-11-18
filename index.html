@@ -4731,9 +4731,11 @@ async function cancelarVenda(vendaId) {
 let _notaVenda = null;
 
 function abrirNota(vendaId) {
-  _notaVenda = vendas.find(v => String(v.id) === String(vendaId));
+  _notaVenda = vendas.find(v => String(v.id) === String(vendaId))
+    || (_notaVenda && String(_notaVenda.id) === String(vendaId) ? _notaVenda : null);
   if (!_notaVenda) { toast('Venda não encontrada', 'error'); return; }
-  document.getElementById('notaCliente').value = '';
+  // Venda de pedido do tablet: o nome do cliente já vem na nota (para o pacote)
+  document.getElementById('notaCliente').value = (_notaVenda.cliente && _notaVenda.cliente.nome) || '';
   document.getElementById('notaSemValor').checked = false;
   document.getElementById('notaFiado').checked = false;
   document.getElementById('notaMoeda').checked = true;
