@@ -1610,11 +1610,18 @@
         </div>
         <button id="vonTabSaveBtn" onclick="saveVonProduto()" class="btn-add" style="padding:9px 14px;font-size:13px;margin-bottom:14px">＋</button>
       </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:var(--primary-light);border-radius:var(--radius-sm);font-size:13px">
+        <span>💱 Dólar do dia: <b id="vonDolarDia">—</b> <span style="color:var(--text-3);font-size:11px">(da cotação do caixa)</span></span>
+        <label style="display:flex;align-items:center;gap:6px">Custos extras sobre o custo em US$ (frete etc.)
+          <input id="vonExtrasPct" type="number" min="0" max="100" step="0.5" value="0" onchange="saveVonExtras(this.value)"
+            style="width:62px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:700;text-align:right">%
+        </label>
+      </div>
       <div id="vonTabList" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     </div>
     <div class="modal-ft">
       <button class="btn-cancel" onclick="importVonTabela()" title="Importa a tabela de preços padrão (não duplica)">⬇️ Importar tabela</button>
-      <button class="btn-cancel" onclick="importVonCustos()" title="Aplica os custos em USD convertidos a R$ (cotação 5.30)">💲 Importar custos</button>
+      <button class="btn-cancel" onclick="importVonCustos()" title="Grava os custos em US$ da lista; o custo em R$ acompanha o dólar do dia">💲 Importar custos</button>
       <button class="btn-cancel" onclick="closeOverlay('vonTabModal')">Fechar</button>
     </div>
   </div>
@@ -10385,7 +10392,18 @@ function showComprasApp() {
 /* ══════════════════════════════════════════
    VENDAS ONLINE (comissão sobre lucro)
 ══════════════════════════════════════════ */
-let unsubVonVendas = null, unsubVonTab = null;
+let unsubVonVendas = null, unsubVonTab = null, unsubVonCot = null, unsubVonCustoCfg = null;
+let vonCotacaoBRL = 0;   // dólar do dia (R$ por US$), da cotação do caixa da Farmácia
+let vonExtrasPct = 0;    // custos extras sobre o custo em US$ (frete etc.) — padrão 0%
+
+/* Custo em R$ de um produto da tabela online. Se o produto tem custo em US$,
+   acompanha o dólar do dia (cotação do caixa) — assim a margem se corrige
+   sozinha quando o dólar muda. Sem custo em US$, vale o custo em R$ digitado. */
+function vonCusto(p) {
+  const usd = Number(p.custoUSD) || 0;
+  if (usd > 0 && vonCotacaoBRL > 0) return Math.round(usd * vonCotacaoBRL * (1 + vonExtrasPct / 100) * 100) / 100;
+  return Number(p.custo) || 0;
+}
 let vonVendas = [], vonTab = [], vonVendedores = [], vonMes = '', vonItems = [], vonTabEditId = null;
 
 const fmtR$ = n => 'R$ ' + (Number(n)||0).toFixed(2);
@@ -10404,6 +10422,18 @@ function showVonlineApp() {
   vonMes = new Date().toISOString().slice(0,7);
   document.getElementById('vonMesLabel').textContent = vonMes;
   loadVonVendedores();
+  if (unsubVonCot) unsubVonCot();
+  unsubVonCot = db.doc(`lojas/${FARMACIA_ID}/cotacao/atual`).onSnapshot(d => {
+    vonCotacaoBRL = d.exists ? (Number(d.data().brl) || 0) : 0;
+    renderVonTabList(); renderVonProdSelect();
+  }, _fbErro);
+  if (unsubVonCustoCfg) unsubVonCustoCfg();
+  unsubVonCustoCfg = db.doc(`lojas/${FARMACIA_ID}/config/vonCustos`).onSnapshot(d => {
+    vonExtrasPct = d.exists ? (Number(d.data().extrasPct) || 0) : 0;
+    const inp = document.getElementById('vonExtrasPct');
+    if (inp && document.activeElement !== inp) inp.value = vonExtrasPct;
+    renderVonTabList();
+  }, _fbErro);
   if (unsubVonTab) unsubVonTab();
   unsubVonTab = db.collection(`lojas/${FARMACIA_ID}/tabela_online`).orderBy('name')
     .onSnapshot(s => { vonTab = s.docs.map(d => d.data()); renderVonProdSelect(); renderVonTabList(); }, _fbErro);
@@ -10559,7 +10589,7 @@ function vonAddItem() {
   if (qty < 1) return toast('Quantidade inválida', 'error');
   const preco = parseFloat(document.getElementById('vonPreco').value);
   if (isNaN(preco) || preco <= 0) return toast('Preço inválido', 'error');
-  vonItems.push({ prodId: p.id, name: p.name, qty, preco, custo: Number(p.custo)||0 });
+  vonItems.push({ prodId: p.id, name: p.name, qty, preco, custo: vonCusto(p) });
   document.getElementById('vonProdSel').value = '';
   document.getElementById('vonQty').value = 1;
   document.getElementById('vonPreco').value = '';
@@ -10636,7 +10666,11 @@ async function saveVonProduto() {
   if (isNaN(custo) || custo < 0) return toast('Custo inválido', 'error');
   if (isNaN(preco) || preco <= 0) return toast('Preço inválido', 'error');
   const id = vonTabEditId || ('vt' + Date.now());
-  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).set({ id, name, custo, preco });
+  const existente = vonTab.find(x => String(x.id) === String(id));
+  const doc = { id, name, custo, preco };
+  // custo em US$ continua valendo se o custo em R$ do formulário não foi mexido
+  if (existente && Number(existente.custoUSD) > 0 && Math.abs(custo - vonCusto(existente)) < 0.01) doc.custoUSD = existente.custoUSD;
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).set(doc);
   vonTabEditId = null;
   document.getElementById('vonTabNome').value = '';
   document.getElementById('vonTabCusto').value = '';
@@ -10652,7 +10686,7 @@ function editVonProduto(id) {
   if (!p) return;
   vonTabEditId = p.id;
   document.getElementById('vonTabNome').value = p.name;
-  document.getElementById('vonTabCusto').value = p.custo;
+  document.getElementById('vonTabCusto').value = vonCusto(p) || p.custo;
   document.getElementById('vonTabPreco').value = p.preco;
   const btn = document.getElementById('vonTabSaveBtn');
   btn.textContent = '💾 Salvar';
@@ -10666,6 +10700,20 @@ async function updateVonCusto(id, valor) {
   if (isNaN(custo) || custo < 0) return toast('Custo inválido', 'error');
   await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).update({ custo });
   toast('Custo salvo');
+}
+
+async function updateVonCustoUSD(id, valor) {
+  const custoUSD = parseFloat(String(valor).replace(',', '.'));
+  if (isNaN(custoUSD) || custoUSD < 0) return toast('Custo inválido', 'error');
+  await db.doc(`lojas/${FARMACIA_ID}/tabela_online/${id}`).update({ custoUSD });
+  toast('Custo em US$ salvo');
+}
+
+async function saveVonExtras(valor) {
+  const v = parseFloat(String(valor).replace(',', '.'));
+  if (isNaN(v) || v < 0 || v > 100) return toast('Percentual inválido (0 a 100)', 'error');
+  await db.doc(`lojas/${FARMACIA_ID}/config/vonCustos`).set({ extrasPct: v, updatedBy: user.name, ts: new Date().toISOString() }, { merge: true });
+  toast('✅ Custos extras: ' + v + '%');
 }
 
 async function updateVonPreco(id, valor) {
@@ -10739,7 +10787,7 @@ const VON_TABELA_SEED = [
   ['Novexa/Synedica','Retatrutide 50mg Novexa',670],['Novexa/Synedica','Retatrutide Caneta 40mg',800],
 ];
 
-// Custos em USD (foto 23-06-26) — convertidos a R$ na cotação 5.30 ao importar
+// Custos em USD (foto 23-06-26) — gravados em US$ e convertidos pelo dólar do dia
 const VON_CUSTOS_USD = {
   'Glow Pro Mix 60mg Kit': 125,
   'HGH Frag 25mg Kit': 125,
@@ -10760,21 +10808,20 @@ const VON_CUSTOS_USD = {
   'NAD+ 1000 1 Vial': 75,
   'NAD+ 1000 Pen': 80,
 };
-const VON_CUSTOS_COTACAO = 5.30;
-const VON_CUSTOS_FRETE = 1.25; // +25% de frete sobre o valor da tabela
-
 async function importVonCustos() {
   if (user.role !== 'admin') return;
   const alvos = vonTab.filter(p => VON_CUSTOS_USD[p.name] != null);
   if (!alvos.length) return toast('Nenhum produto da lista de custos encontrado — importe a tabela primeiro', 'error');
-  if (!confirm(`Atualizar o custo de ${alvos.length} produtos (USD x ${VON_CUSTOS_COTACAO} + 25% frete)?`)) return;
+  if (!(vonCotacaoBRL > 0)) return toast('Defina o dólar do dia na cotação do caixa antes.', 'error');
+  if (!confirm(`Gravar o custo em US$ de ${alvos.length} produtos?\n\nO custo em R$ passa a acompanhar o dólar do dia (hoje R$ ${vonCotacaoBRL.toFixed(2)}) + ${vonExtrasPct}% de custos extras.`)) return;
   const batch = db.batch();
   alvos.forEach(p => {
-    const custo = Math.round(VON_CUSTOS_USD[p.name] * VON_CUSTOS_COTACAO * VON_CUSTOS_FRETE * 100) / 100;
-    batch.update(db.doc(`lojas/${FARMACIA_ID}/tabela_online/${p.id}`), { custo });
+    const custoUSD = VON_CUSTOS_USD[p.name];
+    const custo = Math.round(custoUSD * vonCotacaoBRL * (1 + vonExtrasPct / 100) * 100) / 100;
+    batch.update(db.doc(`lojas/${FARMACIA_ID}/tabela_online/${p.id}`), { custoUSD, custo });
   });
   await batch.commit();
-  toast(`✅ Custos atualizados em ${alvos.length} produtos`);
+  toast(`✅ Custos em US$ gravados em ${alvos.length} produtos`);
 }
 
 async function importVonTabela() {
@@ -10802,7 +10849,7 @@ let vonTabOrdem = 'nome';     // 'nome' | 'margem'
 
 function vonMargem(p) {
   const preco = Number(p.preco) || 0;
-  const custo = Number(p.custo) || 0;
+  const custo = vonCusto(p);
   if (!preco) return null;
   if (!custo) return null;   // sem custo cadastrado — não dá para avaliar
   return (preco - custo) / preco * 100;
@@ -10814,12 +10861,14 @@ function vonToggleOrdem() {
 }
 
 function renderVonTabList() {
+  const dolar = document.getElementById('vonDolarDia');
+  if (dolar) dolar.textContent = vonCotacaoBRL > 0 ? 'R$ ' + vonCotacaoBRL.toFixed(2) : 'não definido';
   const el = document.getElementById('vonTabList');
   if (!el) return;
   if (!vonTab.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:20px 0;font-size:13px">Nenhum produto cadastrado ainda</div>'; return; }
 
   // Resumo do pente fino
-  const semCusto = vonTab.filter(p => !Number(p.custo));
+  const semCusto = vonTab.filter(p => !vonCusto(p));
   const comMargem = vonTab.filter(p => vonMargem(p) !== null);
   const abaixoPiso = comMargem.filter(p => vonMargem(p) < VON_MARGEM_PISO);
   const negativos  = comMargem.filter(p => vonMargem(p) <= 0);
@@ -10852,7 +10901,7 @@ function renderVonTabList() {
   el.innerHTML = resumo + lista.map(p => {
     const m = vonMargem(p);
     let mLabel, mCor, mBg;
-    if (!Number(p.custo)) { mLabel = 'sem custo'; mCor = '#92400e'; mBg = '#fef3c7'; }
+    if (!vonCusto(p)) { mLabel = 'sem custo'; mCor = '#92400e'; mBg = '#fef3c7'; }
     else if (m === null)  { mLabel = '—';         mCor = 'var(--text-3)'; mBg = 'transparent'; }
     else if (m <= 0)      { mLabel = m.toFixed(1)+'%'; mCor = '#991b1b'; mBg = '#fee2e2'; }
     else if (m < VON_MARGEM_PISO) { mLabel = m.toFixed(1)+'%'; mCor = '#991b1b'; mBg = '#fee2e2'; }
@@ -10862,11 +10911,18 @@ function renderVonTabList() {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px">
       <span style="font-weight:600;flex:1;min-width:110px">${p.name}</span>
       <span style="display:flex;align-items:center;gap:8px;white-space:nowrap">
+        ${Number(p.custoUSD) > 0 ? `
+        <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px" title="Custo em dólar — acompanha o dólar do dia">Custo US$
+          <input type="number" min="0" step="0.01" value="${p.custoUSD}"
+            onchange="updateVonCustoUSD('${p.id}', this.value)"
+            style="width:72px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;text-align:right">
+          <span style="font-weight:700;color:var(--text-2)">= R$ ${vonCusto(p).toFixed(2)}</span>
+        </label>` : `
         <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px">Custo R$
           <input type="number" min="0" step="0.01" value="${p.custo || ''}" placeholder="0"
             onchange="updateVonCusto('${p.id}', this.value)"
             style="width:80px;padding:4px 6px;border:1px solid ${p.custo ? 'var(--border)' : '#f59e0b'};border-radius:5px;font-size:13px;font-weight:600;text-align:right">
-        </label>
+        </label>`}
         <label style="display:flex;align-items:center;gap:4px;color:var(--text-3);font-size:12px">Venda R$
           <input type="number" min="0" step="0.01" value="${p.preco || ''}" placeholder="0"
             onchange="updateVonPreco('${p.id}', this.value)"
