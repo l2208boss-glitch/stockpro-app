@@ -964,6 +964,7 @@
           <div class="sec-sub" id="histCount">0 registros</div>
         </div>
         <div class="hist-controls">
+          <input class="fsel" id="fProdSearch" type="search" placeholder="🔍 Buscar produto..." autocomplete="off" oninput="filtrarBuscaProduto()" style="min-width:160px">
           <select class="fsel" id="fProd" onchange="renderHistory()">
             <option value="">Todos os produtos</option>
           </select>
@@ -5731,10 +5732,23 @@ function deleteHistoryEntry(id) {
   toast('🗑 Registro excluído', 'success');
 }
 
+function filtrarBuscaProduto() {
+  const q = document.getElementById('fProdSearch').value.trim().toLowerCase();
+  const sel = document.getElementById('fProd');
+  sel.value = '';
+  populateFilter();
+  if (q) {
+    const m = products.filter(p => String(p.name).toLowerCase().includes(q));
+    if (m.length === 1) sel.value = m[0].id;
+  }
+  renderHistory();
+}
+
 function populateFilter() {
   const sel = document.getElementById('fProd'), cur = sel.value;
+  const q = (document.getElementById('fProdSearch')?.value || '').trim().toLowerCase();
   sel.innerHTML = '<option value="">Todos os produtos</option>';
-  products.forEach(p => {
+  products.filter(p => !q || String(p.name).toLowerCase().includes(q) || p.id==cur).forEach(p => {
     const o = document.createElement('option');
     o.value = p.id; o.textContent = `${p.emoji} ${p.name}`;
     if (p.id==cur) o.selected=true;
