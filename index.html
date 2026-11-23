@@ -1932,6 +1932,36 @@
   </div>
 </div>
 
+<div class="overlay" id="loteNovoModal" style="z-index:1100" onclick="overlayClick(event,'loteNovoModal')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd">
+      <span class="modal-title edit">➕ Cadastrar produto</span>
+      <button class="btn-x" onclick="closeOverlay('loteNovoModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--text-2);margin-bottom:10px">O produto entra com estoque <b>0</b>; a entrada/saída deste lote ajusta o saldo. O nome colado vira apelido, então da próxima vez já é reconhecido.</p>
+      <div class="field"><label class="modal-label" for="loteNovoNome">Nome</label>
+        <input class="modal-input" id="loteNovoNome" type="text" autocomplete="off"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label class="modal-label" for="loteNovoCat">Categoria</label>
+          <input class="modal-input" id="loteNovoCat" type="text" list="loteNovoCatList" placeholder="Geral" autocomplete="off">
+          <datalist id="loteNovoCatList"></datalist></div>
+        <div class="field"><label class="modal-label" for="loteNovoUn">Unidade</label>
+          <input class="modal-input" id="loteNovoUn" type="text" value="un" autocomplete="off"></div>
+        <div class="field" id="loteNovoCustoField"><label class="modal-label" for="loteNovoCusto" id="loteNovoCustoLbl">Custo</label>
+          <input class="modal-input" id="loteNovoCusto" type="number" min="0" step="0.01" placeholder="pode deixar em branco"></div>
+        <div class="field"><label class="modal-label" for="loteNovoVenda" id="loteNovoVendaLbl">Venda</label>
+          <input class="modal-input" id="loteNovoVenda" type="number" min="0" step="0.01" placeholder="pode deixar em branco"></div>
+      </div>
+      <div class="field-err" id="loteNovoErr" style="display:none"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" onclick="closeOverlay('loteNovoModal')">Cancelar</button>
+      <button class="btn-confirm save" onclick="salvarCadastroLote()">💾 Cadastrar e usar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="atendentesModal" onclick="overlayClick(event,'atendentesModal')">
   <div class="modal" style="max-width:380px">
     <div class="modal-hd">
@@ -8409,10 +8439,12 @@ function renderLotePreview() {
           onfocus="this.select()" ${item.editando ? 'id="loteTrocaInput"' : ''}
           style="width:100%;max-width:230px;padding:4px 6px;border:1px solid ${item.editando ? 'var(--primary)' : '#ef4444'};border-radius:4px;background:var(--surface);color:var(--text-1);font-size:12px">` +
         (item.editando ? ` <button type="button" onclick="cancelarTrocaLote(${i})"
-            style="margin-left:4px;padding:2px 8px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text-2);font-size:11px;cursor:pointer">cancelar</button>` : '');
+            style="margin-left:4px;padding:2px 8px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text-2);font-size:11px;cursor:pointer">cancelar</button>` : '') +
+        (podeGerenciarProdutos() ? `<div style="margin-top:4px"><button type="button" onclick="abrirCadastroLote(${i})" title="Cadastrar este produto agora e já usar nesta linha"
+            style="padding:3px 10px;border:1px solid var(--primary);border-radius:99px;background:var(--primary-light);color:var(--primary-dark);font-size:11.5px;font-weight:700;cursor:pointer">➕ cadastrar "${_esc(String(item.nome).slice(0, 28))}"</button></div>` : '');
     }
     html += `
-      <tr style="border-bottom:1px solid var(--border);color:${cor};opacity:${item.ativo ? 1 : 0.4}">
+      <tr style="border-bottom:1px solid var(--border);color:${cor};opacity:${item.ativo || !encontrou ? 1 : 0.4}">
         <td style="padding:5px 4px;text-align:center">
           <input type="checkbox" ${item.ativo ? 'checked' : ''} onchange="toggleLoteItem(${i},this.checked)" ${!encontrou ? 'disabled' : ''}>
         </td>
@@ -8538,6 +8570,73 @@ async function spSeedApelidos() {
   console.log(`[StockPro] ${n} apelidos gravados.`, pulados.length ? { pulados } : '');
   toast(`🧠 ${n} apelidos pré-carregados.`, 'success');
   return { gravados: n, pulados };
+}
+
+/* Cadastro rápido de produto direto da linha não encontrada do lote. */
+let _loteCadIdx = null;
+
+function abrirCadastroLote(i) {
+  if (!podeGerenciarProdutos()) return toast('Peça ao administrador para cadastrar este produto.', 'error');
+  const item = loteState.itens[i];
+  if (!item) return;
+  _loteCadIdx = i;
+  const isUSD = !!(currentFilial && currentFilial.caixaEnabled);
+  const isAdmin = user.role === 'admin';
+  document.getElementById('loteNovoNome').value = String(item.nome).trim();
+  document.getElementById('loteNovoCat').value = '';
+  document.getElementById('loteNovoUn').value = 'un';
+  document.getElementById('loteNovoCusto').value = '';
+  document.getElementById('loteNovoVenda').value = '';
+  document.getElementById('loteNovoCustoLbl').textContent = isUSD ? 'Custo (USD $)' : 'Custo (R$)';
+  document.getElementById('loteNovoVendaLbl').textContent = isUSD ? 'Venda (USD $)' : 'Venda (R$)';
+  document.getElementById('loteNovoCustoField').style.display = isAdmin ? '' : 'none';   // operador não vê custo
+  document.getElementById('loteNovoCatList').innerHTML = [...new Set(products.map(x => x.category).filter(Boolean))]
+    .sort().map(c => `<option value="${_esc(c)}">`).join('');
+  document.getElementById('loteNovoErr').style.display = 'none';
+  document.getElementById('loteNovoModal').classList.add('on');
+  setTimeout(() => { const n = document.getElementById('loteNovoNome'); n.focus(); n.select(); }, 120);
+}
+
+function salvarCadastroLote() {
+  const i = _loteCadIdx;
+  const item = loteState && loteState.itens[i];
+  if (!item) return closeOverlay('loteNovoModal');
+  const err = document.getElementById('loteNovoErr');
+  const nome = document.getElementById('loteNovoNome').value.trim().replace(/\s+/g, ' ');
+  if (!nome) { err.textContent = 'Informe o nome do produto.'; err.style.display = 'block'; return; }
+  // já existe? usa o existente em vez de duplicar
+  const n = normTexto(nome);
+  const igual = products.find(x => [x.name, ...(x.aliases || [])].some(a => normTexto(a) === n));
+  if (igual) {
+    closeOverlay('loteNovoModal');
+    mapearLoteItem(i, igual.id);
+    return toast(`"${igual.name}" já estava cadastrado — usei esse.`, 'success');
+  }
+  const isAdmin = user.role === 'admin';
+  const custo = isAdmin ? (parseFloat(document.getElementById('loteNovoCusto').value) || 0) : 0;
+  const venda = parseFloat(document.getElementById('loteNovoVenda').value) || 0;
+  const colado = String(item.nome).trim();
+  const novo = {
+    id: Date.now(),
+    name: nome,
+    category: document.getElementById('loteNovoCat').value.trim() || 'Geral',
+    unit: document.getElementById('loteNovoUn').value.trim() || 'un',
+    emoji: '📦',
+    custo, venda,
+    qty: 0,
+    validade: null,
+    aliases: normTexto(colado) && normTexto(colado) !== n ? [colado] : []
+  };
+  products.push(novo);
+  products.sort((a, b) => a.id - b.id);
+  saveProduct(novo);
+  closeOverlay('loteNovoModal');
+  mapearLoteItem(i, novo.id);
+  // o nome colado já é o nome do produto: não precisa "aprender" nada
+  loteState.itens.forEach(it => { if (String(it.produto && it.produto.id) === String(novo.id) && normTexto(it.nome) === n) it.aprender = false; });
+  renderLotePreview();
+  renderProducts(); populateFilter();
+  toast(`✅ "${nome}" cadastrado e usado nesta linha`, 'success');
 }
 
 function trocarProdutoLote(i) {

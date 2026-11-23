@@ -63,6 +63,13 @@ aparecer até a versão subir para v132.)
   `precoMercado` do produto, nunca sugere baixar. `precoMin` (piso) nunca passa
   do preço de venda. Config em `config/precos` ({alvo, piso, passo}).
 
+## Lote: cadastro rápido
+
+- Linha não encontrada na Entrada/Saída em Lote mostra "➕ cadastrar" (só para
+  quem `podeGerenciarProdutos()`): cria o produto com estoque 0 e já usa na linha.
+  Nome já existente não duplica. Modais empilhados precisam de z-index maior
+  que 1000 (`loteNovoModal` usa 1100) — senão abrem por trás do lote.
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,
