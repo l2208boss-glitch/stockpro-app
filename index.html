@@ -5806,7 +5806,7 @@ function atualizarProgressoContagem() {
       if (ok && isAdmin) {
         const pid = i.getAttribute('data-pid');
         const prod = products.find(x => String(x.id) === String(pid));
-        const base = _contagemBase[pid] ? _contagemBase[pid].q : Number((prod && prod.qty) || 0);
+        const base = (!_contagemSubstitui() && _contagemBase[pid]) ? _contagemBase[pid].q : Number((prod && prod.qty) || 0);
         const d = Math.round((parseFloat(i.value) - base) * 1000) / 1000;
         if (!isNaN(d)) {
           if (Math.abs(d) >= 0.01) {
@@ -6131,6 +6131,13 @@ let _contagemLock = null;
 let _contagemLockUnsub = null;
 
 // Na Farmácia o operador aplica a contagem direto no estoque (sem aprovação do admin)
+/* Admin contando fora da Farmácia: o estoque passa a ser exatamente o que foi contado
+   (diferença calculada contra o saldo de AGORA, não contra um rascunho antigo).
+   Farmácia e contagens de operador continuam usando o saldo do momento da contagem. */
+function _contagemSubstitui() {
+  return !!(currentFilial && currentFilial.id !== FARMACIA_ID && user && user.role === 'admin');
+}
+
 function _contagemAplicaDireto() {
   if (!currentFilial || !user) return false;
   // Farmácia: operador aplica direto (e trava), admin recebe como pendente — como sempre foi.
@@ -6313,17 +6320,25 @@ async function salvarConfronto() {
     if (!prod) return;
     const qtyFisico = parseFloat(v);
     if (isNaN(qtyFisico)) return;
-    const base = _contagemBase[pid];
+    const base = _contagemSubstitui() ? null : _contagemBase[pid];
     const qtySistema = base ? base.q : Math.round((prod.qty??0) * 1000) / 1000;
     const diff = Math.round((qtyFisico - qtySistema) * 1000) / 1000;
     items.push({ productId: pid, productName: prod.name, emoji: prod.emoji||'📦', unit: prod.unit||'',
       qtySistema, qtyFisico, diff, contadoEm: base ? base.t : new Date().toISOString() });
   });
   if (!items.length) { toast('Informe ao menos uma quantidade', 'error'); return; }
+  // Linhas coladas que não casaram com nenhum produto NÃO entram na contagem — avisa antes de enviar.
+  const naoAplicados = (_confrontoPend || []).map(x => ({ nome: x.nome, qty: x.qty }));
+  if (naoAplicados.length) {
+    const lst = naoAplicados.slice(0, 15).map(x => `• ${x.nome} = ${x.qty}`).join('\n');
+    if (!confirm(`⚠️ ${naoAplicados.length} linha(s) colada(s) NÃO foram reconhecidas e NÃO serão contadas:\n\n${lst}${naoAplicados.length > 15 ? `\n… e mais ${naoAplicados.length - 15}` : ''}\n\nOs produtos dessas linhas continuam com o estoque de antes.\nEnviar mesmo assim? (Cancele para ligar cada linha ao produto certo.)`)) return;
+  }
   const obs = document.getElementById('confrontoObs').value.trim();
   const id = Date.now();
   const doc = { id, ts: new Date().toISOString(), user: user.username, status: direto ? 'aplicado' : 'pendente',
-    filialId: currentFilial.id, filialNome: currentFilial.nome||currentFilial.id, obs, items };
+    filialId: currentFilial.id, filialNome: currentFilial.nome||currentFilial.id, obs, items,
+    ...(naoAplicados.length ? { naoAplicados } : {}),
+    ...(_contagemSubstitui() ? { modo: 'substituir' } : {}) };
 
   if (direto) {
     const nDiv = items.filter(i => Math.abs(i.diff) >= 0.01).length;
@@ -6347,15 +6362,28 @@ async function salvarConfronto() {
 
   try {
     document.getElementById('btnSalvarConfronto').disabled = true;
+    let resultado = null;
     if (direto) {
-      await _aplicarContagemNoEstoque(doc);
+      resultado = await _aplicarContagemNoEstoque(doc);
     } else {
       await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id)).set(doc);
     }
+    if (resultado && resultado.estado === 'falhou') {
+      // o servidor recusou: nada foi gravado — mantém a contagem na tela para tentar de novo
+      toast('❌ A contagem NÃO foi gravada: ' + resultado.erro, 'error');
+      if (user.role === 'admin') mostrarResultadoContagem(doc, false, resultado);
+      return;
+    }
     _limparRascunhoConfronto();
     closeOverlay('confrontoModal');
-    toast(direto ? '✅ Estoque atualizado com a sua contagem' : '✅ Contagem enviada para o admin', 'success');
-    if (user.role === 'admin') { loadConfontos(); mostrarResultadoContagem(doc, direto); }
+    if (resultado && resultado.estado === 'parcial') {
+      toast(`⚠️ Contagem gravada, mas ${(resultado.falhas || []).length} produto(s) NÃO foram gravados: ${(resultado.falhas || []).slice(0, 5).map(f => f.nome).join(', ')}${(resultado.falhas || []).length > 5 ? '…' : ''}`, 'error');
+    } else {
+      toast(!direto ? '✅ Contagem enviada para o admin'
+        : (resultado && resultado.estado === 'aguardando') ? '⏳ Contagem salva neste aparelho — ainda não confirmada pelo servidor'
+        : '✅ Estoque atualizado com a sua contagem', 'success');
+    }
+    if (user.role === 'admin') { loadConfontos(); mostrarResultadoContagem(doc, direto, resultado); }
   } catch(e) {
     toast('Erro ao salvar contagem', 'error');
     console.error(e);
@@ -6366,9 +6394,11 @@ async function salvarConfronto() {
 
 /* Resultado da contagem para o admin: o que bateu, o que NÃO bateu (falta/sobra,
    em unidades e em dinheiro pelo custo) e o que ficou sem contar. */
-function mostrarResultadoContagem(doc, aplicado) {
+function mostrarResultadoContagem(doc, aplicado, resultado) {
+  resultado = resultado || { estado: aplicado ? 'gravado' : 'pendente' };
   const itens = doc.items || [];
-  const custoDe = it => { const pr = products.find(x => String(x.id) === String(it.productId)); return Number(pr && pr.custo) || 0; };
+  const prodDe = it => products.find(x => String(x.id) === String(it.productId));
+  const custoDe = it => Number((prodDe(it) || {}).custo) || 0;
   const dif = itens.filter(i => Math.abs(i.diff) >= 0.01)
     .sort((a, b) => Math.abs(b.diff * custoDe(b)) - Math.abs(a.diff * custoDe(a)) || Math.abs(b.diff) - Math.abs(a.diff));
   const bateram = itens.length - dif.length;
@@ -6377,9 +6407,18 @@ function mostrarResultadoContagem(doc, aplicado) {
   const sobra = dif.filter(i => i.diff > 0).reduce((s, i) => s + i.diff * custoDe(i), 0);
   const chip = (t, st) => `<span style="border-radius:99px;padding:4px 12px;font-weight:700;font-size:13px;${st}">${t}</span>`;
   const un = i => (i.unit ? ' ' + _esc(i.unit) : '');
-  document.getElementById('contagemResultadoBody').innerHTML = `
-    <div style="padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:12px;font-size:13px;font-weight:600;background:${aplicado ? 'var(--success-light)' : '#fef3c7'};color:${aplicado ? 'var(--success)' : '#92400e'}">
-      ${aplicado ? '✅ O estoque já foi atualizado com esta contagem.' : '⏳ Contagem enviada, mas o estoque AINDA NÃO mudou: abra o Confronto de Estoque, clique em "Ver detalhes" e em "Aprovar e Ajustar Estoque".'}</div>
+  const box = (cor, bg, t) => `<div style="padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:13px;font-weight:600;background:${bg};color:${cor}">${t}</div>`;
+  const falhasPorId = {}; (resultado.falhas || []).forEach(f => { falhasPorId[String(f.productId)] = f.motivo; });
+  let banner;
+  if (resultado.estado === 'falhou') banner = box('#991b1b', '#fee2e2', `❌ O servidor NÃO gravou esta contagem (${_esc(resultado.erro)}). O estoque NÃO foi alterado. A contagem continua na tela: corrija e envie de novo.`);
+  else if (resultado.estado === 'parcial') banner = box('#92400e', '#fef3c7', `⚠️ ${resultado.falhas.length} produto(s) NÃO foram gravados (veja a coluna "Estoque agora"). Os demais foram atualizados.`);
+  else if (resultado.estado === 'aguardando') banner = box('#92400e', '#fef3c7', '⏳ O servidor ainda não confirmou. A contagem está salva neste aparelho e sobe sozinha quando a conexão voltar — não limpe os dados do navegador.');
+  else if (aplicado) banner = box('var(--success)', 'var(--success-light)', doc.modo === 'substituir' ? '✅ O estoque foi SUBSTITUÍDO pelo que você contou.' : '✅ O estoque já foi atualizado com esta contagem.');
+  else banner = box('#92400e', '#fef3c7', '⏳ Contagem enviada, mas o estoque AINDA NÃO mudou: abra o Confronto de Estoque, clique em "Ver detalhes" e em "Aprovar e Ajustar Estoque".');
+  const mostraAgora = aplicado && resultado.estado !== 'falhou';
+  const naoAp = (doc.naoAplicados || []);
+  document.getElementById('contagemResultadoBody').innerHTML = banner + `
+    ${naoAp.length ? box('#991b1b', '#fee2e2', `⚠️ ${naoAp.length} linha(s) colada(s) NÃO foram reconhecidas e NÃO entraram na contagem: ${naoAp.slice(0, 12).map(x => `<b>${_esc(x.nome)}</b> = ${x.qty}`).join(' · ')}${naoAp.length > 12 ? ' …' : ''}`) : ''}
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
       ${chip(`✓ ${bateram} bateram`, 'background:var(--success-light);color:var(--success)')}
       ${chip(`⚠️ ${dif.length} NÃO bateram`, dif.length ? 'background:#fee2e2;color:#991b1b' : 'background:var(--bg);color:var(--text-2)')}
@@ -6389,55 +6428,70 @@ function mostrarResultadoContagem(doc, aplicado) {
     </div>
     ${dif.length ? `<div style="overflow:auto;max-height:46vh"><table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="text-align:left;color:var(--text-2);border-bottom:2px solid var(--border)">
-        <th style="padding:6px">Produto</th><th style="padding:6px;text-align:right">Sistema</th><th style="padding:6px;text-align:right">Contado</th><th style="padding:6px;text-align:right">Diferença</th><th style="padding:6px;text-align:right">Valor</th></tr></thead>
-      <tbody>${dif.map(i => { const v = i.diff * custoDe(i); const f = i.diff < 0; return `<tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:6px">Produto</th><th style="padding:6px;text-align:right">Sistema</th><th style="padding:6px;text-align:right">Contado</th><th style="padding:6px;text-align:right">Diferença</th><th style="padding:6px;text-align:right">Valor</th>${mostraAgora ? '<th style="padding:6px;text-align:right">Estoque agora</th>' : ''}</tr></thead>
+      <tbody>${dif.map(i => { const v = i.diff * custoDe(i); const f = i.diff < 0; const pr = prodDe(i); const agora = pr ? Number(pr.qty) : null;
+        const difere = mostraAgora && (falhasPorId[String(i.productId)] || (agora != null && Math.abs(agora - i.qtyFisico) >= 0.01));
+        return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:6px;font-weight:600">${i.emoji || '📦'} ${_esc(i.productName)}</td>
         <td style="padding:6px;text-align:right">${i.qtySistema}${un(i)}</td>
         <td style="padding:6px;text-align:right;font-weight:700">${i.qtyFisico}${un(i)}</td>
         <td style="padding:6px;text-align:right;font-weight:800;color:${f ? '#b91c1c' : '#b45309'}">${f ? 'FALTA ' + Math.abs(i.diff) : 'SOBRA ' + i.diff}</td>
-        <td style="padding:6px;text-align:right;color:${f ? '#b91c1c' : '#b45309'}">${custoDe(i) ? (v < 0 ? '−' : '+') + '$' + Math.abs(v).toFixed(2) : 'sem custo'}</td></tr>`; }).join('')}</tbody></table></div>
-      <div style="font-size:11.5px;color:var(--text-3);margin-top:8px">"Sistema" é o saldo que o sistema tinha no momento em que cada produto foi contado. Valor = diferença × custo cadastrado.</div>`
+        <td style="padding:6px;text-align:right;color:${f ? '#b91c1c' : '#b45309'}">${custoDe(i) ? (v < 0 ? '−' : '+') + '$' + Math.abs(v).toFixed(2) : 'sem custo'}</td>
+        ${mostraAgora ? `<td style="padding:6px;text-align:right;font-weight:700;color:${difere ? '#b91c1c' : 'var(--success)'}">${falhasPorId[String(i.productId)] ? '❌ não gravado' : (agora == null ? '—' : agora + un(i) + (difere ? ' ⚠️' : ' ✓'))}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>
+      <div style="font-size:11.5px;color:var(--text-3);margin-top:8px">"Sistema" é o saldo que o sistema tinha ${doc.modo === 'substituir' ? 'na hora do envio' : 'no momento em que cada produto foi contado'}. Valor = diferença × custo cadastrado.${mostraAgora ? ' "Estoque agora" é o saldo atual: se não for igual ao contado, houve movimentação depois ou a gravação falhou.' : ''}</div>`
     : '<div style="padding:14px;text-align:center;color:var(--success);font-weight:700">Tudo que foi contado bateu com o sistema. 🎉</div>'}`;
   document.getElementById('contagemResultadoModal').classList.add('on');
 }
 
-/* Aplica a contagem direto no estoque + trava novas contagens.
-   Escreve tudo em batch e não fica preso esperando o servidor: com a
-   persistência offline ligada o dado já vale localmente e sincroniza depois
-   (era aí que a aprovação antiga travava e o estoque nunca mudava). */
+function _descreverErroFb(e) {
+  const c = e && e.code;
+  if (c === 'permission-denied') return 'o servidor recusou por permissão';
+  if (c === 'not-found') return 'um dos produtos não existe mais no servidor';
+  if (c === 'resource-exhausted') return 'limite diário do Firebase atingido';
+  if (c === 'unavailable' || c === 'deadline-exceeded') return 'sem conexão com o servidor';
+  return (e && e.message) ? String(e.message).slice(0, 140) : 'erro desconhecido';
+}
+
+/* Aplica a contagem direto no estoque (+ trava, só na Farmácia). Devolve o ESTADO real
+   da gravação: 'gravado' (servidor confirmou), 'aguardando' (salvo no aparelho, sem
+   confirmação em 8s), 'parcial' (alguns produtos recusados) ou 'falhou' (nada gravado).
+   Cada lote do Firestore é atômico; com muitos produtos há vários lotes, então o estado
+   é acompanhado POR LOTE — um lote que já gravou nunca é repetido. */
 async function _aplicarContagemNoEstoque(doc) {
   const fid = currentFilial.id;
   const agora = new Date().toISOString();
   const divergentes = doc.items.filter(i => Math.abs(i.diff) >= 0.01);
 
-  let batch = db.batch(), ops = 0;
-  const pendentes = [];
-  const flush = () => { if (ops) { pendentes.push(batch.commit()); batch = db.batch(); ops = 0; } };
+  let batch = db.batch(), ops = 0, itensLote = [];
+  const lotes = [];
+  const flush = () => { if (ops) { lotes.push({ p: batch.commit(), items: itensLote }); batch = db.batch(); ops = 0; itensLote = []; } };
 
-  const novosSaldos = [];
-  for (const item of divergentes) {
+  const saldoNovoDe = item => {
     const prod = products.find(x => String(x.id) === String(item.productId));
-    const saldoNovo = Math.round((((prod && prod.qty) ?? 0) + item.diff) * 1000) / 1000;
-    if (prod) novosSaldos.push([prod, saldoNovo]);
-    // Soma a diferença em vez de substituir: vendas feitas depois da contagem
-    // (neste ou em outro aparelho) continuam descontadas.
+    return Math.round((((prod && prod.qty) ?? 0) + item.diff) * 1000) / 1000;
+  };
+  const entradaHist = (item, saldoNovo) => ({
+    id: Date.now() + Math.random(),
+    productId: item.productId,
+    datetime: agora,
+    productName: item.productName,
+    emoji: item.emoji || '📦',
+    type: 'ajuste',
+    qty: Math.abs(item.diff),
+    delta: item.diff,
+    balance: saldoNovo,
+    obs: `Contagem de estoque enviada por ${doc.user}`,
+    user: doc.user
+  });
+  for (const item of divergentes) {
+    // Soma a diferença (increment): movimentações de outros aparelhos no meio do caminho não se perdem.
     batch.update(db.doc(`lojas/${fid}/produtos/${item.productId}`), { qty: firebase.firestore.FieldValue.increment(item.diff) });
-    batch.set(db.collection(`lojas/${fid}/historico`).doc(), {
-      id: Date.now() + Math.random(),
-      productId: item.productId,
-      datetime: agora,
-      productName: item.productName,
-      emoji: item.emoji || '📦',
-      type: 'ajuste',
-      qty: Math.abs(item.diff),
-      delta: item.diff,
-      balance: saldoNovo,
-      obs: `Contagem de estoque enviada por ${doc.user}`,
-      user: doc.user
-    });
+    batch.set(db.collection(`lojas/${fid}/historico`).doc(), entradaHist(item, saldoNovoDe(item)));
+    itensLote.push(item);
     ops += 2;
     if (ops >= 400) flush();
   }
+  // o ÚLTIMO lote leva o documento da contagem (e a trava, na Farmácia)
   batch.set(db.doc(`lojas/${fid}/confrontos/${doc.id}`), Object.assign({}, doc, { aplicadoEm: agora }));
   ops++;
   if (fid === FARMACIA_ID) {
@@ -6447,18 +6501,69 @@ async function _aplicarContagemNoEstoque(doc) {
     }, { merge: true });
     ops++;
   }
+  const saldosAntes = new Map(divergentes.map(it => [String(it.productId), saldoNovoDe(it)]));
   flush();
 
-  const tudo = Promise.all(pendentes);
-  tudo.catch(e => {
-    console.error(e);
-    toast('⚠️ Sem conexão — contagem salva no aparelho e sobe quando voltar', 'error');
+  const rs = lotes.map(l => {
+    const r = { items: l.items, estado: 'aguardando', erro: null };
+    l.p.then(() => { r.estado = 'gravado'; }, e => { r.estado = 'falhou'; r.erro = e; });
+    return r;
   });
-  // nao bloqueia a tela por mais de 5s esperando o servidor confirmar
-  await Promise.race([tudo.catch(() => {}), new Promise(r => setTimeout(r, 5000))]);
+  // não segura a tela por mais de 8s esperando o servidor
+  await Promise.race([Promise.allSettled(lotes.map(l => l.p)), new Promise(r => setTimeout(r, 8000))]);
 
-  novosSaldos.forEach(([prod, saldo]) => { prod.qty = saldo; });
+  const aplicaLocal = itens => itens.forEach(it => {
+    const prod = products.find(x => String(x.id) === String(it.productId));
+    if (prod && saldosAntes.has(String(it.productId))) prod.qty = saldosAntes.get(String(it.productId));
+  });
+  const falhos = rs.filter(r => r.estado === 'falhou');
+  if (!falhos.length) {
+    aplicaLocal(divergentes); renderProducts();
+    return { estado: rs.every(r => r.estado === 'gravado') ? 'gravado' : 'aguardando', erro: null };
+  }
+  console.error('[StockPro] contagem recusada:', falhos.map(r => r.erro));
+  rs.filter(r => r.estado !== 'falhou').forEach(r => aplicaLocal(r.items));
+  const itensFalhos = falhos.flatMap(r => r.items);
+  const docGravado = rs[rs.length - 1].estado !== 'falhou';
+  const houveSucesso = rs.some(r => r.estado !== 'falhou');
+  // produto inexistente derruba o lote inteiro: tenta produto a produto, SÓ para os lotes que falharam
+  if (falhos.every(r => r.erro && r.erro.code === 'not-found')) {
+    return await _aplicarContagemItemAItem(doc, itensFalhos, entradaHist, { docGravado, houveSucesso });
+  }
+  if (!houveSucesso) return { estado: 'falhou', erro: _descreverErroFb(falhos[0].erro) };
   renderProducts();
+  return { estado: 'parcial', erro: null,
+    falhas: itensFalhos.map(i => ({ productId: i.productId, nome: i.productName, motivo: _descreverErroFb(falhos[0].erro) })) };
+}
+
+/* Plano B quando um lote recusa por produto inexistente: grava produto a produto e diz quais falharam. */
+async function _aplicarContagemItemAItem(doc, itens, entradaHist, ctx) {
+  const fid = currentFilial.id;
+  const agora = new Date().toISOString();
+  const falhas = [], feitos = [];
+  for (const item of itens) {
+    const prod = products.find(x => String(x.id) === String(item.productId));
+    try {
+      await db.doc(`lojas/${fid}/produtos/${item.productId}`).update({ qty: firebase.firestore.FieldValue.increment(item.diff) });
+      const saldoNovo = Math.round((((prod && prod.qty) ?? 0) + item.diff) * 1000) / 1000;
+      db.collection(`lojas/${fid}/historico`).doc().set(entradaHist(item, saldoNovo)).catch(_fbErro);
+      if (prod) prod.qty = saldoNovo;
+      feitos.push(item);
+    } catch (e) {
+      falhas.push({ productId: item.productId, nome: item.productName, motivo: _descreverErroFb(e) });
+    }
+  }
+  try {
+    const refDoc = db.doc(`lojas/${fid}/confrontos/${doc.id}`);
+    if (ctx.docGravado) { if (falhas.length) await refDoc.set({ falhas }, { merge: true }); }
+    else await refDoc.set(Object.assign({}, doc, { aplicadoEm: agora, falhas }));
+    if (!ctx.docGravado && fid === FARMACIA_ID && (feitos.length || ctx.houveSucesso)) {
+      await _contagemLockRef().set({ locked: true, by: doc.user, byName: (user && user.name) || doc.user, ts: agora, contagemId: doc.id }, { merge: true });
+    }
+  } catch (e) { _fbErro(e); }
+  renderProducts();
+  if (!feitos.length && !ctx.houveSucesso) return { estado: 'falhou', erro: _descreverErroFb({ code: 'not-found' }), falhas };
+  return { estado: falhas.length ? 'parcial' : 'gravado', erro: null, falhas };
 }
 
 let _confrontosList = [];
@@ -6782,12 +6887,20 @@ async function processarConfronto(id, status) {
   } else if (status === 'rejeitado') {
     if (!confirm('Rejeitar esta contagem? O estoque NÃO será alterado.')) return;
   }
+  // Produtos que uma contagem MAIS NOVA já acertou não podem receber de novo a diferença desta (aplicaria duas vezes).
+  let jaCobertos = new Set();
+  if (status === 'aprovado') {
+    (_confrontosList || []).filter(c => String(c.id) !== String(conf.id) && (c.status === 'aplicado' || c.status === 'aprovado') && new Date(c.ts) > new Date(conf.ts))
+      .forEach(c => (c.items || []).forEach(i => jaCobertos.add(String(i.productId))));
+    const pulaveis = conf.items.filter(i => Math.abs(i.diff) >= 0.01 && jaCobertos.has(String(i.productId)));
+    if (pulaveis.length && !confirm(`⚠️ ${pulaveis.length} produto(s) desta contagem já foram contados DEPOIS dela:\n\n${pulaveis.slice(0, 10).map(i => '• ' + i.productName).join('\n')}\n\nVou PULAR esses produtos (aprovar de novo desfaria a contagem mais nova). Os demais são aprovados normalmente.\n\nContinuar?`)) return;
+  }
   try {
     await db.collection(`lojas/${currentFilial.id}/confrontos`).doc(String(id))
       .update({ status, processadoEm: new Date().toISOString(), processadoPor: user.username });
     if (status === 'aprovado') {
-      // Aplica ajustes no estoque para itens com diferença
-      const divergentes = conf.items.filter(i => Math.abs(i.diff) >= 0.01);
+      // Aplica ajustes no estoque para itens com diferença (menos os já cobertos por contagem mais nova)
+      const divergentes = conf.items.filter(i => Math.abs(i.diff) >= 0.01 && !jaCobertos.has(String(i.productId)));
       for (const item of divergentes) {
         const adjProd = products.find(p => String(p.id) === String(item.productId));
         const novaQty = Math.round((((adjProd && adjProd.qty) ?? 0) + item.diff) * 1000) / 1000;

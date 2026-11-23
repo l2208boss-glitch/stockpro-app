@@ -83,6 +83,20 @@ aparecer até a versão subir para v132.)
   sobrescrever `datetime` com a data do recebimento.
 - Texto livre (obs) deve sempre passar por `_esc()` ao ser exibido.
 
+## Contagem: garantias (não regredir)
+
+- Admin fora da Farmácia SUBSTITUI: `_contagemSubstitui()` → diferença contra o
+  estoque de AGORA (nunca contra rascunho antigo). Farmácia e operador seguem o
+  saldo do momento da contagem.
+- Linha colada não reconhecida (`_confrontoPend`) nunca some em silêncio: o envio
+  pede confirmação listando e o documento guarda `naoAplicados`.
+- `_aplicarContagemNoEstoque` devolve o estado REAL: gravado / aguardando /
+  parcial / falhou. Nunca atualizar a tela como se tivesse gravado quando o
+  servidor recusou. Lotes do Firestore são atômicos: acompanhar POR LOTE e nunca
+  repetir um lote que já gravou (plano B produto a produto só para lotes que falharam).
+- Aprovar contagem pendente PULA produtos já contados por contagem mais nova
+  (senão a diferença é aplicada duas vezes).
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,
