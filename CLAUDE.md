@@ -70,6 +70,19 @@ aparecer até a versão subir para v132.)
   Nome já existente não duplica. Modais empilhados precisam de z-index maior
   que 1000 (`loteNovoModal` usa 1100) — senão abrem por trás do lote.
 
+## Contagem por filial e recebimento de entradas
+
+- `_contagemAplicaDireto()`: Farmácia → só operador aplica direto (e trava); admin
+  da Farmácia continua PENDENTE (aprovação). Demais filiais → o admin aplica na
+  hora, sem trava; operador dessas filiais continua pendente. Não mudar o
+  comportamento da Farmácia sem pedido explícito.
+- Operador conta às cegas: nunca mostrar saldo do sistema nem diferença para ele
+  (chips, confirmação e janela de resultado são só do admin).
+- Entrada guarda `dataRecebimento` (AAAA-MM-DD local) SEPARADA de `datetime`
+  (momento do registro). A conferência de contagem usa `datetime`; nunca
+  sobrescrever `datetime` com a data do recebimento.
+- Texto livre (obs) deve sempre passar por `_esc()` ao ser exibido.
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,

@@ -997,6 +997,9 @@
             <option value="saida">Saída</option>
             <option value="ajuste">Ajuste</option>
           </select>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);font-weight:700" title="Ver só o que chegou em um dia (data do recebimento)">📥 Recebido em
+            <input class="fsel" id="fRecebido" type="date" onchange="_histLimite=HIST_PAGINA;renderHistory()" style="min-width:130px">
+            <button type="button" class="btn-clr" onclick="document.getElementById('fRecebido').value='';_histLimite=HIST_PAGINA;renderHistory()" title="Limpar data" style="padding:4px 8px">✕</button></label>
           <button class="btn-csv" onclick="exportCSV()">📥 Exportar CSV</button>
           <button class="btn-clr" id="btnClr" onclick="clearHistory()">🗑</button>
         </div>
@@ -1962,6 +1965,17 @@
   </div>
 </div>
 
+<div class="overlay" id="contagemResultadoModal" onclick="overlayClick(event,'contagemResultadoModal')">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-hd">
+      <span class="modal-title edit">📊 Resultado da contagem</span>
+      <button class="btn-x" onclick="closeOverlay('contagemResultadoModal')">✕</button>
+    </div>
+    <div class="modal-body" id="contagemResultadoBody"></div>
+    <div class="modal-ft"><button class="btn-confirm save" onclick="closeOverlay('contagemResultadoModal')">Entendi</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="atendentesModal" onclick="overlayClick(event,'atendentesModal')">
   <div class="modal" style="max-width:380px">
     <div class="modal-hd">
@@ -2135,6 +2149,10 @@
         <input class="modal-input" type="number" id="mQty" min="1" placeholder="Ex: 10">
         <div class="field-err" id="mQtyErr">Informe uma quantidade válida (mínimo 1).</div>
       </div>
+      <div class="field" id="mRecebField" style="display:none">
+        <label class="modal-label" for="mReceb">📅 Data do recebimento</label>
+        <input class="modal-input" type="date" id="mReceb">
+      </div>
       <div class="field" style="margin-bottom:0">
         <label class="modal-label" for="mObs">Observação</label>
         <textarea class="modal-ta" id="mObs" rows="3" placeholder="Ex: Fornecedor ABC, Cliente X, Ajuste de inventário..."></textarea>
@@ -2200,6 +2218,12 @@
     <div id="loteStep2" style="display:none">
       <div class="modal-body" style="max-height:55vh;overflow-y:auto;padding-top:0">
         <div id="lotePreviewWrap"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:10px 24px 4px;border-top:1px solid var(--border)">
+        <label id="loteRecebWrap" style="font-size:12.5px;font-weight:700;color:var(--text-2)">📅 Data do recebimento
+          <input type="date" id="loteReceb" style="display:block;margin-top:4px;padding:7px 10px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text-1)"></label>
+        <label style="flex:1;min-width:200px;font-size:12.5px;font-weight:700;color:var(--text-2)">📝 Observação <span style="font-weight:400;color:var(--text-3)">(nota, fornecedor, entrega…)</span>
+          <input type="text" id="loteObs" maxlength="140" autocomplete="off" placeholder="Ex: Entrega 2 — NF 1234 — Fornecedor ABC" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:7px 10px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text-1)"></label>
       </div>
       <div class="modal-ft" style="justify-content:space-between">
         <button class="btn-cancel" onclick="voltarLoteStep1()">← Voltar</button>
@@ -5769,14 +5793,36 @@ function filtrarConfronto() {
 function atualizarProgressoContagem() {
   const inps = [...document.querySelectorAll('#confrontoListaProdutos input[data-pid]')];
   const el = document.getElementById('confrontoProgresso');
-  if (el) el.textContent = inps.length ? `${inps.filter(i => i.value.trim() !== '').length} de ${inps.length} preenchidos` : '';
+  const isAdmin = !!(user && user.role === 'admin');
+  let naoBatem = 0;
   inps.forEach(i => {
     const row = i.closest('[data-prow]');
     if (!row) return;
     const ok = i.value.trim() !== '';
-    row.style.borderColor = ok ? 'var(--success)' : 'var(--border)';
-    row.style.background  = ok ? 'rgba(16,185,129,.08)' : 'var(--surface)';
+    let diverge = false;
+    const chip = row.querySelector('[data-cdiff]');
+    if (chip) {
+      chip.textContent = '';
+      if (ok && isAdmin) {
+        const pid = i.getAttribute('data-pid');
+        const prod = products.find(x => String(x.id) === String(pid));
+        const base = _contagemBase[pid] ? _contagemBase[pid].q : Number((prod && prod.qty) || 0);
+        const d = Math.round((parseFloat(i.value) - base) * 1000) / 1000;
+        if (!isNaN(d)) {
+          if (Math.abs(d) >= 0.01) {
+            diverge = true; naoBatem++;
+            chip.textContent = d < 0 ? `⚠️ falta ${Math.abs(d)}` : `⚠️ sobra ${d}`;
+            chip.style.color = d < 0 ? '#b91c1c' : '#b45309';
+          } else { chip.textContent = '✓ bate'; chip.style.color = 'var(--success)'; }
+        }
+      }
+    }
+    row.style.borderColor = !ok ? 'var(--border)' : diverge ? '#f59e0b' : 'var(--success)';
+    row.style.background  = !ok ? 'var(--surface)' : diverge ? 'rgba(245,158,11,.12)' : 'rgba(16,185,129,.08)';
   });
+  if (el) el.textContent = inps.length
+    ? `${inps.filter(i => i.value.trim() !== '').length} de ${inps.length} preenchidos` + (naoBatem ? ` · ⚠️ ${naoBatem} não batem` : '')
+    : '';
 }
 
 /* Enter salta para o próximo produto visível — dá para contar sem tirar
@@ -6086,7 +6132,11 @@ let _contagemLockUnsub = null;
 
 // Na Farmácia o operador aplica a contagem direto no estoque (sem aprovação do admin)
 function _contagemAplicaDireto() {
-  return !!(currentFilial && currentFilial.id === FARMACIA_ID && user && user.role !== 'admin');
+  if (!currentFilial || !user) return false;
+  // Farmácia: operador aplica direto (e trava), admin recebe como pendente — como sempre foi.
+  if (currentFilial.id === FARMACIA_ID) return user.role !== 'admin';
+  // Demais filiais: o admin que conta aplica na hora (não faz sentido aprovar a própria contagem).
+  return user.role === 'admin';
 }
 function _contagemTravada() { return !!(_contagemLock && _contagemLock.locked); }
 function _contagemLockRef() { return db.doc(`lojas/${FARMACIA_ID}/config/contagemLock`); }
@@ -6188,7 +6238,9 @@ function openConfronto() {
   const intro = document.getElementById('confrontoIntro');
   if (intro) {
     intro.innerHTML = direto
-      ? 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.<br><span style="color:#b45309">⚠️ Ao enviar, o estoque é corrigido na hora — e você não poderá alterar de novo sem liberação do administrador.</span>'
+      ? (currentFilial.id === FARMACIA_ID
+          ? 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.<br><span style="color:#b45309">⚠️ Ao enviar, o estoque é corrigido na hora — e você não poderá alterar de novo sem liberação do administrador.</span>'
+          : 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.<br><span style="color:#b45309">⚠️ Ao enviar, o estoque dos produtos contados é corrigido na hora. Os que <strong>não batem</strong> aparecem em amarelo, com a diferença ao lado.</span>')
       : 'Informe a quantidade <strong>física contada</strong> de cada produto. Deixe em branco para não conferir.';
   }
 
@@ -6214,6 +6266,7 @@ function openConfronto() {
           style="width:82px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;text-align:center;background:var(--bg)"
           onkeydown="contagemEnter(event,this)"
           oninput="_salvarRascunhoConfronto()">
+        ${user.role === 'admin' ? `<span data-cdiff="${p.id}" style="min-width:92px;font-size:11.5px;font-weight:800"></span>` : ''}
       </div>`).join('');
 
   // Restaurar rascunho salvo
@@ -6274,10 +6327,22 @@ async function salvarConfronto() {
 
   if (direto) {
     const nDiv = items.filter(i => Math.abs(i.diff) >= 0.01).length;
-    const aviso = nDiv
-      ? `O estoque de ${nDiv} produto(s) vai ser corrigido AGORA pela diferença da sua contagem (o que foi vendido depois de contar continua descontado).`
-      : 'Nenhuma diferença encontrada — o estoque continua igual.';
-    if (!confirm(`${aviso}\n\n⚠️ Depois de enviar você NÃO poderá alterar de novo. Só o administrador pode liberar outra contagem.\n\nConfirmar envio?`)) return;
+    const trava = currentFilial.id === FARMACIA_ID;
+    if (user.role === 'admin') {
+      // admin vê exatamente o que não bate antes de confirmar (operador conta às cegas: não mostra o sistema)
+      const lista = items.filter(i => Math.abs(i.diff) >= 0.01).slice(0, 12)
+        .map(i => `• ${i.productName}: sistema ${i.qtySistema} → contado ${i.qtyFisico} (${i.diff < 0 ? 'FALTA ' + Math.abs(i.diff) : 'SOBRA ' + i.diff})`).join('\n');
+      const resumo = `${items.length} produto(s) contado(s): ${items.length - nDiv} batem e ${nDiv} NÃO batem.`;
+      const corpo = nDiv
+        ? `O estoque de ${nDiv} produto(s) vai ser corrigido AGORA para o que você contou (o que foi vendido depois de contar continua descontado):\n\n${lista}${nDiv > 12 ? `\n… e mais ${nDiv - 12}` : ''}`
+        : 'Nenhuma diferença encontrada — o estoque continua igual.';
+      if (!confirm(`${resumo}\n\n${corpo}${trava ? '\n\n⚠️ Depois de enviar você NÃO poderá alterar de novo.' : ''}\n\nConfirmar envio?`)) return;
+    } else {
+      const aviso = nDiv
+        ? `O estoque de ${nDiv} produto(s) vai ser corrigido AGORA pela diferença da sua contagem (o que foi vendido depois de contar continua descontado).`
+        : 'Nenhuma diferença encontrada — o estoque continua igual.';
+      if (!confirm(`${aviso}\n\n⚠️ Depois de enviar você NÃO poderá alterar de novo. Só o administrador pode liberar outra contagem.\n\nConfirmar envio?`)) return;
+    }
   }
 
   try {
@@ -6290,13 +6355,50 @@ async function salvarConfronto() {
     _limparRascunhoConfronto();
     closeOverlay('confrontoModal');
     toast(direto ? '✅ Estoque atualizado com a sua contagem' : '✅ Contagem enviada para o admin', 'success');
-    if (user.role === 'admin') loadConfontos();
+    if (user.role === 'admin') { loadConfontos(); mostrarResultadoContagem(doc, direto); }
   } catch(e) {
     toast('Erro ao salvar contagem', 'error');
     console.error(e);
   } finally {
     document.getElementById('btnSalvarConfronto').disabled = false;
   }
+}
+
+/* Resultado da contagem para o admin: o que bateu, o que NÃO bateu (falta/sobra,
+   em unidades e em dinheiro pelo custo) e o que ficou sem contar. */
+function mostrarResultadoContagem(doc, aplicado) {
+  const itens = doc.items || [];
+  const custoDe = it => { const pr = products.find(x => String(x.id) === String(it.productId)); return Number(pr && pr.custo) || 0; };
+  const dif = itens.filter(i => Math.abs(i.diff) >= 0.01)
+    .sort((a, b) => Math.abs(b.diff * custoDe(b)) - Math.abs(a.diff * custoDe(a)) || Math.abs(b.diff) - Math.abs(a.diff));
+  const bateram = itens.length - dif.length;
+  const naoContados = products.filter(pr => !itens.some(i => String(i.productId) === String(pr.id))).length;
+  const falta = dif.filter(i => i.diff < 0).reduce((s, i) => s + Math.abs(i.diff) * custoDe(i), 0);
+  const sobra = dif.filter(i => i.diff > 0).reduce((s, i) => s + i.diff * custoDe(i), 0);
+  const chip = (t, st) => `<span style="border-radius:99px;padding:4px 12px;font-weight:700;font-size:13px;${st}">${t}</span>`;
+  const un = i => (i.unit ? ' ' + _esc(i.unit) : '');
+  document.getElementById('contagemResultadoBody').innerHTML = `
+    <div style="padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:12px;font-size:13px;font-weight:600;background:${aplicado ? 'var(--success-light)' : '#fef3c7'};color:${aplicado ? 'var(--success)' : '#92400e'}">
+      ${aplicado ? '✅ O estoque já foi atualizado com esta contagem.' : '⏳ Contagem enviada, mas o estoque AINDA NÃO mudou: abra o Confronto de Estoque, clique em "Ver detalhes" e em "Aprovar e Ajustar Estoque".'}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      ${chip(`✓ ${bateram} bateram`, 'background:var(--success-light);color:var(--success)')}
+      ${chip(`⚠️ ${dif.length} NÃO bateram`, dif.length ? 'background:#fee2e2;color:#991b1b' : 'background:var(--bg);color:var(--text-2)')}
+      ${naoContados ? chip(`${naoContados} sem contar`, 'background:var(--bg);color:var(--text-2);border:1px solid var(--border)') : ''}
+      ${falta > 0 ? chip(`Falta: $${falta.toFixed(2)}`, 'background:#fee2e2;color:#991b1b') : ''}
+      ${sobra > 0 ? chip(`Sobra: $${sobra.toFixed(2)}`, 'background:#fef3c7;color:#92400e') : ''}
+    </div>
+    ${dif.length ? `<div style="overflow:auto;max-height:46vh"><table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="text-align:left;color:var(--text-2);border-bottom:2px solid var(--border)">
+        <th style="padding:6px">Produto</th><th style="padding:6px;text-align:right">Sistema</th><th style="padding:6px;text-align:right">Contado</th><th style="padding:6px;text-align:right">Diferença</th><th style="padding:6px;text-align:right">Valor</th></tr></thead>
+      <tbody>${dif.map(i => { const v = i.diff * custoDe(i); const f = i.diff < 0; return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px;font-weight:600">${i.emoji || '📦'} ${_esc(i.productName)}</td>
+        <td style="padding:6px;text-align:right">${i.qtySistema}${un(i)}</td>
+        <td style="padding:6px;text-align:right;font-weight:700">${i.qtyFisico}${un(i)}</td>
+        <td style="padding:6px;text-align:right;font-weight:800;color:${f ? '#b91c1c' : '#b45309'}">${f ? 'FALTA ' + Math.abs(i.diff) : 'SOBRA ' + i.diff}</td>
+        <td style="padding:6px;text-align:right;color:${f ? '#b91c1c' : '#b45309'}">${custoDe(i) ? (v < 0 ? '−' : '+') + '$' + Math.abs(v).toFixed(2) : 'sem custo'}</td></tr>`; }).join('')}</tbody></table></div>
+      <div style="font-size:11.5px;color:var(--text-3);margin-top:8px">"Sistema" é o saldo que o sistema tinha no momento em que cada produto foi contado. Valor = diferença × custo cadastrado.</div>`
+    : '<div style="padding:14px;text-align:center;color:var(--success);font-weight:700">Tudo que foi contado bateu com o sistema. 🎉</div>'}`;
+  document.getElementById('contagemResultadoModal').classList.add('on');
 }
 
 /* Aplica a contagem direto no estoque + trava novas contagens.
@@ -8081,6 +8183,8 @@ function renderHistory() {
   let rows = [...history].reverse();
   if (fp) rows = rows.filter(r => r.productId == fp);
   if (ft) rows = rows.filter(r => r.type === ft);
+  const fr = (document.getElementById('fRecebido') || {}).value;
+  if (fr) rows = rows.filter(r => r.type === 'entrada' && _dataReceb(r) === fr);
   document.getElementById('histCount').textContent = `${rows.length} registro${rows.length!==1?'s':''}`;
   const body = document.getElementById('histBody');
   const empty = document.getElementById('histEmpty');
@@ -8115,7 +8219,7 @@ function renderHistory() {
       <td><span class="badge ${r.type==='entrada'?'badge-in':r.type==='ajuste'?'badge-adj':'badge-out'}">${r.type==='entrada'?'▲ Entrada':r.type==='ajuste'?'⚖️ Ajuste':'▼ Saída'}</span></td>
       <td style="font-weight:700;color:${r.type==='entrada'?'var(--success)':r.type==='ajuste'?(rDelta>=0?'var(--success)':'var(--danger)'):'var(--danger)'}">${r.type==='ajuste'?(rDelta>=0?'+'+rDelta:rDelta):r.type==='entrada'?'+'+r.qty:'-'+r.qty}</td>
       <td style="font-weight:600">${rBalance}</td>
-      <td style="color:var(--text-2);font-size:13px;max-width:180px">${r.obs||'—'}</td>
+      <td style="color:var(--text-2);font-size:13px;max-width:240px">${r.type==='entrada' && r.dataRecebimento ? `<span style="display:inline-block;background:var(--success-light);color:var(--success);border-radius:99px;padding:1px 8px;font-size:11.5px;font-weight:700;margin-right:6px;white-space:nowrap">📥 recebido ${_fmtDataBR(r.dataRecebimento)}</span>` : ''}${_esc(r.obs) || (r.dataRecebimento ? '' : '—')}</td>
       <td style="color:var(--text-3);font-size:12px">${r.user}</td>
       <td><button onclick="deleteHistoryEntry('${r._docId || r.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:.45;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.opacity=1;this.style.background='var(--danger-light)'" onmouseout="this.style.opacity=.45;this.style.background='none'" title="Excluir permanentemente">🗑</button></td>
     </tr>`;
@@ -8208,6 +8312,9 @@ function openMov(productId, type) {
   document.getElementById('mQty').value  = '';
   document.getElementById('mObs').value  = '';
   document.getElementById('mQtyErr').style.display = 'none';
+  const mr = document.getElementById('mReceb');
+  mr.value = _hojeLocal(); mr.max = _hojeLocal();
+  document.getElementById('mRecebField').style.display = isIn ? '' : 'none';
   const btn = document.getElementById('btnConfirm');
   btn.className   = 'btn-confirm ' + (isIn?'in':'out');
   btn.textContent = isIn ? 'Confirmar Entrada' : 'Confirmar Saída';
@@ -8224,9 +8331,11 @@ function confirmMov() {
   const p = products.find(x => String(x.id)===String(movState.productId));
   if (!p) return;
   if (movState.type==='saida' && qty>p.qty) { toast(`Estoque insuficiente! Disponível: ${p.qty} ${p.unit}`,'error'); return; }
+  if (movState.type==='entrada' && (document.getElementById('mReceb').value || '') > _hojeLocal()) { toast('A data do recebimento não pode ser no futuro.', 'error'); return; }
   const delta = movState.type==='entrada' ? qty : -qty;
   p.qty += delta;
   const entry = { id:Date.now() + Math.random(), datetime:new Date().toISOString(), productId:p.id, productName:p.name, emoji:p.emoji, type:movState.type, qty, balance:p.qty, obs, user:user.name };
+  if (movState.type === 'entrada') entry.dataRecebimento = (document.getElementById('mReceb').value || _hojeLocal());
   history.push(entry);
   renderAll();
   closeOverlay('movOverlay');
@@ -8270,6 +8379,11 @@ function openLote(type) {
   if (banner) banner.style.display = restaurado ? 'flex' : 'none';
   document.getElementById('loteStep1').style.display = '';
   document.getElementById('loteStep2').style.display = 'none';
+  const hoje = _hojeLocal();
+  const rec = document.getElementById('loteReceb');
+  rec.value = hoje; rec.max = hoje;
+  document.getElementById('loteRecebWrap').style.display = isIn ? '' : 'none';
+  document.getElementById('loteObs').value = '';
   document.getElementById('loteOverlay').classList.add('on');
   setTimeout(() => document.getElementById('loteTxt').focus(), 120);
 }
@@ -8639,6 +8753,18 @@ function salvarCadastroLote() {
   toast(`✅ "${nome}" cadastrado e usado nesta linha`, 'success');
 }
 
+/* Data local no formato AAAA-MM-DD (não UTC: à noite o UTC já é o dia seguinte). */
+function _hojeLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _dataReceb(r) { return r.dataRecebimento || (r.datetime ? _hojeLocalDe(r.datetime) : ''); }
+function _hojeLocalDe(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _fmtDataBR(ymd) { const [a, m, d] = String(ymd).split('-'); return d && m && a ? `${d}/${m}/${a}` : ymd; }
+
 function trocarProdutoLote(i) {
   loteState.itens[i].editando = true;
   renderLotePreview();
@@ -8711,6 +8837,11 @@ function confirmarLote() {
   const isIn = type === 'entrada';
   const processaveis = itens.filter(x => x.ativo && x.produto);
   if (!processaveis.length) { toast('Nenhum item válido para processar.', 'error'); return; }
+  // Data do recebimento (entrada) e observação livre — separadas do momento do registro
+  const hojeL = _hojeLocal();
+  const recebimento = isIn ? (document.getElementById('loteReceb').value || hojeL) : null;
+  const obsUser = (document.getElementById('loteObs').value || '').trim().replace(/\s+/g, ' ');
+  if (isIn && recebimento > hojeL) { toast('A data do recebimento não pode ser no futuro.', 'error'); return; }
 
   // 1. Re-resolve referências de produto (podem ter ficado obsoletas desde o preview)
   processaveis.forEach(item => {
@@ -8778,10 +8909,12 @@ function confirmarLote() {
       type,
       qty:         c.totalQty,
       balance:     p.qty,
-      obs:         (c.linhas.length > 1
+      obs:         (obsUser ? obsUser + ' · ' : '')
+                   + (c.linhas.length > 1
                      ? `Lote (${c.linhas.length} linhas): ${c.linhas.map(l => l.qty).join(' + ')} = ${c.totalQty}`
                      : `Lote: ${c.linhas[0].linha}`)
                    + (faltou ? ` ⚠️ FALTARAM ${faltou} — repor` : ''),
+      ...(isIn ? { dataRecebimento: recebimento } : {}),
       user:        user.name
     };
     history.push(entry);
@@ -10214,8 +10347,8 @@ async function exportCSV() {
     if (!_histCompleto) return;
   }
   if (!history.length) { toast('Nenhum histórico para exportar.','error'); return; }
-  const head = ['Data/Hora','Produto','Tipo','Quantidade','Saldo','Observação','Usuário'];
-  const rows = history.map(r => [fmtDate(r.datetime),r.productName,r.type==='entrada'?'Entrada':'Saída',r.qty,r.balance,r.obs||'',r.user]);
+  const head = ['Data/Hora','Produto','Tipo','Quantidade','Saldo','Observação','Usuário','Data do recebimento'];
+  const rows = history.map(r => [fmtDate(r.datetime),r.productName,({entrada:'Entrada',saida:'Saída',ajuste:'Ajuste'})[r.type]||r.type,r.qty,r.balance,r.obs||'',r.user,r.type==='entrada'&&r.dataRecebimento?_fmtDataBR(r.dataRecebimento):'']);
   const csv  = [head,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
   const url  = URL.createObjectURL(blob);
