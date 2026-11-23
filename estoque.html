@@ -5869,6 +5869,7 @@ function parsearContagem(texto) {
    permanente (por filial), então da próxima vez já é reconhecido. */
 let _confrontoPend = [];
 let _confrontoSomas = {};
+let _confrontoColadoFeito = '';   // última lista colada que já passou pelo "Preencher"
 /* Saldo do sistema no MOMENTO em que cada produto foi contado:
    { pid: { q: saldo, t: ISO } }. A contagem aplica só a diferença
    (contado − saldo daquele momento), então o que foi vendido entre contar
@@ -5952,6 +5953,7 @@ function preencherContagemColada() {
   const txt = (document.getElementById('confrontoColar')?.value || '').trim();
   const resumoEl = document.getElementById('confrontoColarResumo');
   if (!txt) { toast('Cole ou digite a lista antes.', 'error'); return; }
+  _confrontoColadoFeito = txt;
   const parsed = parsearContagem(txt);
   if (!parsed.length) {
     resumoEl.innerHTML = '<span style="color:var(--danger)">Não achei nenhum item. Escreva uma linha por produto com o número: <b>Dipirona 12</b></span>';
@@ -6253,6 +6255,7 @@ function openConfronto() {
 
   const colar = document.getElementById('confrontoColar');
   if (colar) colar.value = '';
+  _confrontoColadoFeito = '';
   const resumoColar = document.getElementById('confrontoColarResumo');
   if (resumoColar) resumoColar.innerHTML = '';
   _confrontoPend = []; _confrontoSomas = {}; _contagemBase = {};
@@ -6310,6 +6313,14 @@ async function salvarConfronto() {
     openConfronto();
     return;
   }
+  // Lista colada mas "Preencher" não foi clicado: preenche agora e pára para você conferir
+  // (antes o envio reclamava de "0 preenchidos" e a lista colada era ignorada).
+  const coladoAgora = (document.getElementById('confrontoColar')?.value || '').trim();
+  if (coladoAgora && coladoAgora !== _confrontoColadoFeito) {
+    preencherContagemColada();
+    toast('📋 Preenchi a lista que você colou. Confira (e ligue o que não foi reconhecido) e clique em Enviar de novo.', 'info');
+    return;
+  }
   const inputs = document.querySelectorAll('#confrontoListaProdutos input[data-pid]');
   const items = [];
   inputs.forEach(inp => {
@@ -6326,7 +6337,7 @@ async function salvarConfronto() {
     items.push({ productId: pid, productName: prod.name, emoji: prod.emoji||'📦', unit: prod.unit||'',
       qtySistema, qtyFisico, diff, contadoEm: base ? base.t : new Date().toISOString() });
   });
-  if (!items.length) { toast('Informe ao menos uma quantidade', 'error'); return; }
+  if (!items.length) { toast('Nenhuma quantidade preenchida. Digite o contado nos produtos ou cole a lista e clique em ⚡ Preencher.', 'error'); return; }
   // Linhas coladas que não casaram com nenhum produto NÃO entram na contagem — avisa antes de enviar.
   const naoAplicados = (_confrontoPend || []).map(x => ({ nome: x.nome, qty: x.qty }));
   if (naoAplicados.length) {
