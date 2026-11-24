@@ -675,6 +675,8 @@
 
     /* ─── CAIXA APP ─── */
     #caixaApp { display:none; }
+    #rotinaApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 16px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; gap:8px; }
+    @media(max-width:560px) { #rotinaApp .header-user { display:none; } #rotinaApp .brand { font-size:16px; } }
     #pedidoApp header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow-sm); position:sticky; top:0; z-index:100; }
     .pedido-field { width:100%; box-sizing:border-box; padding:10px 12px; border:2px solid var(--border); border-radius:var(--radius-sm); font-size:15px; margin-top:8px; background:var(--surface); color:var(--text-1); }
     .pedido-field:focus { border-color:var(--primary); outline:none; }
@@ -1463,6 +1465,20 @@
 </div>
 
 <!-- ══════════ COMPRAS APP ══════════ -->
+<div id="rotinaApp" style="display:none">
+  <header>
+    <a class="brand" href="#"><div class="brand-icon">🗂️</div>StockPro</a>
+    <div class="header-right">
+      <span class="role-badge op" id="rotFilialBadge"></span>
+      <span class="header-user" id="rotHeaderUser"></span>
+      <button class="btn-back-mode" id="rotBtnModos" onclick="backToModeSelect()" style="display:none">← Modos</button>
+      <button class="btn-change-pass" onclick="openChangePass()" title="Trocar Senha">🔑</button>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+  <main id="rotinaMain" style="max-width:720px;margin:0 auto;padding:16px 14px 70px"></main>
+</div>
+
 <div id="pedidoApp" style="display:none">
   <header>
     <a class="brand" href="#"><div class="brand-icon">🧾</div>StockPro</a>
@@ -2341,6 +2357,13 @@
         </label>
         <div style="font-size:12px;color:var(--text-3);margin-top:6px;padding-left:28px">Ao entrar nesta filial, será possível escolher entre Estoque e Caixa</div>
       </div>
+      <div class="field" style="margin-top:14px;margin-bottom:0">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:600">
+          <input type="checkbox" id="filialRotinaEnabled" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)">
+          🗂️ Rotina diária (armazém / produção)
+        </label>
+        <div style="font-size:12px;color:var(--text-3);margin-top:6px;padding-left:28px">Os operadores desta filial só enxergam a Rotina: receber, retirar (sempre com nome e destino) e fechar o dia. O administrador vê o painel de controle.</div>
+      </div>
     </div>
     <div class="modal-ft">
       <button class="btn-cancel" onclick="closeOverlay('filialModal')">Cancelar</button>
@@ -2817,7 +2840,6 @@ function setupRealtimeListeners() {
     renderStats(); renderProducts(); populateFilter();
     if (currentMode === 'pedido') { renderPedidoProdutos(); renderPedido(); }
     sanitizeProductData();  // corrige unit numérico em background (1x por sessão)
-    fixPricesToVenda();     // move custo→venda em produtos importados (1x por sessão)
   }, _fbErro);
 
   // Histórico: só o admin vê, e só a janela recente fica ao vivo. Antes todo
@@ -3013,6 +3035,7 @@ async function directEnterFilial(filialId) {
 }
 
 function showFilialPage() {
+  esconderRotina();
   document.getElementById('app').style.display = 'none';
   document.getElementById('filialPage').style.display = 'block';
   // Atualiza cabeçalho da página de filiais
@@ -3034,6 +3057,8 @@ function enterFilial(filialId) {
   document.getElementById('filialPage').style.display = 'none';
   photos = {};
   setupRealtimeListeners();
+  // Filial com Rotina: o operador só enxerga a Rotina (não a tela de Estoque livre).
+  if (f.rotinaEnabled && user.role !== 'admin') { showRotinaApp(); return; }
   const needsModeSelect = f.caixaEnabled || user.role === 'admin' || user.checklistEnabled;
   if (needsModeSelect) {
     showModeSelectPage();
@@ -3043,6 +3068,7 @@ function enterFilial(filialId) {
 }
 
 function showModeSelectPage() {
+  esconderRotina();
   document.getElementById('modePage').style.display = 'block';
   document.getElementById('app').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
@@ -3078,6 +3104,15 @@ function showModeSelectPage() {
     <div class="mode-sub">Fornecedores e pagamentos em aberto</div>
   </div>`;
   const hasVonline = currentFilial && currentFilial.id === FARMACIA_ID;
+  if (currentFilial && currentFilial.rotinaEnabled) {
+    const rotCard = `<div class="mode-card" onclick="enterMode('rotina')">
+      <div class="mode-icon">🗂️</div>
+      <div class="mode-title">Rotina do dia</div>
+      <div class="mode-sub">Receber, retirar e fechar o dia</div>
+    </div>`;
+    if (user.role !== 'admin') cards = rotCard;   // operador não acessa o Estoque livre
+    else cards = rotCard + cards;
+  }
   if (hasVonline) cards += `<div class="mode-card" onclick="enterMode('vonline')">
     <div class="mode-icon">🌐</div>
     <div class="mode-title">Vendas Online</div>
@@ -3087,6 +3122,7 @@ function showModeSelectPage() {
 }
 
 function showEstoqueApp() {
+  esconderRotina();
   currentMode = 'estoque';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('caixaApp').style.display = 'none';
@@ -3116,6 +3152,7 @@ function showEstoqueApp() {
 }
 
 function showCaixaApp() {
+  esconderRotina();
   currentMode = 'caixa';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('app').style.display = 'none';
@@ -3149,6 +3186,7 @@ function enterMode(mode) {
   else if (mode === 'producao') showProducaoApp();
   else if (mode === 'compras') showComprasApp();
   else if (mode === 'vonline') showVonlineApp();
+  else if (mode === 'rotina') showRotinaApp();
 }
 
 function backToModeSelect() {
@@ -3173,6 +3211,7 @@ function backToModeSelect() {
 }
 
 function showProducaoApp() {
+  esconderRotina();
   currentMode = 'producao';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('app').style.display = 'none';
@@ -3962,6 +4001,435 @@ function calculateCartMargin() {
   const totCart = cart.reduce((s, x) => s + x.qty * x.precoUSD, 0);
   const effectiveMax = totCart > 0 ? Math.max(0, (1 - totTab * (1 - lim.max / 100) / totCart) * 100) : lim.max;
   return { marginPct: lim.marginPct, effectiveMax, hasAllCosts: lim.hasAllCosts };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ROTINA DO DIA — armazém / produção (filiais com rotinaEnabled)
+   Operador da filial SÓ vê esta tela: toda movimentação exige quem fez,
+   de onde veio / para onde foi, e "sem nota" é uma opção explícita.
+   O fechamento do dia é uma contagem cega dos itens que se mexeram; o
+   que não bate vira contagem pendente para o admin aprovar.
+══════════════════════════════════════════════════════════════ */
+let rotinaDocs = [], unsubRotina = null, rotinaView = 'home', rotLinhas = [], rotFech = null, rotDestinosCache = null;
+
+function esconderRotina() {
+  const el = document.getElementById('rotinaApp');
+  if (el) el.style.display = 'none';
+  if (unsubRotina) { unsubRotina(); unsubRotina = null; }
+}
+
+function _diaLocal(offset) {
+  const d = new Date(); d.setDate(d.getDate() + (offset || 0));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _horaDe(iso) { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+function _hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return h; }
+
+function setupRotinaListener() {
+  if (unsubRotina) { unsubRotina(); unsubRotina = null; }
+  const corte = new Date(Date.now() - 45 * 864e5).toISOString();
+  unsubRotina = col('rotina_dia').where('ts', '>=', corte).onSnapshot(snap => {
+    rotinaDocs = snap.docs.map(d => d.data()).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+    if (currentMode === 'rotina') renderRotina();
+  }, _fbErro);
+}
+
+function showRotinaApp() {
+  currentMode = 'rotina';
+  ['loginPage', 'filialPage', 'modePage', 'app', 'caixaApp', 'producaoApp', 'comprasApp', 'vonlineApp', 'pedidoApp']
+    .forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+  document.getElementById('rotinaApp').style.display = 'block';
+  document.getElementById('rotFilialBadge').textContent = currentFilial.nome;
+  document.getElementById('rotHeaderUser').textContent = '👤 ' + user.name;
+  document.getElementById('rotBtnModos').style.display = user.role === 'admin' ? '' : 'none';
+  rotinaView = user.role === 'admin' ? 'painel' : 'home';
+  rotLinhas = []; rotFech = null;
+  setupRotinaListener();
+  renderRotina();
+}
+
+function renderRotina() {
+  const el = document.getElementById('rotinaMain');
+  if (!el) return;
+  // formulários não são redesenhados quando chegam dados novos (não perder o que está sendo digitado)
+  if (rotinaView === 'home') el.innerHTML = rotHomeHTML();
+  else if (rotinaView === 'painel') el.innerHTML = rotPainelHTML();
+}
+
+function rotVoltar() { rotLinhas = []; rotFech = null; rotinaView = user.role === 'admin' ? 'painel' : 'home'; renderRotina(); window.scrollTo({ top: 0 }); }
+
+/* ── resumo de um registro do dia ── */
+function rotResumoDoc(d) {
+  const itens = (d.itens || []).map(i => `${_esc(i.name)} <b>${i.qty}</b>`).join(' · ');
+  if (d.tipo === 'recebimento') return `<b>📥 Recebi</b> de ${_esc(d.origem)}${d.semNota ? ' <i>(sem nota)</i>' : ' · nota ' + _esc(d.documento)}<div style="color:var(--text-2);margin-top:2px">${itens}</div>`;
+  if (d.tipo === 'retirada') return `<b>📤 Saiu</b> — retirou <b>${_esc(d.retiradoPor)}</b> → ${_esc(d.destino)}<div style="color:var(--text-2);margin-top:2px">${itens}</div>`;
+  if (d.tipo === 'fechamento') return `<b>✅ Dia fechado</b> — ${d.contados} itens contados${(d.divergencias || []).length ? `, <span style="color:#b45309">${d.divergencias.length} não bateram</span>` : ', tudo bateu'}`;
+  return '';
+}
+function rotCardDoc(d) {
+  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;font-size:13.5px;line-height:1.45">
+    <div style="font-size:11.5px;color:var(--text-3);margin-bottom:2px">${_fmtDataBR(d.date)} ${_horaDe(d.ts)} · ${_esc(d.userName)}</div>${rotResumoDoc(d)}${d.obs ? `<div style="font-size:12px;color:var(--text-3);margin-top:3px">📝 ${_esc(d.obs)}</div>` : ''}</div>`;
+}
+
+/* ── início (operador) ── */
+function rotHomeHTML() {
+  const hoje = _hojeLocal(), ontem = _diaLocal(-1);
+  const docsHoje = rotinaDocs.filter(d => d.date === hoje);
+  const nRec = docsHoje.filter(d => d.tipo === 'recebimento').length, nRet = docsHoje.filter(d => d.tipo === 'retirada').length;
+  const fechHoje = docsHoje.find(d => d.tipo === 'fechamento');
+  const inicio = rotinaDocs.length ? rotinaDocs.map(d => d.date).sort()[0] : null;
+  const ontemSem = inicio && inicio <= ontem && !rotinaDocs.some(d => d.tipo === 'fechamento' && d.date === ontem);
+  const btn = (cor, ico, tit, sub, acao) => `<button onclick="${acao}" style="display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:16px 18px;margin-bottom:10px;border:none;border-radius:14px;background:${cor};color:#fff;cursor:pointer;box-shadow:var(--shadow-sm)">
+    <span style="font-size:32px">${ico}</span><span><span style="display:block;font-size:18px;font-weight:800">${tit}</span><span style="display:block;font-size:12.5px;opacity:.9;margin-top:2px">${sub}</span></span></button>`;
+  return `
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">📅 Hoje, <b>${_fmtDataBR(hoje)}</b> — ${nRec} recebimento(s) · ${nRet} retirada(s)</div>
+    ${ontemSem ? `<div style="background:#fef3c7;color:#92400e;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:13px;font-weight:600">⚠️ O dia de ontem (${_fmtDataBR(ontem)}) ficou sem fechamento. O responsável vê isso.</div>` : ''}
+    ${btn('#16a34a', '📥', 'Recebi mercadoria', 'Chegou algo? Anote aqui, na hora', "rotAbrir('recebi')")}
+    ${btn('#dc2626', '📤', 'Saiu mercadoria', 'Alguém retirou ou foi distribuído', "rotAbrir('retirei')")}
+    ${btn(fechHoje ? '#64748b' : '#6366f1', fechHoje ? '✅' : '🔒', fechHoje ? 'Dia já fechado' : 'Fechar o dia', fechHoje ? `Fechado às ${_horaDe(fechHoje.ts)} por ${_esc(fechHoje.userName)}` : 'Contagem rápida no fim do expediente', "rotAbrir('fechar')")}
+    ${user.checklistEnabled ? btn('#0ea5e9', '🏭', 'Registrar produção do dia', 'O que foi produzido e o que foi usado', "enterMode('producao')") : ''}
+    ${user.role === 'admin' ? btn('#334155', '📊', 'Voltar ao painel', 'Visão do administrador', "rotVoltar()") : ''}
+    <div style="font-size:14px;font-weight:800;margin:18px 0 8px">Hoje</div>
+    ${docsHoje.length ? docsHoje.map(rotCardDoc).join('') : '<div style="color:var(--text-3);font-size:13px">Nenhum registro ainda hoje.</div>'}`;
+}
+
+function rotAbrir(qual) {
+  if (qual === 'fechar') return rotAbrirFechar();
+  rotinaView = qual; rotLinhas = [{ texto: '', p: null, qty: '' }];
+  document.getElementById('rotinaMain').innerHTML = rotFormHTML(qual);
+  rotLinhasRender();
+  if (qual === 'retirei') rotCarregarDestinos();
+  window.scrollTo({ top: 0 });
+}
+
+/* ── formulário de recebimento / retirada ── */
+const _rotInp = 'width:100%;box-sizing:border-box;padding:12px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:var(--surface);color:var(--text-1)';
+function rotFormHTML(qual) {
+  const rec = qual === 'recebi';
+  const nomes = [...new Set(rotinaDocs.filter(d => d.tipo === 'retirada').map(d => d.retiradoPor).filter(Boolean))];
+  const lbl = t => `<div style="font-size:13px;font-weight:800;margin:14px 0 5px">${t}</div>`;
+  return `
+    <button onclick="rotVoltar()" style="background:none;border:none;font-size:14px;font-weight:700;color:var(--primary);cursor:pointer;padding:0;margin-bottom:8px">← Voltar</button>
+    <div style="font-size:22px;font-weight:900;margin-bottom:4px">${rec ? '📥 Recebi mercadoria' : '📤 Saiu mercadoria'}</div>
+    <datalist id="rotProdList">${products.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR')).map(p => `<option value="${_esc(p.name)}">`).join('')}</datalist>
+    <datalist id="rotNomesList">${nomes.map(n => `<option value="${_esc(n)}">`).join('')}</datalist>
+    ${lbl('Produtos e quantidades')}
+    <div id="rotLinhas"></div>
+    <button onclick="rotAddLinha()" style="padding:10px 16px;border:2px dashed var(--border);border-radius:10px;background:none;font-size:14px;font-weight:700;color:var(--text-2);cursor:pointer">＋ Outro produto</button>
+    ${rec ? `
+      ${lbl('Quem entregou / de onde veio *')}
+      <input id="rotOrigem" type="text" autocomplete="off" placeholder="Ex: despachante, fornecedor X, produção" style="${_rotInp}">
+      ${lbl('Nota / documento *')}
+      <input id="rotDocumento" type="text" autocomplete="off" placeholder="Número da nota ou do romaneio" style="${_rotInp}">
+      <label style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:14px;font-weight:600;cursor:pointer"><input id="rotSemNota" type="checkbox" onchange="document.getElementById('rotDocumento').disabled=this.checked" style="width:20px;height:20px"> Sem nota (combinado de boca / anotado a punho)</label>
+      ${lbl('Data em que chegou *')}
+      <input id="rotDataReceb" type="date" value="${_hojeLocal()}" max="${_hojeLocal()}" style="${_rotInp}">
+    ` : `
+      ${lbl('Quem retirou *')}
+      <input id="rotRetirou" type="text" list="rotNomesList" autocomplete="off" placeholder="Nome de quem pegou" style="${_rotInp}">
+      ${lbl('Para onde foi *')}
+      <select id="rotDestino" onchange="document.getElementById('rotDestinoOutro').style.display=(this.value==='__outro')?'':'none'" style="${_rotInp}"><option value="">Escolha…</option></select>
+      <input id="rotDestinoOutro" type="text" autocomplete="off" placeholder="Nome do cliente / pessoa / local" style="${_rotInp};display:none;margin-top:8px">
+    `}
+    ${lbl('Observação (opcional)')}
+    <input id="rotObs" type="text" maxlength="140" autocomplete="off" placeholder="Qualquer detalhe que ajude depois" style="${_rotInp}">
+    <div id="rotErro" style="color:var(--danger);font-weight:700;font-size:14px;min-height:20px;margin-top:10px"></div>
+    <button id="rotBtnSalvar" onclick="rotSalvarMov('${qual}')" style="width:100%;padding:16px;margin-top:6px;border:none;border-radius:14px;background:${rec ? '#16a34a' : '#dc2626'};color:#fff;font-size:17px;font-weight:900;cursor:pointer">✅ Registrar ${rec ? 'recebimento' : 'retirada'}</button>`;
+}
+
+async function rotCarregarDestinos() {
+  const sel = document.getElementById('rotDestino');
+  if (!sel) return;
+  try {
+    if (!rotDestinosCache) {
+      const snap = await db.collection('lojas').get();
+      rotDestinosCache = snap.docs.map(d => d.data()).filter(f => f && f.id !== currentFilial.id).map(f => f.nome).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+    }
+  } catch (e) { rotDestinosCache = []; }
+  sel.innerHTML = '<option value="">Escolha…</option>'
+    + rotDestinosCache.map(n => `<option value="${_esc(n)}">🏪 ${_esc(n)}</option>`).join('')
+    + '<option value="__outro">👤 Cliente / pessoa / outro lugar…</option><option value="Uso interno / produção">🏭 Uso interno / produção</option><option value="Perda / avaria">⚠️ Perda / avaria</option>';
+}
+
+/* linhas de produto */
+function rotLinhasRender() {
+  document.getElementById('rotLinhas').innerHTML = rotLinhas.map((l, i) => `
+    <div style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" list="rotProdList" autocomplete="off" placeholder="Produto" value="${_esc(l.texto)}" onchange="rotLinhaProd(${i}, this.value)" style="${_rotInp};flex:1;min-width:0">
+        <input type="number" inputmode="decimal" min="0" step="any" placeholder="Qtd" value="${_esc(l.qty)}" oninput="rotLinhas[${i}].qty=this.value" style="${_rotInp};width:84px;flex:none">
+        ${rotLinhas.length > 1 ? `<button onclick="rotRemLinha(${i})" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--text-3)">✕</button>` : ''}
+      </div>
+      <div id="rotSt${i}" style="font-size:13px;font-weight:700;margin-top:6px"></div>
+    </div>`).join('');
+  rotLinhas.forEach((l, i) => rotLinhaStatus(i));
+}
+function rotAddLinha() { rotLinhas.push({ texto: '', p: null, qty: '' }); rotLinhasRender(); }
+function rotRemLinha(i) { rotLinhas.splice(i, 1); rotLinhasRender(); }
+
+function rotResolver(texto) {
+  const t = normTexto(texto);
+  if (!t) return { p: null };
+  const idx = montarIndiceApelidos();
+  if (idx[t]) return { p: idx[t] };
+  const cand = products.filter(x => normTexto(x.name).includes(t) || (x.aliases || []).some(a => normTexto(a).includes(t)));
+  if (cand.length === 1) return { p: cand[0] };
+  if (cand.length > 1) return { p: null, ambiguo: cand.slice(0, 4).map(c => c.name) };
+  return { p: null };
+}
+function rotLinhaProd(i, texto) {
+  const l = rotLinhas[i]; l.texto = texto;
+  const r = rotResolver(texto);
+  l.p = r.p; l.ambiguo = r.ambiguo || null;
+  rotLinhaStatus(i);
+}
+function rotLinhaStatus(i) {
+  const l = rotLinhas[i], el = document.getElementById('rotSt' + i);
+  if (!el) return;
+  if (!l.texto.trim()) { el.textContent = ''; return; }
+  if (l.p) { el.style.color = 'var(--success)'; el.innerHTML = `✓ ${_esc(l.p.emoji || '📦')} ${_esc(l.p.name)}`; }
+  else if (l.ambiguo) { el.style.color = '#b45309'; el.textContent = `Vários produtos parecidos: ${l.ambiguo.join(', ')} — digite mais letras`; }
+  else { el.style.color = '#b91c1c'; el.innerHTML = `❓ Não achei "${_esc(l.texto)}". <button onclick="rotCadastrarProduto(${i})" style="margin-left:6px;padding:4px 10px;border:1px solid var(--primary);border-radius:99px;background:var(--primary-light);color:var(--primary-dark);font-weight:800;cursor:pointer">➕ cadastrar como novo</button>`; }
+}
+function rotCadastrarProduto(i) {
+  const l = rotLinhas[i], nome = l.texto.trim().replace(/\s+/g, ' ');
+  if (!nome) return;
+  const ja = rotResolver(nome);
+  if (ja.p) { l.p = ja.p; return rotLinhaStatus(i); }
+  if (!confirm(`Cadastrar "${nome}" como produto NOVO?\n\nConfira antes se não é um produto que já existe com outro nome.`)) return;
+  const novo = { id: Date.now(), name: nome, category: 'Geral', unit: 'un', emoji: '📦', custo: 0, venda: 0, qty: 0, validade: null, aliases: [],
+    criadoPor: user.name, criadoEm: new Date().toISOString(), criadoNaRotina: true };
+  products.push(novo); products.sort((a, b) => a.id - b.id);
+  saveProduct(novo);
+  l.p = novo; l.ambiguo = null;
+  document.getElementById('rotProdList').innerHTML += `<option value="${_esc(nome)}">`;
+  rotLinhaStatus(i);
+  toast(`✅ "${nome}" cadastrado (o administrador é avisado)`, 'success');
+}
+
+/* grava com estado honesto (gravado / aguardando / falhou) */
+async function _rotCommit(batch) {
+  const p = batch.commit();
+  let estado = 'aguardando', erro = null;
+  p.then(() => { estado = 'gravado'; }, e => { estado = 'falhou'; erro = e; });
+  await Promise.race([p.catch(() => {}), new Promise(r => setTimeout(r, 8000))]);
+  return { estado, erro };
+}
+
+async function rotSalvarMov(qual) {
+  const rec = qual === 'recebi';
+  const erroEl = document.getElementById('rotErro');
+  const falha = t => { erroEl.textContent = t; erroEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); };
+  erroEl.textContent = '';
+  // 1. linhas: produto resolvido + quantidade > 0
+  const linhas = [];
+  for (const l of rotLinhas) {
+    if (!l.texto.trim() && !l.qty) continue;
+    const r = l.p ? { p: l.p } : rotResolver(l.texto);
+    const qty = parseFloat(l.qty);
+    if (!r.p) return falha(`Produto não reconhecido: "${l.texto || '(vazio)'}". Escolha um da lista ou cadastre.`);
+    if (!(qty > 0)) return falha(`Informe a quantidade de ${r.p.name}.`);
+    const ja = linhas.find(x => x.p.id === r.p.id);
+    if (ja) ja.qty += qty; else linhas.push({ p: r.p, qty });
+  }
+  if (!linhas.length) return falha('Adicione ao menos um produto com a quantidade.');
+  const obsUser = (document.getElementById('rotObs').value || '').trim().replace(/\s+/g, ' ');
+  let dados, obsHist;
+  if (rec) {
+    const origem = (document.getElementById('rotOrigem').value || '').trim().replace(/\s+/g, ' ');
+    const semNota = document.getElementById('rotSemNota').checked;
+    const documento = semNota ? '' : (document.getElementById('rotDocumento').value || '').trim();
+    const dataRecebimento = document.getElementById('rotDataReceb').value || _hojeLocal();
+    if (origem.length < 2) return falha('Diga quem entregou ou de onde veio.');
+    if (!semNota && !documento) return falha('Informe o número da nota, ou marque "Sem nota".');
+    if (dataRecebimento > _hojeLocal()) return falha('A data em que chegou não pode ser no futuro.');
+    dados = { origem, documento: semNota ? 'sem nota' : documento, semNota, dataRecebimento, obs: obsUser };
+    obsHist = `Recebido de ${origem} · ${semNota ? 'sem nota' : 'nota ' + documento}` + (obsUser ? ' · ' + obsUser : '');
+  } else {
+    const retiradoPor = (document.getElementById('rotRetirou').value || '').trim().replace(/\s+/g, ' ');
+    let destino = document.getElementById('rotDestino').value;
+    if (destino === '__outro') destino = (document.getElementById('rotDestinoOutro').value || '').trim();
+    if (retiradoPor.length < 2) return falha('Diga quem retirou (nome).');
+    if (!destino) return falha('Diga para onde foi.');
+    dados = { retiradoPor, destino, obs: obsUser };
+    obsHist = `Retirado por ${retiradoPor} → ${destino}` + (obsUser ? ' · ' + obsUser : '');
+  }
+  const btn = document.getElementById('rotBtnSalvar'); btn.disabled = true; btn.textContent = 'Gravando…';
+  const agora = new Date().toISOString(), hoje = _hojeLocal();
+  const loteId = 'rot_' + Date.now() + Math.random().toString(36).slice(2, 6);
+  const batch = db.batch();
+  const itens = [];
+  linhas.forEach((l, i) => {
+    const antes = Number(l.p.qty) || 0;
+    const delta = rec ? l.qty : -l.qty;
+    const faltou = (!rec && l.qty > antes) ? Math.round((l.qty - Math.max(0, antes)) * 1000) / 1000 : 0;
+    batch.update(col('produtos').doc(String(l.p.id)), { qty: firebase.firestore.FieldValue.increment(delta) });
+    const entry = { id: Date.now() + i + Math.random(), datetime: agora, productId: l.p.id, productName: l.p.name, emoji: l.p.emoji,
+      type: rec ? 'entrada' : 'saida', qty: l.qty, balance: Math.round((antes + delta) * 1000) / 1000,
+      obs: obsHist + (faltou ? ` ⚠️ FALTARAM ${faltou} — conferir` : ''), user: user.name, loteId, rotina: true,
+      ...(rec ? { dataRecebimento: dados.dataRecebimento, origem: dados.origem, documento: dados.documento } : { retiradoPor: dados.retiradoPor, destino: dados.destino }) };
+    batch.set(col('historico').doc(String(entry.id)), entry);
+    itens.push({ productId: l.p.id, name: l.p.name, qty: l.qty, ...(faltou ? { faltou } : {}) });
+  });
+  batch.set(col('rotina_dia').doc(loteId), { id: loteId, tipo: rec ? 'recebimento' : 'retirada', date: hoje, ts: agora, userId: user.id, userName: user.name, ...dados, itens });
+  const r = await _rotCommit(batch);
+  btn.disabled = false; btn.textContent = `✅ Registrar ${rec ? 'recebimento' : 'retirada'}`;
+  if (r.estado === 'falhou') return falha('NÃO foi gravado: ' + _descreverErroFb(r.erro) + '. Tente de novo.');
+  const semEstoque = itens.filter(i => i.faltou);
+  toast(r.estado === 'aguardando' ? '⏳ Salvo neste aparelho — ainda não confirmado pelo servidor'
+    : semEstoque.length ? `✅ Registrado. ⚠️ O sistema tinha menos que isso de: ${semEstoque.map(i => i.name).join(', ')}` : '✅ Registrado!', semEstoque.length ? 'error' : 'success');
+  rotVoltar();
+}
+
+/* ── fechar o dia (contagem cega) ── */
+function rotCandidatosFechamento() {
+  const hoje = _hojeLocal(), ids = new Set();
+  rotinaDocs.filter(d => d.date === hoje && (d.tipo === 'recebimento' || d.tipo === 'retirada')).forEach(d => (d.itens || []).forEach(i => ids.add(String(i.productId))));
+  const ult = rotinaDocs.filter(d => d.tipo === 'fechamento' && d.date < hoje).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+  if (ult) (ult.divergencias || []).forEach(x => ids.add(String(x.productId)));
+  products.filter(p => !ids.has(String(p.id)) && Number(p.qty) > 0)
+    .map(p => ({ p, h: _hashStr(hoje + p.id) })).sort((a, b) => a.h - b.h).slice(0, 5).forEach(x => ids.add(String(x.p.id)));
+  return products.filter(p => ids.has(String(p.id))).sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR')).slice(0, 60);
+}
+
+function rotAbrirFechar() {
+  const hoje = _hojeLocal();
+  const fech = rotinaDocs.find(d => d.tipo === 'fechamento' && d.date === hoje);
+  rotinaView = 'fechar';
+  if (fech && user.role !== 'admin') {
+    document.getElementById('rotinaMain').innerHTML = `<button onclick="rotVoltar()" style="background:none;border:none;font-size:14px;font-weight:700;color:var(--primary);cursor:pointer;padding:0;margin-bottom:8px">← Voltar</button>
+      <div style="padding:18px;text-align:center"><div style="font-size:42px">✅</div><div style="font-size:18px;font-weight:800;margin-top:6px">O dia já foi fechado</div><div style="color:var(--text-2);margin-top:4px">às ${_horaDe(fech.ts)} por ${_esc(fech.userName)}</div></div>`;
+    return;
+  }
+  rotFech = { tentativa: 1, itens: rotCandidatosFechamento().map(p => ({ p, valor: '', travado: false, erro: false })), aviso: '' };
+  rotFecharRender();
+  window.scrollTo({ top: 0 });
+}
+
+function rotFecharRender() {
+  const f = rotFech;
+  document.getElementById('rotinaMain').innerHTML = `
+    <button onclick="rotVoltar()" style="background:none;border:none;font-size:14px;font-weight:700;color:var(--primary);cursor:pointer;padding:0;margin-bottom:8px">← Voltar</button>
+    <div style="font-size:22px;font-weight:900;margin-bottom:4px">🔒 Fechar o dia</div>
+    <div style="font-size:13.5px;color:var(--text-2);margin-bottom:12px">Conte o que está <b>fisicamente</b> aí de cada produto abaixo e digite. Pode ser zero. Não olhe anotações: o que vale é o que você vê.</div>
+    ${f.aviso ? `<div style="background:#fee2e2;color:#991b1b;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:13.5px;font-weight:700">${f.aviso}</div>` : ''}
+    ${f.itens.length ? f.itens.map((it, i) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:10px 12px;border-radius:12px;border:2px solid ${it.erro ? '#ef4444' : it.travado ? 'var(--success)' : 'var(--border)'};background:${it.erro ? '#fef2f2' : it.travado ? '#f0fdf4' : 'var(--surface)'}">
+        <span style="font-size:20px">${_esc(it.p.emoji || '📦')}</span><span style="flex:1;font-weight:700;font-size:14.5px">${_esc(it.p.name)}${it.travado ? ' <span style="color:var(--success)">✓</span>' : ''}</span>
+        <input type="number" inputmode="decimal" min="0" step="any" placeholder="Contado" value="${_esc(it.valor)}" ${it.travado ? 'disabled' : ''} oninput="rotFech.itens[${i}].valor=this.value" style="${_rotInp};width:104px;flex:none;text-align:center;padding:10px">
+      </div>`).join('') : '<div style="color:var(--text-3)">Não há itens para contar hoje.</div>'}
+    <div id="rotErro" style="color:var(--danger);font-weight:700;font-size:14px;min-height:20px;margin-top:6px"></div>
+    <button id="rotBtnSalvar" onclick="rotFecharEnviar()" style="width:100%;padding:16px;margin-top:6px;border:none;border-radius:14px;background:#6366f1;color:#fff;font-size:17px;font-weight:900;cursor:pointer">✅ Enviar contagem do dia</button>`;
+}
+
+async function rotFecharEnviar() {
+  const f = rotFech, erroEl = document.getElementById('rotErro');
+  const abertos = f.itens.filter(i => !i.travado);
+  if (abertos.some(i => String(i.valor).trim() === '' || isNaN(parseFloat(i.valor)) || parseFloat(i.valor) < 0)) { erroEl.textContent = 'Preencha todos os itens (use 0 se não tem nenhum).'; return; }
+  abertos.forEach(i => { i.contado = parseFloat(i.valor); i.sistema = Number(i.p.qty) || 0; i.diff = Math.round((i.contado - i.sistema) * 1000) / 1000; });
+  const erros = abertos.filter(i => Math.abs(i.diff) >= 0.01);
+  if (erros.length && f.tentativa === 1) {
+    // primeira tentativa: avisa QUE não bateu (sem revelar o número do sistema) e deixa recontar só esses
+    f.tentativa = 2;
+    f.itens.forEach(i => { if (!i.travado) { if (Math.abs(i.diff) >= 0.01) { i.erro = true; } else { i.travado = true; i.erro = false; } } });
+    f.aviso = `⚠️ ${erros.length} item(ns) não bateram com o que foi anotado. Conte de novo só os marcados em vermelho e envie outra vez.`;
+    return rotFecharRender();
+  }
+  const btn = document.getElementById('rotBtnSalvar'); btn.disabled = true; btn.textContent = 'Gravando…';
+  const hoje = _hojeLocal(), agora = new Date().toISOString();
+  const todos = f.itens.map(i => ({ p: i.p, contado: i.travado ? Number(i.p.qty) || 0 : i.contado, sistema: Number(i.p.qty) || 0 }));
+  const diverg = todos.filter(x => Math.abs(x.contado - x.sistema) >= 0.01);
+  const batch = db.batch();
+  let confId = null;
+  if (diverg.length) {
+    confId = Date.now();
+    batch.set(col('confrontos').doc(String(confId)), { id: confId, ts: agora, user: user.username, status: 'pendente', filialId: currentFilial.id,
+      filialNome: currentFilial.nome || currentFilial.id, origem: 'fechamento', obs: `Fechamento do dia ${_fmtDataBR(hoje)} (Rotina) — ${user.name}`,
+      items: diverg.map(x => ({ productId: x.p.id, productName: x.p.name, emoji: x.p.emoji || '📦', unit: x.p.unit || '', qtySistema: x.sistema, qtyFisico: x.contado,
+        diff: Math.round((x.contado - x.sistema) * 1000) / 1000, contadoEm: agora })) });
+  }
+  batch.set(col('rotina_dia').doc('fech_' + hoje), { id: 'fech_' + hoje, tipo: 'fechamento', date: hoje, ts: agora, userId: user.id, userName: user.name,
+    contados: todos.length, tentativas: f.tentativa, confrontoId: confId,
+    divergencias: diverg.map(x => ({ productId: x.p.id, name: x.p.name, sistema: x.sistema, contado: x.contado })) });
+  const r = await _rotCommit(batch);
+  if (r.estado === 'falhou') { btn.disabled = false; btn.textContent = '✅ Enviar contagem do dia'; erroEl.textContent = 'NÃO foi gravado: ' + _descreverErroFb(r.erro) + '. Tente de novo.'; return; }
+  const n = todos.length;
+  document.getElementById('rotinaMain').innerHTML = `<div style="padding:22px;text-align:center">
+      <div style="font-size:46px">${diverg.length ? '⚠️' : '✅'}</div>
+      <div style="font-size:20px;font-weight:900;margin-top:6px">Dia fechado</div>
+      <div style="font-size:15px;margin-top:8px;color:var(--text-2)">${n - diverg.length} de ${n} itens bateram.${diverg.length ? `<br><b style="color:#b45309">${diverg.length} não bateram</b> — o responsável vai conferir.` : ''}</div>
+      <button onclick="rotVoltar()" style="margin-top:18px;padding:14px 26px;border:none;border-radius:12px;background:var(--primary);color:#fff;font-size:16px;font-weight:800;cursor:pointer">Voltar ao início</button></div>`;
+  rotFech = null;
+}
+
+/* ── painel do administrador ── */
+function rotPainelHTML() {
+  const hoje = _hojeLocal();
+  const datas = rotinaDocs.map(d => d.date).sort();
+  const inicio = datas[0] || null;
+  const fechPorDia = {}; rotinaDocs.filter(d => d.tipo === 'fechamento').forEach(d => { fechPorDia[d.date] = d; });
+  const dias = []; for (let k = 29; k >= 0; k--) dias.push(_diaLocal(-k));
+  const sem = dias.filter(d => d < hoje && inicio && d >= inicio && !fechPorDia[d]).length;
+  const ultFech = fechPorDia[hoje];
+  const quad = d => {
+    const f = fechPorDia[d];
+    let cor = '#e2e8f0', t = 'sem dados', tx = '#64748b';
+    if (f) { const dv = (f.divergencias || []).length; cor = dv ? '#f59e0b' : '#22c55e'; tx = '#fff'; t = dv ? `${dv} não bateram — fechado por ${f.userName}` : `fechado por ${f.userName}, tudo bateu`; }
+    else if (d === hoje) { cor = '#cbd5e1'; t = 'hoje — ainda não fechado'; }
+    else if (inicio && d >= inicio) { cor = '#ef4444'; tx = '#fff'; t = 'NÃO foi fechado'; }
+    return `<div title="${_fmtDataBR(d)}: ${_esc(t)}" style="width:34px;height:34px;border-radius:8px;background:${cor};color:${tx};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">${d.slice(8)}</div>`;
+  };
+  const movs = rotinaDocs.filter(d => d.tipo === 'recebimento' || d.tipo === 'retirada');
+  const retiradas = movs.filter(d => d.tipo === 'retirada');
+  const porPessoa = {};
+  retiradas.forEach(d => { const k = normTexto(d.retiradoPor); const o = porPessoa[k] || (porPessoa[k] = { nome: d.retiradoPor, vezes: 0, unid: 0, ult: '' }); o.vezes++; o.unid += (d.itens || []).reduce((s, i) => s + i.qty, 0); if (d.ts > o.ult) o.ult = d.ts; });
+  const pessoas = Object.values(porPessoa).sort((a, b) => b.unid - a.unid);
+  const diverg = rotinaDocs.filter(d => d.tipo === 'fechamento' && (d.divergencias || []).length).slice(0, 12);
+  const novos = products.filter(p => p.criadoNaRotina && p.criadoEm && p.criadoEm >= new Date(Date.now() - 30 * 864e5).toISOString());
+  const chip = (t, st) => `<span style="border-radius:99px;padding:5px 12px;font-weight:700;font-size:13px;${st}">${t}</span>`;
+  const sec = t => `<div style="font-size:15px;font-weight:900;margin:22px 0 8px">${t}</div>`;
+  return `
+    <div style="font-size:22px;font-weight:900;margin-bottom:10px">🗂️ Rotina — ${_esc(currentFilial.nome)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      ${ultFech ? chip('✅ Hoje fechado às ' + _horaDe(ultFech.ts), 'background:#dcfce7;color:#166534') : chip('⏳ Hoje ainda não fechado', 'background:#e2e8f0;color:#475569')}
+      ${sem ? chip(`❌ ${sem} dia(s) sem fechamento`, 'background:#fee2e2;color:#991b1b') : ''}
+      ${diverg.length ? chip(`⚠️ ${diverg.length} fechamento(s) com divergência`, 'background:#fef3c7;color:#92400e') : ''}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">
+      <button onclick="rotinaView='home';renderRotina()" style="padding:10px 16px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-weight:800;cursor:pointer">➕ Registrar movimento / fechar o dia</button>
+      <button onclick="enterMode('estoque')" style="padding:10px 16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-weight:700;cursor:pointer">📦 Estoque e aprovar contagens</button>
+      <button onclick="rotExportarCSV()" style="padding:10px 16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-weight:700;cursor:pointer">📥 Exportar para conciliação (CSV)</button>
+    </div>
+    ${sec('Últimos 30 dias — fechamento')}
+    <div style="display:flex;flex-wrap:wrap;gap:5px">${dias.map(quad).join('')}</div>
+    <div style="font-size:11.5px;color:var(--text-3);margin-top:6px">🟩 fechado e bateu · 🟧 fechado com divergência · 🟥 não foi fechado · ⬜ sem dados</div>
+    ${diverg.length ? `${sec('⚠️ O que não bateu nos fechamentos')}${diverg.map(d => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;font-size:13.5px"><b>${_fmtDataBR(d.date)}</b> — fechado por ${_esc(d.userName)}${d.tentativas > 1 ? ' (precisou recontar)' : ''}
+      ${d.divergencias.map(x => { const f = x.contado - x.sistema; return `<div style="margin-top:3px">${_esc(x.name)}: sistema <b>${x.sistema}</b> → contado <b>${x.contado}</b> <span style="font-weight:800;color:${f < 0 ? '#b91c1c' : '#b45309'}">${f < 0 ? 'FALTA ' + Math.abs(f) : 'SOBRA ' + f}</span></div>`; }).join('')}</div>`).join('')}
+      <div style="font-size:12px;color:var(--text-3)">Cada divergência virou uma contagem pendente: aprove em <b>Estoque e aprovar contagens</b> para acertar o saldo.</div>` : ''}
+    ${sec('Quem retirou (últimos 45 dias)')}
+    ${pessoas.length ? pessoas.map(x => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;margin-bottom:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><b>${_esc(x.nome)}</b><span>${x.vezes} retirada(s) · ${x.unid} un · última ${_fmtDataBR(x.ult.slice(0, 10))}</span></div>`).join('') : '<div style="color:var(--text-3);font-size:13px">Nenhuma retirada registrada ainda.</div>'}
+    ${novos.length ? `${sec('Produtos novos criados pela equipe (confira nome, custo e preço)')}${novos.map(p => `<div style="padding:8px 12px;margin-bottom:6px;background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius-sm);font-size:13.5px"><b>${_esc(p.name)}</b> — por ${_esc(p.criadoPor)} em ${_fmtDataBR(p.criadoEm.slice(0, 10))}</div>`).join('')}` : ''}
+    ${sec('Movimentos recentes')}
+    ${movs.length ? movs.slice(0, 40).map(rotCardDoc).join('') : '<div style="color:var(--text-3);font-size:13px">Nenhum movimento registrado ainda.</div>'}`;
+}
+
+/* ── exportação para bater conta com o despachante ── */
+function rotCSVTexto() {
+  const linhas = [['Data', 'Hora', 'Tipo', 'Produto', 'Quantidade', 'Registrado por', 'Origem / Destino', 'Retirado por', 'Nota / documento', 'Data do recebimento', 'Observação']];
+  rotinaDocs.slice().sort((a, b) => String(a.ts).localeCompare(String(b.ts))).forEach(d => {
+    const hora = _horaDe(d.ts);
+    if (d.tipo === 'recebimento') (d.itens || []).forEach(i => linhas.push([_fmtDataBR(d.date), hora, 'Recebimento', i.name, i.qty, d.userName, d.origem, '', d.documento, _fmtDataBR(d.dataRecebimento || d.date), d.obs || '']));
+    else if (d.tipo === 'retirada') (d.itens || []).forEach(i => linhas.push([_fmtDataBR(d.date), hora, 'Retirada', i.name, i.qty, d.userName, d.destino, d.retiradoPor, '', '', d.obs || '']));
+    else if (d.tipo === 'fechamento') (d.divergencias || []).forEach(x => linhas.push([_fmtDataBR(d.date), hora, 'Divergência no fechamento', x.name, x.contado - x.sistema, d.userName, '', '', '', '', `sistema ${x.sistema} → contado ${x.contado}`]));
+  });
+  return '﻿' + linhas.map(l => l.map(v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`).join(';')).join('\n');
+}
+function rotExportarCSV() {
+  if (!rotinaDocs.length) return toast('Nada para exportar ainda.', 'error');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rotCSVTexto()], { type: 'text/csv;charset=utf-8' }));
+  a.download = `rotina_${(currentFilial.nome || 'filial').replace(/\W+/g, '_')}_${_hojeLocal()}.csv`;
+  a.click();
 }
 
 /* ══════════════════════════════════════════
@@ -6951,6 +7419,7 @@ async function processarConfronto(id, status) {
 }
 
 function doLogout() {
+  esconderRotina();
   stopHeartbeat();
   if (unsubPresencaGlobal) { unsubPresencaGlobal(); unsubPresencaGlobal = null; }
   stopPresencaModal();
@@ -7027,7 +7496,7 @@ function renderFiliais() {
   empty.style.display = 'none';
 
   grid.innerHTML = filiais.map(f => {
-    const caixaBadge = f.caixaEnabled ? '<span class="caixa-badge">🛒 Caixa</span>' : '';
+    const caixaBadge = (f.caixaEnabled ? '<span class="caixa-badge">🛒 Caixa</span>' : '') + (f.rotinaEnabled ? '<span class="caixa-badge">🗂️ Rotina</span>' : '');
     const adminActions = isAdmin ? `
       <div class="filial-admin-actions">
         <button class="btn-rename-filial" onclick="openFilialModal('${f.id}')">✏️ Editar</button>
@@ -7050,10 +7519,12 @@ function openFilialModal(filialId) {
     document.getElementById('filialModalTitle').textContent = '✏️ Editar Filial';
     document.getElementById('filialNome').value = f ? f.nome : '';
     document.getElementById('filialCaixaEnabled').checked = f ? !!f.caixaEnabled : false;
+    document.getElementById('filialRotinaEnabled').checked = f ? !!f.rotinaEnabled : false;
   } else {
     document.getElementById('filialModalTitle').textContent = '🏪 Nova Filial';
     document.getElementById('filialNome').value = '';
     document.getElementById('filialCaixaEnabled').checked = false;
+    document.getElementById('filialRotinaEnabled').checked = false;
   }
   document.getElementById('filialModal').classList.add('on');
   setTimeout(() => document.getElementById('filialNome').focus(), 120);
@@ -7062,15 +7533,16 @@ function openFilialModal(filialId) {
 function saveFilial() {
   const nome = document.getElementById('filialNome').value.trim();
   const caixaEnabled = document.getElementById('filialCaixaEnabled').checked;
+  const rotinaEnabled = document.getElementById('filialRotinaEnabled').checked;
   if (!nome) { toast('Informe o nome da filial', 'error'); return; }
 
   if (editFilialId) {
-    db.collection('lojas').doc(editFilialId).update({ nome, caixaEnabled })
+    db.collection('lojas').doc(editFilialId).update({ nome, caixaEnabled, rotinaEnabled })
       .then(() => toast(`✅ Filial "${nome}" atualizada!`, 'success'))
       .catch(_fbErro);
   } else {
     const id = 'filial_' + Date.now();
-    db.collection('lojas').doc(id).set({ id, nome, caixaEnabled, createdAt: new Date().toISOString() })
+    db.collection('lojas').doc(id).set({ id, nome, caixaEnabled, rotinaEnabled, createdAt: new Date().toISOString() })
       .then(() => toast(`✅ Filial "${nome}" criada!`, 'success'))
       .catch(_fbErro);
   }
@@ -7289,37 +7761,9 @@ async function sanitizeProductData() {
    Corrige produtos importados onde preco foi salvo em custo
    mas deveria estar em venda
 ══════════════════════════════════════════ */
-let _priceFixedThisSession = false;
-async function fixPricesToVenda() {
-  if (_priceFixedThisSession || !user || user.role !== 'admin') return;
-  _priceFixedThisSession = true;
-  try {
-    const BATCH_SIZE = 400;
-    let batch = db.batch(), count = 0, total = 0;
-
-    for (const p of products) {
-      const custo = parseFloat(String(p.custo).replace(',', '.')) || 0;
-      const venda = parseFloat(String(p.venda).replace(',', '.')) || 0;
-      if (custo <= 0) continue;
-
-      // Só migra o caso custo>0 && venda=0 (import antigo colocou preco em campo errado)
-      // Se custo>0 && venda>0 → produto legítimo com custo cadastrado, NÃO mexer
-      if (venda === 0) {
-        batch.update(col('produtos').doc(String(p.id)), { venda: custo, custo: 0 });
-        total++;
-      }
-      if (++count >= BATCH_SIZE) { await batch.commit(); batch = db.batch(); count = 0; }
-    }
-
-    if (count > 0) await batch.commit();
-    if (total > 0) {
-      console.log(`[StockPro] fixPricesToVenda: corrigiu ${total} produto(s)`);
-      toast(`✅ Preços corrigidos: ${total} produto(s) atualizados`, 'success');
-    } else {
-      console.log('[StockPro] fixPricesToVenda: nenhum produto a corrigir.');
-    }
-  } catch(e) { console.warn('[StockPro] fixPricesToVenda falhou:', e); }
-}
+/* fixPricesToVenda foi REMOVIDA: a cada sessão do admin ela passava o custo para o preço de venda e zerava o
+   custo de todo produto com venda vazia — apagava o custo de insumos/matéria-prima e de produtos recém-cadastrados.
+   A importação atual já grava custo 0 e preço em `venda`. NÃO recolocar. */
 
 /* ══════════════════════════════════════════
    HELPERS — unit & validade
@@ -10951,6 +11395,7 @@ async function deleteProducao(docId, fonte) {
 ══════════════════════════════════════════ */
 
 function showComprasApp() {
+  esconderRotina();
   currentMode = 'compras';
   document.getElementById('modePage').style.display = 'none';
   document.getElementById('app').style.display = 'none';
@@ -10995,6 +11440,7 @@ let vonVendas = [], vonTab = [], vonVendedores = [], vonMes = '', vonItems = [],
 const fmtR$ = n => 'R$ ' + (Number(n)||0).toFixed(2);
 
 function showVonlineApp() {
+  esconderRotina();
   currentMode = 'vonline';
   ['modePage','app','caixaApp','producaoApp','comprasApp'].forEach(i => document.getElementById(i).style.display = 'none');
   document.getElementById('vonlineApp').style.display = 'block';

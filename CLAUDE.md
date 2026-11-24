@@ -97,6 +97,24 @@ aparecer até a versão subir para v132.)
 - Aprovar contagem pendente PULA produtos já contados por contagem mais nova
   (senão a diferença é aplicada duas vezes).
 
+## Rotina do dia (filiais de armazém/produção — flag `rotinaEnabled` na filial)
+
+- Operador de filial com Rotina cai direto em `rotinaApp` e NÃO acessa o Estoque livre
+  (é por onde se tirava mercadoria sem rastro). Admin vê o card "Rotina do dia" e o painel.
+- Coleção `rotina_dia`: `recebimento` (origem, nota ou "sem nota", dataRecebimento),
+  `retirada` (retiradoPor + destino OBRIGATÓRIOS), `fechamento` (`fech_<AAAA-MM-DD>`).
+- Movimentos gravam também em `historico` (com `rotina:true`, `loteId`). Retirada que passa
+  do saldo é REGISTRADA mesmo assim (marca "FALTARAM n") — bloquear desestimula o registro.
+- Fechar o dia = contagem CEGA (operador nunca vê saldo do sistema). 1ª tentativa só avisa
+  QUE não bateu; 2ª fecha e a divergência vira `confrontos` pendente para o admin aprovar.
+  O operador nunca ajusta estoque.
+- Datas sempre locais (`_hojeLocal`/`_diaLocal`); texto livre sempre por `_esc()`.
+
+## Migrações perigosas: nunca recolocar
+
+- `fixPricesToVenda` (removida) passava custo → venda e zerava o custo de todo produto com
+  venda vazia, a cada sessão do admin. Insumos/matéria-prima têm custo e não têm venda.
+
 ## Publicar
 
 Mesclar na `main` publica sozinho pelo GitHub Pages (~1 minuto). Depois,
